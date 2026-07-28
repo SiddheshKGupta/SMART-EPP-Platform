@@ -83,12 +83,46 @@ function requireValue<T>(value: T | undefined, field: string): T {
   return value;
 }
 
-function appendSource(
-  sources: string[],
-  source: string,
-  used: boolean,
-): void {
-  if (used) sources.push(source);
+interface ResolvedValue<T> {
+  value: T | undefined;
+  source?: string;
+}
+
+function resolveValue<T>(
+  programmeValue: T | undefined,
+  schemeValue: T | undefined,
+  oemValue: T | undefined,
+  programmeSource: string | undefined,
+  schemeSource: string,
+  oemSource: string | undefined,
+): ResolvedValue<T> {
+  if (programmeValue !== undefined) {
+    return { value: programmeValue, source: programmeSource };
+  }
+  if (schemeValue !== undefined) {
+    return { value: schemeValue, source: schemeSource };
+  }
+  if (oemValue !== undefined) {
+    return { value: oemValue, source: oemSource };
+  }
+  return { value: undefined };
+}
+
+function collectPrecedenceSources(
+  resolvedValues: ResolvedValue<unknown>[],
+  programmeSource: string | undefined,
+  schemeSource: string,
+  oemSource: string | undefined,
+): string[] {
+  const usedSources = new Set(
+    resolvedValues.flatMap((resolved) =>
+      resolved.source === undefined ? [] : [resolved.source],
+    ),
+  );
+
+  return [programmeSource, schemeSource, oemSource].flatMap((source) =>
+    source !== undefined && usedSources.has(source) ? [source] : [],
+  );
 }
 
 export function resolveEffectiveRules(
@@ -117,63 +151,99 @@ export function resolveEffectiveRules(
     throw new Error("Programme override requires an approval reference");
   }
 
-  const calculationBasis = requireValue(
-    overrides?.calculationBasis ??
-      scheme.calculationBasis ??
-      oemDefaults?.calculationBasis,
+  const programmeSource = overrides
+    ? `EmployerProgrammeOverride:${mapping.id}:${overrides.approvalReference}`
+    : undefined;
+  const schemeSource = `SchemeVersion:${scheme.id}`;
+  const oemSource = oemDefaults ? `OemDefault:${oemDefaults.oemId}` : undefined;
+
+  const calculationBasis = resolveValue(
+    overrides?.calculationBasis,
+    scheme.calculationBasis,
+    oemDefaults?.calculationBasis,
+    programmeSource,
+    schemeSource,
+    oemSource,
+  );
+  const rateBps = resolveValue(
+    overrides?.rateBps,
+    scheme.rateBps,
+    oemDefaults?.rateBps,
+    programmeSource,
+    schemeSource,
+    oemSource,
+  );
+  const flatAmountPaise = resolveValue(
+    overrides?.flatAmountPaise,
+    scheme.flatAmountPaise,
+    oemDefaults?.flatAmountPaise,
+    programmeSource,
+    schemeSource,
+    oemSource,
+  );
+  const claimTimelineDays = resolveValue(
+    overrides?.claimTimelineDays,
+    scheme.claimTimelineDays,
+    oemDefaults?.claimTimelineDays,
+    programmeSource,
+    schemeSource,
+    oemSource,
+  );
+  const eligibleProductIds = resolveValue(
+    overrides?.eligibleProductIds,
+    scheme.eligibleProductIds,
+    undefined,
+    programmeSource,
+    schemeSource,
+    undefined,
+  );
+  const settlementCounterpartyType = resolveValue(
+    undefined,
+    scheme.settlementCounterpartyType,
+    oemDefaults?.settlementCounterpartyType,
+    undefined,
+    schemeSource,
+    oemSource,
+  );
+  const resolvedCalculationBasis = requireValue(
+    calculationBasis.value,
     "calculation basis",
   );
-  const rateBps = overrides?.rateBps ?? scheme.rateBps ?? oemDefaults?.rateBps;
-  const flatAmountPaise =
-    overrides?.flatAmountPaise ??
-    scheme.flatAmountPaise ??
-    oemDefaults?.flatAmountPaise;
-  const claimTimelineDays = requireValue(
-    overrides?.claimTimelineDays ??
-      scheme.claimTimelineDays ??
-      oemDefaults?.claimTimelineDays,
-    "claim timeline days",
-  );
-  const settlementCounterpartyType = requireValue(
-    scheme.settlementCounterpartyType ?? oemDefaults?.settlementCounterpartyType,
-    "settlement counterparty type",
-  );
-
-  const precedenceSources: string[] = [];
-  appendSource(
-    precedenceSources,
-    `EmployerProgrammeOverride:${mapping.id}:${overrides?.approvalReference}`,
-    overrides !== undefined,
-  );
-  appendSource(
-    precedenceSources,
-    `SchemeVersion:${scheme.id}`,
-    overrides?.calculationBasis === undefined ||
-      overrides?.rateBps === undefined ||
-      overrides?.flatAmountPaise === undefined ||
-      overrides?.claimTimelineDays === undefined ||
-      overrides?.eligibleProductIds === undefined,
-  );
-  appendSource(
-    precedenceSources,
-    `OemDefault:${oemDefaults?.oemId}`,
-    oemDefaults !== undefined &&
-      (scheme.calculationBasis === undefined ||
-        scheme.rateBps === undefined ||
-        scheme.flatAmountPaise === undefined ||
-        scheme.claimTimelineDays === undefined ||
-        scheme.settlementCounterpartyType === undefined),
-  );
+  const resolvedRateBps =
+    resolvedCalculationBasis === "FLAT_AMOUNT"
+      ? undefined
+      : requireValue(rateBps.value, "rate basis points");
+  const resolvedFlatAmountPaise =
+    resolvedCalculationBasis === "FLAT_AMOUNT"
+      ? requireValue(flatAmountPaise.value, "flat amount")
+      : undefined;
 
   return {
     employerProgrammeMappingVersionId: mapping.id,
     schemeVersionId: scheme.id,
-    calculationBasis,
-    rateBps,
-    flatAmountPaise,
-    claimTimelineDays,
-    eligibleProductIds: overrides?.eligibleProductIds ?? scheme.eligibleProductIds,
-    settlementCounterpartyType,
-    precedenceSources,
+    calculationBasis: resolvedCalculationBasis,
+    rateBps: resolvedRateBps,
+    flatAmountPaise: resolvedFlatAmountPaise,
+    claimTimelineDays: requireValue(
+      claimTimelineDays.value,
+      "claim timeline days",
+    ),
+    eligibleProductIds: [...requireValue(eligibleProductIds.value, "eligible product ids")],
+    settlementCounterpartyType: requireValue(
+      settlementCounterpartyType.value,
+      "settlement counterparty type",
+    ),
+    precedenceSources: collectPrecedenceSources(
+      [
+        calculationBasis,
+        resolvedCalculationBasis === "FLAT_AMOUNT" ? flatAmountPaise : rateBps,
+        claimTimelineDays,
+        eligibleProductIds,
+        settlementCounterpartyType,
+      ],
+      programmeSource,
+      schemeSource,
+      oemSource,
+    ),
   };
 }

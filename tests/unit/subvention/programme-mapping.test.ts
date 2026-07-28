@@ -178,6 +178,74 @@ describe("effective programme rules", () => {
     expect(snapshot.precedenceSources).toContain("OemDefault:oem-apple");
   });
 
+  it("copies programme override product eligibility into the snapshot", () => {
+    const mapping = mappingFixture({
+      overrides: {
+        eligibleProductIds: ["iphone-16"],
+        approvalReference: "BH-APR-2026-014",
+      },
+    });
+    const snapshot = resolveEffectiveRules(mapping, schemeFixture());
+
+    mapping.overrides?.eligibleProductIds?.push("iphone-17");
+    snapshot.eligibleProductIds.push("iphone-18");
+
+    expect(snapshot.eligibleProductIds).toEqual(["iphone-16", "iphone-18"]);
+    expect(mapping.overrides?.eligibleProductIds).toEqual([
+      "iphone-16",
+      "iphone-17",
+    ]);
+  });
+
+  it("copies scheme product eligibility into the snapshot", () => {
+    const scheme = schemeFixture({ eligibleProductIds: ["iphone-16"] });
+    const snapshot = resolveEffectiveRules(mappingFixture(), scheme);
+
+    scheme.eligibleProductIds.push("iphone-17");
+    snapshot.eligibleProductIds.push("iphone-18");
+
+    expect(snapshot.eligibleProductIds).toEqual(["iphone-16", "iphone-18"]);
+    expect(scheme.eligibleProductIds).toEqual(["iphone-16", "iphone-17"]);
+  });
+
+  it("rejects a percentage basis with no effective rate", () => {
+    expect(() =>
+      resolveEffectiveRules(
+        mappingFixture(),
+        schemeFixture({ rateBps: undefined }),
+      ),
+    ).toThrow("No effective rate basis points is configured");
+  });
+
+  it("rejects a flat basis with no effective flat amount", () => {
+    expect(() =>
+      resolveEffectiveRules(
+        mappingFixture(),
+        schemeFixture({
+          calculationBasis: "FLAT_AMOUNT",
+          rateBps: undefined,
+          flatAmountPaise: undefined,
+        }),
+      ),
+    ).toThrow("No effective flat amount is configured");
+  });
+
+  it("records only the sources that supply resolved values", () => {
+    const snapshot = resolveEffectiveRules(
+      mappingFixture({
+        overrides: { rateBps: 300, approvalReference: "BH-APR-2026-014" },
+      }),
+      schemeFixture({ rateBps: undefined }),
+      { oemId: "oem-apple", rateBps: 275 },
+    );
+
+    expect(snapshot.rateBps).toBe(300);
+    expect(snapshot.precedenceSources).toContain(
+      "EmployerProgrammeOverride:map-v1:BH-APR-2026-014",
+    );
+    expect(snapshot.precedenceSources).not.toContain("OemDefault:oem-apple");
+  });
+
   it("requires an approval reference for programme overrides", () => {
     expect(() =>
       resolveEffectiveRules(
