@@ -1,6 +1,20 @@
 import { z } from "zod";
 
-const isoDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+function isValidIsoDate(value: string) {
+  if (!ISO_DATE_PATTERN.test(value)) return false;
+
+  const parsed = Date.parse(`${value}T00:00:00.000Z`);
+  return (
+    !Number.isNaN(parsed) &&
+    new Date(parsed).toISOString().slice(0, 10) === value
+  );
+}
+
+const isoDateSchema = z.string().refine(isValidIsoDate, {
+  message: "Invalid ISO date",
+});
 const positiveIntegerSchema = z.number().int().positive();
 const nonNegativeIntegerSchema = z.number().int().nonnegative();
 const calculationBasisSchema = z.enum([
@@ -17,6 +31,17 @@ function refineCalculationRule(
   },
   context: z.RefinementCtx,
 ) {
+  if (value.calculationBasis === undefined) {
+    if (value.rateBps !== undefined || value.flatAmountPaise !== undefined) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["calculationBasis"],
+        message: "Calculation basis required for a commercial override",
+      });
+    }
+    return;
+  }
+
   if (value.calculationBasis === "FLAT_AMOUNT") {
     if (!value.flatAmountPaise || value.flatAmountPaise <= 0) {
       context.addIssue({
