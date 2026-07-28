@@ -1,0 +1,1 @@
+export default function Page(){return <><h1 className="page-title">Foreclosure & Lease Closure</h1><p className="page-subtitle">Case intake, computation, approval, billing, settlement and closure.</p></>}

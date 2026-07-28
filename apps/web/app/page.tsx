@@ -1,0 +1,1 @@
+import {kpis} from "@/lib/seed"; export default function Page(){return <><h1 className="page-title">Command Centre</h1><p className="page-subtitle">Management attention, financial exposure and operating health.</p><div className="grid">{kpis.map(k=><div className="card" key={k.label}><div className="label">{k.label}</div><div className="metric">{k.value}</div></div>)}</div></>}

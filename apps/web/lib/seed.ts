@@ -1,0 +1,1 @@
+export const kpis=[{label:"Active Employers",value:"10"},{label:"Subvention Receivable",value:"₹7.8M"},{label:"Claims at Risk",value:"14"},{label:"Open High Exceptions",value:"9"}]; export const pipeline=[["Eligible","₹14.4M"],["Submitted","₹12.1M"],["Approved","₹10.8M"],["Invoiced","₹9.9M"],["Collected","₹8.2M"],["Accounted","₹7.9M"]];

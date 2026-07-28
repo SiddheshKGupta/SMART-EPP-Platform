@@ -1,0 +1,1 @@
+import {test,expect} from "@playwright/test"; test("command centre",async({page})=>{await page.goto("/");await expect(page.getByText("Command Centre")).toBeVisible()}); test("subvention",async({page})=>{await page.goto("/subvention");await expect(page.getByText("Subvention Management")).toBeVisible()});
