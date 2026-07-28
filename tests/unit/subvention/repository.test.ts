@@ -243,6 +243,84 @@ describe("subvention repository", () => {
     ).toEqual(["SCHEME_SUBMITTED", "SCHEME_APPROVED"]);
   });
 
+  it("returns and rejects submitted masters with an audit trail", async () => {
+    const submittedScheme = schemeFixture({
+      workflowStatus: "SUBMITTED",
+    });
+    const submittedMapping = mappingFixture({
+      workflowStatus: "SUBMITTED",
+      checkerUserId: undefined,
+      approvedAt: undefined,
+    });
+    const repository = createRepositoryFixture(
+      seedFixture({
+        schemes: [submittedScheme],
+        programmeMappings: [submittedMapping],
+      }),
+    );
+    const checker = {
+      userId: "checker-1",
+      role: "BUSINESS_HEAD_CHECKER",
+    };
+
+    await expect(
+      repository.returnScheme(
+        submittedScheme.id,
+        checker,
+        "Correct the validity window",
+      ),
+    ).resolves.toMatchObject({ workflowStatus: "RETURNED" });
+    await expect(
+      repository.rejectProgrammeMapping(
+        submittedMapping.id,
+        checker,
+        "Programme authority is missing",
+      ),
+    ).resolves.toMatchObject({ workflowStatus: "REJECTED" });
+
+    expect(
+      (await repository.listAuditEvents()).map((event) => event.action),
+    ).toEqual(["SCHEME_RETURNED", "PROGRAMME_MAPPING_REJECTED"]);
+  });
+
+  it("derives clean draft versions from approved scheme and mapping data", async () => {
+    const repository = createRepositoryFixture();
+    const maker = { userId: "maker-1", role: "MASTER_DATA_ADMIN" };
+
+    const scheme = await repository.createNextSchemeVersion(
+      "scheme-version-approved",
+      maker,
+      "Start the next controlled version",
+    );
+    const mapping = await repository.createNextProgrammeMappingVersion(
+      "mapping-version-1",
+      maker,
+      "Start the next controlled mapping",
+    );
+
+    expect(scheme).toMatchObject({
+      id: "scheme-version-1",
+      schemeId: "scheme-1",
+      version: 3,
+      workflowStatus: "DRAFT",
+      makerUserId: "maker-1",
+      checkerUserId: undefined,
+      approvedAt: undefined,
+    });
+    expect(mapping).toMatchObject({
+      id: "programme-mapping-version-3",
+      mappingId: "mapping-1",
+      version: 2,
+      workflowStatus: "DRAFT",
+      makerUserId: "maker-1",
+      checkerUserId: undefined,
+      approvedAt: undefined,
+    });
+    expect(
+      (await repository.listAuditEvents()).map((event) => event.action),
+    ).toEqual(["SCHEME_DRAFT_SAVED", "PROGRAMME_MAPPING_DRAFT_SAVED"]);
+  });
+
   it("does not let an approved payload be resaved as a draft", async () => {
     const repository = createRepositoryFixture();
     const approved = await repository.getScheme("scheme-version-approved");

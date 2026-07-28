@@ -98,7 +98,7 @@ export function CommandBar() {
               if (actor) setActiveActor(actor);
             }}
           >
-            <SelectTrigger aria-label="Active role">
+            <SelectTrigger aria-label="Active role" role="button">
               <SelectValue>{actorLabel(activeActor.role)}</SelectValue>
             </SelectTrigger>
             <SelectContent align="end">

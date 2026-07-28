@@ -16,9 +16,13 @@ export type AuditAction =
   | "SCHEME_DRAFT_SAVED"
   | "SCHEME_SUBMITTED"
   | "SCHEME_APPROVED"
+  | "SCHEME_RETURNED"
+  | "SCHEME_REJECTED"
   | "PROGRAMME_MAPPING_DRAFT_SAVED"
   | "PROGRAMME_MAPPING_SUBMITTED"
   | "PROGRAMME_MAPPING_APPROVED"
+  | "PROGRAMME_MAPPING_RETURNED"
+  | "PROGRAMME_MAPPING_REJECTED"
   | "PURCHASE_IMPORTED"
   | "PURCHASE_IMPORT_QUARANTINED"
   | "ELIGIBILITY_EVALUATED";
@@ -86,6 +90,21 @@ export interface SchemeRepository {
     actor: Actor,
     remarks: string,
   ): Promise<SchemeVersion>;
+  returnScheme(
+    id: string,
+    actor: Actor,
+    remarks: string,
+  ): Promise<SchemeVersion>;
+  rejectScheme(
+    id: string,
+    actor: Actor,
+    remarks: string,
+  ): Promise<SchemeVersion>;
+  createNextSchemeVersion(
+    id: string,
+    actor: Actor,
+    remarks: string,
+  ): Promise<SchemeVersion>;
 }
 
 export interface ProgrammeMappingRepository {
@@ -104,6 +123,21 @@ export interface ProgrammeMappingRepository {
     remarks: string,
   ): Promise<EmployerProgrammeMappingVersion>;
   approveProgrammeMapping(
+    id: string,
+    actor: Actor,
+    remarks: string,
+  ): Promise<EmployerProgrammeMappingVersion>;
+  returnProgrammeMapping(
+    id: string,
+    actor: Actor,
+    remarks: string,
+  ): Promise<EmployerProgrammeMappingVersion>;
+  rejectProgrammeMapping(
+    id: string,
+    actor: Actor,
+    remarks: string,
+  ): Promise<EmployerProgrammeMappingVersion>;
+  createNextProgrammeMappingVersion(
     id: string,
     actor: Actor,
     remarks: string,

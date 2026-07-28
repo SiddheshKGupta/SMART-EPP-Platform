@@ -1,18 +1,5 @@
-import {
-  RouteContractPage,
-  type RouteSearchParams,
-} from "@/components/shared/RouteContractPage";
+import { SchemeProgrammeWorkspace } from "@/features/subvention/schemes/SchemeProgrammeWorkspace";
 
-export default async function Page({
-  searchParams,
-}: {
-  searchParams: RouteSearchParams;
-}) {
-  return (
-    <RouteContractPage
-      title="Programme Mappings"
-      description="Review employer, programme and OEM mappings with effective rule precedence."
-      filters={await searchParams}
-    />
-  );
+export default function Page() {
+  return <SchemeProgrammeWorkspace initialView="programmes" />;
 }

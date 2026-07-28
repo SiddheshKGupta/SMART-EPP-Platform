@@ -27,6 +27,20 @@ export interface SubventionContextValue {
   setActiveActor(actor: Actor): void;
   submitScheme(id: string, remarks: string): Promise<void>;
   approveScheme(id: string, remarks: string): Promise<void>;
+  returnScheme(id: string, remarks: string): Promise<void>;
+  rejectScheme(id: string, remarks: string): Promise<void>;
+  createNextSchemeVersion(
+    id: string,
+    remarks: string,
+  ): Promise<string | undefined>;
+  submitProgrammeMapping(id: string, remarks: string): Promise<void>;
+  approveProgrammeMapping(id: string, remarks: string): Promise<void>;
+  returnProgrammeMapping(id: string, remarks: string): Promise<void>;
+  rejectProgrammeMapping(id: string, remarks: string): Promise<void>;
+  createNextProgrammeMappingVersion(
+    id: string,
+    remarks: string,
+  ): Promise<string | undefined>;
   evaluateTransaction(id: string): Promise<void>;
   issues: DomainIssue[];
   actionError?: SubventionActionError;
@@ -79,13 +93,14 @@ export function SubventionProvider({ children }: { children: ReactNode }) {
   }, [repository]);
 
   const runCommand = useCallback(
-    async (command: () => Promise<unknown>) => {
+    async <T,>(command: () => Promise<T>): Promise<T | undefined> => {
       setIssues([]);
       setActionError(undefined);
       setIsRefreshing(true);
       try {
-        await command();
+        const result = await command();
         await refresh();
+        return result;
       } catch (error) {
         const domainIssues = domainIssuesFrom(error);
         if (domainIssues.length > 0) {
@@ -118,6 +133,84 @@ export function SubventionProvider({ children }: { children: ReactNode }) {
     [activeActor, repository, runCommand],
   );
 
+  const returnScheme = useCallback(
+    async (id: string, remarks: string) => {
+      await runCommand(() =>
+        repository.returnScheme(id, activeActor, remarks),
+      );
+    },
+    [activeActor, repository, runCommand],
+  );
+
+  const rejectScheme = useCallback(
+    async (id: string, remarks: string) => {
+      await runCommand(() =>
+        repository.rejectScheme(id, activeActor, remarks),
+      );
+    },
+    [activeActor, repository, runCommand],
+  );
+
+  const createNextSchemeVersion = useCallback(
+    async (id: string, remarks: string) =>
+      (
+        await runCommand(() =>
+          repository.createNextSchemeVersion(id, activeActor, remarks),
+        )
+      )?.id,
+    [activeActor, repository, runCommand],
+  );
+
+  const submitProgrammeMapping = useCallback(
+    async (id: string, remarks: string) => {
+      await runCommand(() =>
+        repository.submitProgrammeMapping(id, activeActor, remarks),
+      );
+    },
+    [activeActor, repository, runCommand],
+  );
+
+  const approveProgrammeMapping = useCallback(
+    async (id: string, remarks: string) => {
+      await runCommand(() =>
+        repository.approveProgrammeMapping(id, activeActor, remarks),
+      );
+    },
+    [activeActor, repository, runCommand],
+  );
+
+  const returnProgrammeMapping = useCallback(
+    async (id: string, remarks: string) => {
+      await runCommand(() =>
+        repository.returnProgrammeMapping(id, activeActor, remarks),
+      );
+    },
+    [activeActor, repository, runCommand],
+  );
+
+  const rejectProgrammeMapping = useCallback(
+    async (id: string, remarks: string) => {
+      await runCommand(() =>
+        repository.rejectProgrammeMapping(id, activeActor, remarks),
+      );
+    },
+    [activeActor, repository, runCommand],
+  );
+
+  const createNextProgrammeMappingVersion = useCallback(
+    async (id: string, remarks: string) =>
+      (
+        await runCommand(() =>
+          repository.createNextProgrammeMappingVersion(
+            id,
+            activeActor,
+            remarks,
+          ),
+        )
+      )?.id,
+    [activeActor, repository, runCommand],
+  );
+
   const evaluateTransaction = useCallback(
     async (id: string) => {
       await runCommand(() =>
@@ -135,6 +228,14 @@ export function SubventionProvider({ children }: { children: ReactNode }) {
         setActiveActor,
         submitScheme,
         approveScheme,
+        returnScheme,
+        rejectScheme,
+        createNextSchemeVersion,
+        submitProgrammeMapping,
+        approveProgrammeMapping,
+        returnProgrammeMapping,
+        rejectProgrammeMapping,
+        createNextProgrammeMappingVersion,
         evaluateTransaction,
         issues,
         actionError,

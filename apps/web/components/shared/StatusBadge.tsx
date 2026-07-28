@@ -8,6 +8,10 @@ export type SemanticStatus =
   | "DRAFT"
   | "SUBMITTED"
   | "APPROVED"
+  | "RETURNED"
+  | "REJECTED"
+  | "SUPERSEDED"
+  | "INACTIVE"
   | "INELIGIBLE"
   | "ELIGIBLE";
 
@@ -18,6 +22,10 @@ const tone: Record<SemanticStatus, string> = {
   DRAFT: "status-info",
   SUBMITTED: "status-attention",
   APPROVED: "status-approved",
+  RETURNED: "status-attention",
+  REJECTED: "status-critical",
+  SUPERSEDED: "status-info",
+  INACTIVE: "status-info",
   INELIGIBLE: "status-critical",
   ELIGIBLE: "status-approved",
 };

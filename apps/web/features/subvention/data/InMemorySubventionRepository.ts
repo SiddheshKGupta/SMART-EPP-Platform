@@ -116,6 +116,22 @@ export class InMemorySubventionRepository
     return this.transitionScheme(id, "APPROVE", actor, remarks);
   }
 
+  async returnScheme(
+    id: string,
+    actor: Actor,
+    remarks: string,
+  ): Promise<SchemeVersion> {
+    return this.transitionScheme(id, "RETURN", actor, remarks);
+  }
+
+  async rejectScheme(
+    id: string,
+    actor: Actor,
+    remarks: string,
+  ): Promise<SchemeVersion> {
+    return this.transitionScheme(id, "REJECT", actor, remarks);
+  }
+
   async submitProgrammeMapping(
     id: string,
     actor: Actor,
@@ -130,6 +146,130 @@ export class InMemorySubventionRepository
     remarks: string,
   ): Promise<EmployerProgrammeMappingVersion> {
     return this.transitionProgrammeMapping(id, "APPROVE", actor, remarks);
+  }
+
+  async returnProgrammeMapping(
+    id: string,
+    actor: Actor,
+    remarks: string,
+  ): Promise<EmployerProgrammeMappingVersion> {
+    return this.transitionProgrammeMapping(id, "RETURN", actor, remarks);
+  }
+
+  async rejectProgrammeMapping(
+    id: string,
+    actor: Actor,
+    remarks: string,
+  ): Promise<EmployerProgrammeMappingVersion> {
+    return this.transitionProgrammeMapping(id, "REJECT", actor, remarks);
+  }
+
+  async createNextSchemeVersion(
+    id: string,
+    actor: Actor,
+    remarks: string,
+  ): Promise<SchemeVersion> {
+    const source = this.schemes.find((scheme) => scheme.id === id);
+    if (!source) throw new Error(`Scheme version ${id} was not found`);
+    if (source.workflowStatus !== "APPROVED") {
+      throw new Error("New versions can only derive from an approved scheme");
+    }
+    if (!remarks.trim()) throw new Error("Remarks are required");
+
+    const usedSchemeIds = new Set(this.schemes.map((scheme) => scheme.id));
+    const usedAuditIds = new Set(this.auditEvents.map((event) => event.id));
+    const createdAt = this.dependencies.now();
+    const draft: SchemeVersion = {
+      ...clone(source),
+      id: this.nextUniqueId(
+        "scheme-version",
+        "SchemeVersion",
+        usedSchemeIds,
+      ),
+      version:
+        Math.max(
+          ...this.schemes
+            .filter((scheme) => scheme.schemeId === source.schemeId)
+            .map((scheme) => scheme.version),
+        ) + 1,
+      workflowStatus: "DRAFT",
+      makerUserId: actor.userId,
+      checkerUserId: undefined,
+      approvedAt: undefined,
+      createdAt,
+    };
+    schemeDraftSchema.parse(draft);
+    const auditEvent: AuditEvent = {
+      id: this.nextUniqueId("audit", "AuditEvent", usedAuditIds),
+      entityType: "SchemeVersion",
+      entityId: draft.id,
+      action: "SCHEME_DRAFT_SAVED",
+      actor: clone(actor),
+      occurredAt: createdAt,
+      remarks,
+      metadata: { derivedFromVersionId: source.id },
+    };
+
+    this.schemes.push(draft);
+    this.auditEvents.push(auditEvent);
+    return clone(draft);
+  }
+
+  async createNextProgrammeMappingVersion(
+    id: string,
+    actor: Actor,
+    remarks: string,
+  ): Promise<EmployerProgrammeMappingVersion> {
+    const source = this.programmeMappings.find((mapping) => mapping.id === id);
+    if (!source) {
+      throw new Error(`Programme mapping version ${id} was not found`);
+    }
+    if (source.workflowStatus !== "APPROVED") {
+      throw new Error(
+        "New versions can only derive from an approved programme mapping",
+      );
+    }
+    if (!remarks.trim()) throw new Error("Remarks are required");
+
+    const usedMappingIds = new Set(
+      this.programmeMappings.map((mapping) => mapping.id),
+    );
+    const usedAuditIds = new Set(this.auditEvents.map((event) => event.id));
+    const createdAt = this.dependencies.now();
+    const draft: EmployerProgrammeMappingVersion = {
+      ...clone(source),
+      id: this.nextUniqueId(
+        "programme-mapping-version",
+        "EmployerProgrammeMappingVersion",
+        usedMappingIds,
+      ),
+      version:
+        Math.max(
+          ...this.programmeMappings
+            .filter((mapping) => mapping.mappingId === source.mappingId)
+            .map((mapping) => mapping.version),
+        ) + 1,
+      workflowStatus: "DRAFT",
+      makerUserId: actor.userId,
+      checkerUserId: undefined,
+      approvedAt: undefined,
+      createdAt,
+    };
+    programmeMappingDraftSchema.parse(draft);
+    const auditEvent: AuditEvent = {
+      id: this.nextUniqueId("audit", "AuditEvent", usedAuditIds),
+      entityType: "EmployerProgrammeMappingVersion",
+      entityId: draft.id,
+      action: "PROGRAMME_MAPPING_DRAFT_SAVED",
+      actor: clone(actor),
+      occurredAt: createdAt,
+      remarks,
+      metadata: { derivedFromVersionId: source.id },
+    };
+
+    this.programmeMappings.push(draft);
+    this.auditEvents.push(auditEvent);
+    return clone(draft);
   }
 
   async saveSchemeDraft(
@@ -494,7 +634,7 @@ export class InMemorySubventionRepository
 
   private async transitionScheme(
     id: string,
-    action: "SUBMIT" | "APPROVE",
+    action: "SUBMIT" | "APPROVE" | "RETURN" | "REJECT",
     actor: Actor,
     remarks: string,
   ): Promise<SchemeVersion> {
@@ -513,12 +653,17 @@ export class InMemorySubventionRepository
       occurredAt,
     );
     const auditIds = new Set(this.auditEvents.map((event) => event.id));
+    const auditAction: AuditEvent["action"] = ({
+      SUBMIT: "SCHEME_SUBMITTED",
+      APPROVE: "SCHEME_APPROVED",
+      RETURN: "SCHEME_RETURNED",
+      REJECT: "SCHEME_REJECTED",
+    } as const)[action];
     const auditEvent: AuditEvent = {
       id: this.nextUniqueId("audit", "AuditEvent", auditIds),
       entityType: "SchemeVersion",
       entityId: updated.id,
-      action:
-        action === "SUBMIT" ? "SCHEME_SUBMITTED" : "SCHEME_APPROVED",
+      action: auditAction,
       actor: clone(actor),
       occurredAt,
       remarks,
@@ -531,7 +676,7 @@ export class InMemorySubventionRepository
 
   private async transitionProgrammeMapping(
     id: string,
-    action: "SUBMIT" | "APPROVE",
+    action: "SUBMIT" | "APPROVE" | "RETURN" | "REJECT",
     actor: Actor,
     remarks: string,
   ): Promise<EmployerProgrammeMappingVersion> {
@@ -552,14 +697,17 @@ export class InMemorySubventionRepository
       occurredAt,
     );
     const auditIds = new Set(this.auditEvents.map((event) => event.id));
+    const auditAction: AuditEvent["action"] = ({
+      SUBMIT: "PROGRAMME_MAPPING_SUBMITTED",
+      APPROVE: "PROGRAMME_MAPPING_APPROVED",
+      RETURN: "PROGRAMME_MAPPING_RETURNED",
+      REJECT: "PROGRAMME_MAPPING_REJECTED",
+    } as const)[action];
     const auditEvent: AuditEvent = {
       id: this.nextUniqueId("audit", "AuditEvent", auditIds),
       entityType: "EmployerProgrammeMappingVersion",
       entityId: updated.id,
-      action:
-        action === "SUBMIT"
-          ? "PROGRAMME_MAPPING_SUBMITTED"
-          : "PROGRAMME_MAPPING_APPROVED",
+      action: auditAction,
       actor: clone(actor),
       occurredAt,
       remarks,

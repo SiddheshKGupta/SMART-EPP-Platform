@@ -1,18 +1,5 @@
-import {
-  RouteContractPage,
-  type RouteSearchParams,
-} from "@/components/shared/RouteContractPage";
+import { SchemeProgrammeWorkspace } from "@/features/subvention/schemes/SchemeProgrammeWorkspace";
 
-export default async function Page({
-  searchParams,
-}: {
-  searchParams: RouteSearchParams;
-}) {
-  return (
-    <RouteContractPage
-      title="Scheme Versions"
-      description="Manage effective-dated, maker-checker controlled subvention scheme versions."
-      filters={await searchParams}
-    />
-  );
+export default function Page() {
+  return <SchemeProgrammeWorkspace />;
 }
