@@ -1,1 +1,5 @@
-import {pipeline} from "@/lib/seed"; export default function Page(){return <><h1 className="page-title">Subvention Management</h1><p className="page-subtitle">Scheme configuration, claims, recovery and reconciliation.</p><div className="pipeline">{pipeline.map(([l,v])=><div className="card" key={l}><div className="label">{l}</div><div className="metric">{v}</div></div>)}</div></>}
+import { ControlDesk } from "@/features/subvention/control-desk/ControlDesk";
+
+export default function Page() {
+  return <ControlDesk />;
+}

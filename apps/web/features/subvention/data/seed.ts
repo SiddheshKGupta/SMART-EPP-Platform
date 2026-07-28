@@ -11,7 +11,7 @@ import type {
 } from "@smart-epp/domain";
 import { InMemorySubventionRepository } from "./InMemorySubventionRepository";
 
-const DEMO_NOW = "2026-07-28T10:00:00.000Z";
+export const DEMO_NOW = "2026-07-28T10:00:00.000Z";
 
 const actors: Actor[] = [
   { userId: "sales-ops-maker", role: "SALES_OPS_MAKER" },
