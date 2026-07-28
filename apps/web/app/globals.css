@@ -13,6 +13,8 @@
   --muted: #667085;
   --border: #dde3ea;
   --border-strong: #cbd4df;
+  --focus-on-light: #1648bd;
+  --focus-on-dark: #ffffff;
   --success: #168a5b;
   --warning: #a95f08;
   --critical: #b42318;
@@ -90,8 +92,13 @@ a {
 }
 
 :focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--primary) 55%, transparent);
+  outline: 3px solid var(--focus-on-light);
   outline-offset: 2px;
+}
+
+.global-rail :focus-visible,
+.skip-link:focus-visible {
+  outline-color: var(--focus-on-dark);
 }
 
 .sr-only {
@@ -809,6 +816,122 @@ a {
   font-weight: 680;
 }
 
+.route-contract-workspace {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) minmax(280px, 0.65fr);
+  min-height: 260px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-workspace);
+  background: var(--surface);
+}
+
+.route-contract-marker {
+  display: grid;
+  place-items: center;
+  border-inline-end: 1px solid var(--border);
+  background: #eef3fa;
+  color: var(--primary);
+}
+
+.route-contract-marker svg {
+  width: 22px;
+  height: 22px;
+  stroke-width: 1.7;
+}
+
+.route-contract-copy {
+  align-self: center;
+  max-width: 620px;
+  padding: 28px;
+}
+
+.route-contract-copy h2 {
+  margin: 4px 0 7px;
+  color: var(--navy-strong);
+  font-size: 18px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+
+.route-contract-copy p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.filter-context {
+  border-inline-start: 1px solid var(--border);
+  background: #fafbfd;
+  padding: 22px;
+}
+
+.filter-context-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-block-end: 1px solid var(--border);
+  padding-block-end: 12px;
+}
+
+.filter-context-heading svg {
+  width: 15px;
+  height: 15px;
+  color: var(--primary);
+}
+
+.filter-context-heading h2 {
+  margin: 0;
+  color: var(--navy);
+  font-size: 12px;
+  font-weight: 740;
+}
+
+.filter-context dl {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 14px 0 0;
+}
+
+.filter-context dl div {
+  display: grid;
+  grid-template-columns: minmax(80px, 0.7fr) minmax(0, 1.3fr);
+  align-items: baseline;
+  gap: 12px;
+}
+
+.filter-context dt {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 720;
+  letter-spacing: 0.06em;
+}
+
+.filter-context dd {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 0;
+}
+
+.filter-context code {
+  border: 1px solid #ced9e8;
+  border-radius: 5px;
+  background: #fff;
+  color: var(--navy);
+  padding: 2px 6px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 680;
+}
+
+.filter-empty {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 @media (max-width: 1280px) {
   .workbench-split {
     grid-template-columns: minmax(0, 1fr);
@@ -943,6 +1066,16 @@ a {
 
   .signal-link:last-child {
     border-block-end: 0;
+  }
+
+  .route-contract-workspace {
+    grid-template-columns: 56px minmax(0, 1fr);
+  }
+
+  .filter-context {
+    grid-column: 1 / -1;
+    border-block-start: 1px solid var(--border);
+    border-inline-start: 0;
   }
 
   .workspace-heading {
