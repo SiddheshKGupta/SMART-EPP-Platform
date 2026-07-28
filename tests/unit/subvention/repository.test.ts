@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type {
+  AuditEvent,
   EligibilityDecision,
   EmployerProgrammeMappingVersion,
   PurchaseTransaction,
   PurchaseTransactionInput,
+  RepositoryDependencies,
   SchemeVersion,
   SubventionSeed,
 } from "../../../packages/domain/src";
@@ -86,6 +88,32 @@ function purchaseFixture(
   };
 }
 
+function purchaseInputFixture(
+  overrides: Partial<PurchaseTransactionInput> = {},
+): PurchaseTransactionInput {
+  const transaction = purchaseFixture(overrides);
+  return {
+    leaseId: transaction.leaseId,
+    lotId: transaction.lotId,
+    employeeId: transaction.employeeId,
+    employerId: transaction.employerId,
+    programmeId: transaction.programmeId,
+    oemId: transaction.oemId,
+    productId: transaction.productId,
+    imei: transaction.imei,
+    purchaseOrderNumber: transaction.purchaseOrderNumber,
+    invoiceNumber: transaction.invoiceNumber,
+    invoiceDate: transaction.invoiceDate,
+    invoiceValuePaise: transaction.invoiceValuePaise,
+    baseValuePaise: transaction.baseValuePaise,
+    gstAmountPaise: transaction.gstAmountPaise,
+    resellerId: transaction.resellerId,
+    distributorId: transaction.distributorId,
+    leaseStatus: transaction.leaseStatus,
+    sourceSystem: transaction.sourceSystem,
+  };
+}
+
 function eligibilityDecisionFixture(
   overrides: Partial<EligibilityDecision> = {},
 ): EligibilityDecision {
@@ -113,6 +141,21 @@ function eligibilityDecisionFixture(
   };
 }
 
+function auditEventFixture(
+  overrides: Partial<AuditEvent> = {},
+): AuditEvent {
+  return {
+    id: "audit-existing",
+    entityType: "SchemeVersion",
+    entityId: "scheme-version-approved",
+    action: "SCHEME_APPROVED",
+    actor: { userId: "checker-1", role: "BUSINESS_HEAD_CHECKER" },
+    occurredAt: "2026-06-30T00:00:00.000Z",
+    remarks: "Approved",
+    ...overrides,
+  };
+}
+
 function seedFixture(overrides: Partial<SubventionSeed> = {}): SubventionSeed {
   return {
     oems: [{ id: "oem-1", name: "Configured OEM" }],
@@ -120,6 +163,7 @@ function seedFixture(overrides: Partial<SubventionSeed> = {}): SubventionSeed {
       schemeFixture(),
       schemeFixture({
         id: "scheme-version-approved",
+        version: 2,
         workflowStatus: "APPROVED",
         checkerUserId: "checker-1",
         approvedAt: "2026-06-30T00:00:00.000Z",
@@ -142,12 +186,18 @@ function seedFixture(overrides: Partial<SubventionSeed> = {}): SubventionSeed {
   };
 }
 
-function createRepositoryFixture(seed = seedFixture()) {
+function createRepositoryFixture(
+  seed = seedFixture(),
+  dependencies?: RepositoryDependencies,
+) {
   let sequence = 0;
-  return new InMemorySubventionRepository(seed, {
-    now: () => "2026-07-28T10:00:00.000Z",
-    nextId: (prefix) => `${prefix}-${++sequence}`,
-  });
+  return new InMemorySubventionRepository(
+    seed,
+    dependencies ?? {
+      now: () => "2026-07-28T10:00:00.000Z",
+      nextId: (prefix) => `${prefix}-${++sequence}`,
+    },
+  );
 }
 
 describe("subvention repository", () => {
@@ -221,6 +271,113 @@ describe("subvention repository", () => {
     ).rejects.toThrow("Approved payload cannot be saved as a draft");
   });
 
+  it("requires sanitized copies to use exactly the next logical version", async () => {
+    const repository = createRepositoryFixture();
+    const approvedScheme = await repository.getScheme(
+      "scheme-version-approved",
+    );
+    const approvedMapping =
+      await repository.getProgrammeMapping("mapping-version-1");
+    if (!approvedScheme || !approvedMapping) {
+      throw new Error("Fixture master missing");
+    }
+
+    const schemeCopy: SchemeVersion = {
+      ...approvedScheme,
+      id: "scheme-version-sanitized-copy",
+      workflowStatus: "DRAFT",
+      checkerUserId: undefined,
+      approvedAt: undefined,
+    };
+    const mappingCopy: EmployerProgrammeMappingVersion = {
+      ...approvedMapping,
+      id: "mapping-version-sanitized-copy",
+      workflowStatus: "DRAFT",
+      checkerUserId: undefined,
+      approvedAt: undefined,
+    };
+
+    await expect(
+      repository.saveSchemeDraft(
+        schemeCopy,
+        { userId: "maker-1", role: "MASTER_DATA_ADMIN" },
+        "Sanitized approved scheme copy",
+      ),
+    ).rejects.toThrow("Scheme version must be exactly 3");
+    await expect(
+      repository.saveProgrammeMappingDraft(
+        mappingCopy,
+        { userId: "maker-1", role: "MASTER_DATA_ADMIN" },
+        "Sanitized approved mapping copy",
+      ),
+    ).rejects.toThrow("Programme mapping version must be exactly 2");
+
+    expect(await repository.getScheme(schemeCopy.id)).toBeUndefined();
+    expect(
+      await repository.getProgrammeMapping(mappingCopy.id),
+    ).toBeUndefined();
+
+    schemeCopy.version = 3;
+    mappingCopy.version = 2;
+    await expect(
+      repository.saveSchemeDraft(
+        schemeCopy,
+        { userId: "maker-1", role: "MASTER_DATA_ADMIN" },
+        "Create next scheme version",
+      ),
+    ).resolves.toMatchObject({ version: 3, workflowStatus: "DRAFT" });
+    await expect(
+      repository.saveProgrammeMappingDraft(
+        mappingCopy,
+        { userId: "maker-1", role: "MASTER_DATA_ADMIN" },
+        "Create next mapping version",
+      ),
+    ).resolves.toMatchObject({ version: 2, workflowStatus: "DRAFT" });
+  });
+
+  it("keeps logical identity and version fixed when editing a physical draft", async () => {
+    const draftMapping = mappingFixture({
+      workflowStatus: "DRAFT",
+      checkerUserId: undefined,
+      approvedAt: undefined,
+    });
+    const repository = createRepositoryFixture(
+      seedFixture({ programmeMappings: [draftMapping] }),
+    );
+    const draftScheme = await repository.getScheme("scheme-version-draft");
+    const mapping = await repository.getProgrammeMapping(draftMapping.id);
+    if (!draftScheme || !mapping) throw new Error("Fixture draft missing");
+
+    draftScheme.schemeId = "caller-controlled-scheme";
+    draftScheme.version = 99;
+    mapping.mappingId = "caller-controlled-mapping";
+    mapping.version = 99;
+
+    await expect(
+      repository.saveSchemeDraft(
+        draftScheme,
+        { userId: "maker-1", role: "MASTER_DATA_ADMIN" },
+        "Change draft identity",
+      ),
+    ).rejects.toThrow("Scheme draft identity cannot be changed");
+    await expect(
+      repository.saveProgrammeMappingDraft(
+        mapping,
+        { userId: "maker-1", role: "MASTER_DATA_ADMIN" },
+        "Change draft identity",
+      ),
+    ).rejects.toThrow(
+      "Programme mapping draft identity cannot be changed",
+    );
+
+    expect(
+      (await repository.getScheme("scheme-version-draft"))?.schemeId,
+    ).toBe("scheme-1");
+    expect(
+      (await repository.getProgrammeMapping(draftMapping.id))?.mappingId,
+    ).toBe("mapping-1");
+  });
+
   it("appends eligibility version 2 while retaining version 1 and its snapshot", async () => {
     const versionOne = eligibilityDecisionFixture();
     const repository = createRepositoryFixture(
@@ -252,6 +409,63 @@ describe("subvention repository", () => {
         )
       )[0]?.action,
     ).toBe("ELIGIBILITY_EVALUATED");
+  });
+
+  it("serializes concurrent evaluations into one linear decision chain", async () => {
+    const repository = createRepositoryFixture(
+      seedFixture({
+        eligibilityDecisions: [eligibilityDecisionFixture()],
+      }),
+    );
+    const actor = { userId: "maker-1", role: "SALES_OPS_MAKER" };
+
+    const decisions = await Promise.all([
+      repository.evaluateTransaction("purchase-1", actor),
+      repository.evaluateTransaction("purchase-1", actor),
+    ]);
+
+    expect(
+      decisions.map(({ id, version, previousDecisionId }) => ({
+        id,
+        version,
+        previousDecisionId,
+      })),
+    ).toEqual([
+      {
+        id: "eligibility-decision-1",
+        version: 2,
+        previousDecisionId: "decision-1",
+      },
+      {
+        id: "eligibility-decision-3",
+        version: 3,
+        previousDecisionId: "eligibility-decision-1",
+      },
+    ]);
+    expect(
+      (
+        await repository.listEligibilityDecisions("purchase-1")
+      ).map(({ version }) => version),
+    ).toEqual([1, 2, 3]);
+  });
+
+  it("copies a queued evaluation actor at the command boundary", async () => {
+    const repository = createRepositoryFixture();
+    const actor = { userId: "maker-1", role: "SALES_OPS_MAKER" };
+
+    const pending = repository.evaluateTransaction("purchase-1", actor);
+    actor.userId = "caller-mutated";
+    const decision = await pending;
+
+    expect(decision.evaluatedBy).toBe("maker-1");
+    expect(
+      (
+        await repository.listForEntity(
+          "EligibilityDecision",
+          decision.id,
+        )
+      )[0]?.actor.userId,
+    ).toBe("maker-1");
   });
 
   it("appends an audit event for every quarantined import row", async () => {
@@ -362,6 +576,141 @@ describe("subvention repository", () => {
     expect(second.actors[0]?.userId).toBe("maker-1");
   });
 
+  it.each([
+    [
+      "scheme logical version",
+      seedFixture({
+        schemes: [
+          schemeFixture(),
+          schemeFixture({
+            id: "scheme-version-duplicate-logical",
+          }),
+        ],
+      }),
+      "Duplicate SchemeVersion logical version scheme-1:1",
+    ],
+    [
+      "physical mapping ID",
+      seedFixture({
+        programmeMappings: [
+          mappingFixture(),
+          mappingFixture({ mappingId: "mapping-2" }),
+        ],
+      }),
+      "Duplicate EmployerProgrammeMappingVersion ID mapping-version-1",
+    ],
+    [
+      "physical transaction ID",
+      seedFixture({
+        transactions: [
+          purchaseFixture(),
+          purchaseFixture({
+            leaseId: "lease-2",
+            imei: "223456789012345",
+            invoiceNumber: "INV-2",
+          }),
+        ],
+      }),
+      "Duplicate PurchaseTransaction ID purchase-1",
+    ],
+    [
+      "eligibility logical version",
+      seedFixture({
+        eligibilityDecisions: [
+          eligibilityDecisionFixture(),
+          eligibilityDecisionFixture({ id: "decision-2" }),
+        ],
+      }),
+      "Duplicate EligibilityDecision logical version purchase-1:1",
+    ],
+    [
+      "audit ID",
+      seedFixture({
+        auditEvents: [
+          auditEventFixture(),
+          auditEventFixture({ entityId: "scheme-version-draft" }),
+        ],
+      }),
+      "Duplicate AuditEvent ID audit-existing",
+    ],
+  ])("rejects duplicate seed identity: %s", (_label, seed, message) => {
+    expect(() => createRepositoryFixture(seed)).toThrow(message);
+  });
+
+  it("rolls back an import when the generated transaction ID collides", async () => {
+    const repository = createRepositoryFixture(seedFixture(), {
+      now: () => "2026-07-28T10:00:00.000Z",
+      nextId: (prefix) =>
+        prefix === "purchase-transaction" ? "purchase-1" : `${prefix}-new`,
+    });
+    const before = await repository.getSnapshot();
+
+    await expect(
+      repository.importTransactions(
+        [
+          purchaseInputFixture({
+            leaseId: "lease-2",
+            imei: "223456789012345",
+            invoiceNumber: "INV-2",
+          }),
+        ],
+        { userId: "maker-1", role: "SALES_OPS_MAKER" },
+      ),
+    ).rejects.toThrow(
+      "Generated PurchaseTransaction ID purchase-1 already exists",
+    );
+
+    expect(await repository.getSnapshot()).toEqual(before);
+  });
+
+  it("rolls back an evaluation when the generated decision ID collides", async () => {
+    const repository = createRepositoryFixture(
+      seedFixture({
+        eligibilityDecisions: [eligibilityDecisionFixture()],
+      }),
+      {
+        now: () => "2026-07-28T10:00:00.000Z",
+        nextId: (prefix) =>
+          prefix === "eligibility-decision"
+            ? "decision-1"
+            : `${prefix}-new`,
+      },
+    );
+    const before = await repository.getSnapshot();
+
+    await expect(
+      repository.evaluateTransaction(
+        "purchase-1",
+        { userId: "maker-1", role: "SALES_OPS_MAKER" },
+      ),
+    ).rejects.toThrow(
+      "Generated EligibilityDecision ID decision-1 already exists",
+    );
+
+    expect(await repository.getSnapshot()).toEqual(before);
+  });
+
+  it("rolls back a master transition when the generated audit ID collides", async () => {
+    const repository = createRepositoryFixture(
+      seedFixture({ auditEvents: [auditEventFixture()] }),
+      {
+        now: () => "2026-07-28T10:00:00.000Z",
+        nextId: () => "audit-existing",
+      },
+    );
+    const before = await repository.getSnapshot();
+
+    await expect(
+      repository.submitScheme(
+        "scheme-version-draft",
+        { userId: "maker-1", role: "MASTER_DATA_ADMIN" },
+        "Ready for approval",
+      ),
+    ).rejects.toThrow("Generated AuditEvent ID audit-existing already exists");
+
+    expect(await repository.getSnapshot()).toEqual(before);
+  });
+
   it("exposes realistic deterministic demo data without OEM-specific engine branches", async () => {
     const first = await createDemoSubventionRepository().getSnapshot();
     const second = await createDemoSubventionRepository().getSnapshot();
@@ -400,5 +749,63 @@ describe("subvention repository", () => {
       "MANAGEMENT_VIEWER",
       "AUDITOR",
     ]);
+  });
+
+  it("correlates seeded material events with entity transitions and timestamps", async () => {
+    const snapshot =
+      await createDemoSubventionRepository().getSnapshot();
+
+    snapshot.transactions.forEach((transaction) => {
+      const importEvents = snapshot.auditEvents.filter(
+        (event) =>
+          event.entityType === "PurchaseTransaction" &&
+          event.entityId === transaction.id &&
+          event.action === "PURCHASE_IMPORTED",
+      );
+      expect(importEvents).toHaveLength(1);
+      expect(importEvents[0]?.occurredAt).toBe(transaction.importedAt);
+    });
+
+    snapshot.programmeMappings.forEach((mapping) => {
+      const events = snapshot.auditEvents.filter(
+        (event) =>
+          event.entityType === "EmployerProgrammeMappingVersion" &&
+          event.entityId === mapping.id,
+      );
+      const submission = events.find(
+        (event) => event.action === "PROGRAMME_MAPPING_SUBMITTED",
+      );
+      expect(events.map((event) => event.action)).toContain(
+        "PROGRAMME_MAPPING_SUBMITTED",
+      );
+      if (!submission) throw new Error("Seed submission audit missing");
+      expect(submission.occurredAt >= mapping.createdAt).toBe(true);
+      if (mapping.workflowStatus === "APPROVED") {
+        const approval = events.find(
+          (event) => event.action === "PROGRAMME_MAPPING_APPROVED",
+        );
+        if (!approval) throw new Error("Seed approval audit missing");
+        expect(approval.occurredAt).toBe(mapping.approvedAt);
+        expect(submission.occurredAt <= approval.occurredAt).toBe(true);
+      } else {
+        expect(
+          events.some(
+            (event) => event.action === "PROGRAMME_MAPPING_APPROVED",
+          ),
+        ).toBe(false);
+      }
+    });
+
+    snapshot.schemes
+      .filter((scheme) => scheme.workflowStatus === "APPROVED")
+      .forEach((scheme) => {
+        const approval = snapshot.auditEvents.find(
+          (event) =>
+            event.entityType === "SchemeVersion" &&
+            event.entityId === scheme.id &&
+            event.action === "SCHEME_APPROVED",
+        );
+        expect(approval?.occurredAt).toBe(scheme.approvedAt);
+      });
   });
 });

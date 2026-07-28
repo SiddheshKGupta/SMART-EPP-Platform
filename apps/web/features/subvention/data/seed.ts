@@ -408,50 +408,76 @@ const quarantinedImports: QuarantinedPurchaseImportRow[] = [
   },
 ];
 
-function historicalAuditEvent(
-  sequence: number,
-  entityType: AuditEvent["entityType"],
-  entityId: string,
-  action: AuditEvent["action"],
-): AuditEvent {
+let auditSequence = 0;
+
+function historicalAuditEvent(input: {
+  entityType: AuditEvent["entityType"];
+  entityId: string;
+  action: AuditEvent["action"];
+  actor: Actor;
+  occurredAt: string;
+  remarks: string;
+}): AuditEvent {
+  auditSequence += 1;
   return {
-    id: `audit-seed-${String(sequence).padStart(3, "0")}`,
-    entityType,
-    entityId,
-    action,
-    actor:
-      action === "PURCHASE_IMPORT_QUARANTINED" ? actors[0]! : actors[1]!,
-    occurredAt: `2026-06-${String(10 + sequence).padStart(2, "0")}T10:00:00.000Z`,
-    remarks:
-      action === "PURCHASE_IMPORT_QUARANTINED"
-        ? "Duplicate import row quarantined"
-        : "Configuration reviewed and approved",
+    id: `audit-seed-${String(auditSequence).padStart(3, "0")}`,
+    ...input,
   };
 }
 
 const auditEvents: AuditEvent[] = [
   ...schemes
     .filter((scheme) => scheme.workflowStatus === "APPROVED")
-    .map((scheme, index) =>
-      historicalAuditEvent(
-        index + 1,
-        "SchemeVersion",
-        scheme.id,
-        "SCHEME_APPROVED",
-      ),
+    .map((scheme) =>
+      historicalAuditEvent({
+        entityType: "SchemeVersion",
+        entityId: scheme.id,
+        action: "SCHEME_APPROVED",
+        actor: actors[1]!,
+        occurredAt: scheme.approvedAt!,
+        remarks: "Scheme configuration reviewed and approved",
+      }),
     ),
-  historicalAuditEvent(
-    7,
-    "EmployerProgrammeMappingVersion",
-    "mapping-alpha-apple",
-    "PROGRAMME_MAPPING_APPROVED",
+  ...programmeMappings.flatMap((programmeMapping) => [
+    historicalAuditEvent({
+      entityType: "EmployerProgrammeMappingVersion",
+      entityId: programmeMapping.id,
+      action: "PROGRAMME_MAPPING_SUBMITTED",
+      actor: actors[2]!,
+      occurredAt: "2026-06-15T10:00:00.000Z",
+      remarks: "Programme mapping submitted for approval",
+    }),
+    ...(programmeMapping.workflowStatus === "APPROVED"
+      ? [
+          historicalAuditEvent({
+            entityType: "EmployerProgrammeMappingVersion" as const,
+            entityId: programmeMapping.id,
+            action: "PROGRAMME_MAPPING_APPROVED" as const,
+            actor: actors[1]!,
+            occurredAt: programmeMapping.approvedAt!,
+            remarks: "Programme mapping reviewed and approved",
+          }),
+        ]
+      : []),
+  ]),
+  ...transactions.map((purchase) =>
+    historicalAuditEvent({
+      entityType: "PurchaseTransaction",
+      entityId: purchase.id,
+      action: "PURCHASE_IMPORTED",
+      actor: actors[0]!,
+      occurredAt: purchase.importedAt,
+      remarks: "Purchase transaction imported",
+    }),
   ),
-  historicalAuditEvent(
-    8,
-    "PurchaseImportRow",
-    "seed-import-row-1",
-    "PURCHASE_IMPORT_QUARANTINED",
-  ),
+  historicalAuditEvent({
+    entityType: "PurchaseImportRow",
+    entityId: "seed-import-row-1",
+    action: "PURCHASE_IMPORT_QUARANTINED",
+    actor: actors[0]!,
+    occurredAt: "2026-07-20T12:00:00.000Z",
+    remarks: "Duplicate import row quarantined",
+  }),
 ];
 
 const demoSeed: SubventionSeed = {

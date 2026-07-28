@@ -39,6 +39,7 @@ export class InMemorySubventionRepository
   private existingClaimedLeaseIds: string[];
   private duplicateImeis: string[];
   private duplicateLeaseIds: string[];
+  private evaluationQueue: Promise<void> = Promise.resolve();
 
   constructor(
     seed: SubventionSeed,
@@ -57,6 +58,7 @@ export class InMemorySubventionRepository
     this.existingClaimedLeaseIds = copied.existingClaimedLeaseIds;
     this.duplicateImeis = copied.duplicateImeis;
     this.duplicateLeaseIds = copied.duplicateLeaseIds;
+    this.assertSeedIdentitiesUnique();
   }
 
   async listSchemes(): Promise<SchemeVersion[]> {
@@ -142,6 +144,13 @@ export class InMemorySubventionRepository
     const current = this.schemes[index];
     const occurredAt = this.dependencies.now();
 
+    if (
+      current &&
+      (input.schemeId !== current.schemeId ||
+        input.version !== current.version)
+    ) {
+      throw new Error("Scheme draft identity cannot be changed");
+    }
     if (current && current.workflowStatus !== "DRAFT") {
       transitionMaster(
         clone(current),
@@ -161,6 +170,18 @@ export class InMemorySubventionRepository
     ) {
       throw new Error("Approved payload cannot be saved as a draft");
     }
+    if (!current) {
+      const logicalVersions = this.schemes.filter(
+        (candidate) => candidate.schemeId === input.schemeId,
+      );
+      const expectedVersion =
+        Math.max(0, ...logicalVersions.map((version) => version.version)) + 1;
+      if (input.version !== expectedVersion) {
+        throw new Error(
+          `Scheme version must be exactly ${expectedVersion}`,
+        );
+      }
+    }
     if (!remarks.trim()) {
       throw new Error("Remarks are required");
     }
@@ -170,8 +191,9 @@ export class InMemorySubventionRepository
       ...input,
       makerUserId: actor.userId,
     };
+    const auditIds = new Set(this.auditEvents.map((event) => event.id));
     const auditEvent: AuditEvent = {
-      id: this.dependencies.nextId("audit"),
+      id: this.nextUniqueId("audit", "AuditEvent", auditIds),
       entityType: "SchemeVersion",
       entityId: saved.id,
       action: "SCHEME_DRAFT_SAVED",
@@ -201,6 +223,13 @@ export class InMemorySubventionRepository
     const current = this.programmeMappings[index];
     const occurredAt = this.dependencies.now();
 
+    if (
+      current &&
+      (input.mappingId !== current.mappingId ||
+        input.version !== current.version)
+    ) {
+      throw new Error("Programme mapping draft identity cannot be changed");
+    }
     if (current && current.workflowStatus !== "DRAFT") {
       transitionMaster(
         clone(current),
@@ -220,6 +249,18 @@ export class InMemorySubventionRepository
     ) {
       throw new Error("Approved payload cannot be saved as a draft");
     }
+    if (!current) {
+      const logicalVersions = this.programmeMappings.filter(
+        (candidate) => candidate.mappingId === input.mappingId,
+      );
+      const expectedVersion =
+        Math.max(0, ...logicalVersions.map((version) => version.version)) + 1;
+      if (input.version !== expectedVersion) {
+        throw new Error(
+          `Programme mapping version must be exactly ${expectedVersion}`,
+        );
+      }
+    }
     if (!remarks.trim()) {
       throw new Error("Remarks are required");
     }
@@ -229,8 +270,9 @@ export class InMemorySubventionRepository
       ...input,
       makerUserId: actor.userId,
     };
+    const auditIds = new Set(this.auditEvents.map((event) => event.id));
     const auditEvent: AuditEvent = {
-      id: this.dependencies.nextId("audit"),
+      id: this.nextUniqueId("audit", "AuditEvent", auditIds),
       entityType: "EmployerProgrammeMappingVersion",
       entityId: saved.id,
       action: "PROGRAMME_MAPPING_DRAFT_SAVED",
@@ -269,16 +311,25 @@ export class InMemorySubventionRepository
     actor: Actor,
   ): Promise<ImportResult> {
     const occurredAt = this.dependencies.now();
+    const transactionIds = new Set(
+      this.transactions.map((transaction) => transaction.id),
+    );
     const result = validatePurchaseImport(
       clone(this.transactions),
       clone(rows),
       {
         importedAt: occurredAt,
-        idForRow: () => this.dependencies.nextId("purchase-transaction"),
+        idForRow: () =>
+          this.nextUniqueId(
+            "purchase-transaction",
+            "PurchaseTransaction",
+            transactionIds,
+          ),
       },
     );
+    const auditIds = new Set(this.auditEvents.map((event) => event.id));
     const acceptedEvents = result.accepted.map<AuditEvent>((transaction) => ({
-      id: this.dependencies.nextId("audit"),
+      id: this.nextUniqueId("audit", "AuditEvent", auditIds),
       entityType: "PurchaseTransaction",
       entityId: transaction.id,
       action: "PURCHASE_IMPORTED",
@@ -289,7 +340,7 @@ export class InMemorySubventionRepository
     const quarantineEvents = result.quarantined.map<AuditEvent>((row) => {
       const entityId = this.dependencies.nextId("purchase-import-row");
       return {
-        id: this.dependencies.nextId("audit"),
+        id: this.nextUniqueId("audit", "AuditEvent", auditIds),
         entityType: "PurchaseImportRow",
         entityId,
         action: "PURCHASE_IMPORT_QUARANTINED",
@@ -338,7 +389,22 @@ export class InMemorySubventionRepository
     );
   }
 
-  async evaluateTransaction(
+  evaluateTransaction(
+    transactionId: string,
+    actor: Actor,
+  ): Promise<EligibilityDecision> {
+    const actorCopy = clone(actor);
+    const evaluation = this.evaluationQueue.then(() =>
+      this.evaluateTransactionNow(transactionId, actorCopy),
+    );
+    this.evaluationQueue = evaluation.then(
+      () => undefined,
+      () => undefined,
+    );
+    return evaluation;
+  }
+
+  private async evaluateTransactionNow(
     transactionId: string,
     actor: Actor,
   ): Promise<EligibilityDecision> {
@@ -352,7 +418,14 @@ export class InMemorySubventionRepository
       transactionId,
     );
     const occurredAt = this.dependencies.now();
-    const decisionId = this.dependencies.nextId("eligibility-decision");
+    const decisionIds = new Set(
+      this.eligibilityDecisions.map((decision) => decision.id),
+    );
+    const decisionId = this.nextUniqueId(
+      "eligibility-decision",
+      "EligibilityDecision",
+      decisionIds,
+    );
     const decision = evaluateEligibility({
       transaction: clone(transaction),
       schemes: clone(this.schemes),
@@ -377,8 +450,9 @@ export class InMemorySubventionRepository
       version: (previousDecision?.version ?? 0) + 1,
       previousDecision,
     });
+    const auditIds = new Set(this.auditEvents.map((event) => event.id));
     const auditEvent: AuditEvent = {
-      id: this.dependencies.nextId("audit"),
+      id: this.nextUniqueId("audit", "AuditEvent", auditIds),
       entityType: "EligibilityDecision",
       entityId: decision.id,
       action: "ELIGIBILITY_EVALUATED",
@@ -429,8 +503,9 @@ export class InMemorySubventionRepository
       remarks,
       occurredAt,
     );
+    const auditIds = new Set(this.auditEvents.map((event) => event.id));
     const auditEvent: AuditEvent = {
-      id: this.dependencies.nextId("audit"),
+      id: this.nextUniqueId("audit", "AuditEvent", auditIds),
       entityType: "SchemeVersion",
       entityId: updated.id,
       action:
@@ -467,8 +542,9 @@ export class InMemorySubventionRepository
       remarks,
       occurredAt,
     );
+    const auditIds = new Set(this.auditEvents.map((event) => event.id));
     const auditEvent: AuditEvent = {
-      id: this.dependencies.nextId("audit"),
+      id: this.nextUniqueId("audit", "AuditEvent", auditIds),
       entityType: "EmployerProgrammeMappingVersion",
       entityId: updated.id,
       action:
@@ -496,5 +572,98 @@ export class InMemorySubventionRepository
       if (count > 1) duplicates.add(value);
     });
     return duplicates;
+  }
+
+  private assertSeedIdentitiesUnique(): void {
+    this.assertUniqueIdentity(
+      this.oems,
+      (oem) => oem.id,
+      (oem) => oem.id,
+      "OemConfiguration ID",
+    );
+    this.assertUniqueIdentity(
+      this.actors,
+      (actor) => actor.userId,
+      (actor) => actor.userId,
+      "Actor user ID",
+    );
+    this.assertUniqueIdentity(
+      this.schemes,
+      (scheme) => scheme.id,
+      (scheme) => scheme.id,
+      "SchemeVersion ID",
+    );
+    this.assertUniqueIdentity(
+      this.schemes,
+      (scheme) => JSON.stringify([scheme.schemeId, scheme.version]),
+      (scheme) => `${scheme.schemeId}:${scheme.version}`,
+      "SchemeVersion logical version",
+    );
+    this.assertUniqueIdentity(
+      this.programmeMappings,
+      (mapping) => mapping.id,
+      (mapping) => mapping.id,
+      "EmployerProgrammeMappingVersion ID",
+    );
+    this.assertUniqueIdentity(
+      this.programmeMappings,
+      (mapping) => JSON.stringify([mapping.mappingId, mapping.version]),
+      (mapping) => `${mapping.mappingId}:${mapping.version}`,
+      "EmployerProgrammeMappingVersion logical version",
+    );
+    this.assertUniqueIdentity(
+      this.transactions,
+      (transaction) => transaction.id,
+      (transaction) => transaction.id,
+      "PurchaseTransaction ID",
+    );
+    this.assertUniqueIdentity(
+      this.eligibilityDecisions,
+      (decision) => decision.id,
+      (decision) => decision.id,
+      "EligibilityDecision ID",
+    );
+    this.assertUniqueIdentity(
+      this.eligibilityDecisions,
+      (decision) =>
+        JSON.stringify([decision.transactionId, decision.version]),
+      (decision) => `${decision.transactionId}:${decision.version}`,
+      "EligibilityDecision logical version",
+    );
+    this.assertUniqueIdentity(
+      this.auditEvents,
+      (event) => event.id,
+      (event) => event.id,
+      "AuditEvent ID",
+    );
+  }
+
+  private nextUniqueId(
+    prefix: string,
+    label: string,
+    usedIds: Set<string>,
+  ): string {
+    const id = this.dependencies.nextId(prefix);
+    if (usedIds.has(id)) {
+      throw new Error(`Generated ${label} ID ${id} already exists`);
+    }
+    usedIds.add(id);
+    return id;
+  }
+
+  private assertUniqueIdentity<T>(
+    values: T[],
+    keyFor: (value: T) => string,
+    displayFor: (value: T) => string,
+    label: string,
+  ): void {
+    const seen = new Set<string>();
+    values.forEach((value) => {
+      const key = keyFor(value);
+      if (seen.has(key)) {
+        throw new Error(`Duplicate ${label} ${displayFor(value)}`);
+      }
+      seen.add(key);
+    });
   }
 }
