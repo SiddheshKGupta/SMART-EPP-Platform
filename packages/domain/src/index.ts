@@ -19,6 +19,7 @@ export {
   assertWithinClaimTimeline,
 } from "./controls";
 export * from "./subvention/dates";
+export * from "./subvention/eligibility";
 export * from "./subvention/issues";
 export * from "./subvention/master-workflow";
 export * from "./subvention/money";

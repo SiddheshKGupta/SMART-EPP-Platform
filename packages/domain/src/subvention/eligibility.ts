@@ -1,0 +1,353 @@
+import { addDaysIso, dateIsWithinInclusive } from "./dates";
+import { calculateExpectedAmountPaise } from "./money";
+import {
+  type OemRuleDefaults,
+  resolveEffectiveRules,
+  resolveProgrammeMapping,
+} from "./programme-mapping";
+import type {
+  Actor,
+  EligibilityDecision,
+  EligibilityRuleSnapshot,
+  EligibilityStatus,
+  EmployerProgrammeMappingVersion,
+  PurchaseTransaction,
+  RuleResult,
+  SchemeVersion,
+} from "./types";
+
+export interface EvaluateEligibilityInput {
+  transaction: PurchaseTransaction;
+  schemes: SchemeVersion[];
+  mappings: EmployerProgrammeMappingVersion[];
+  oemDefaults?: OemRuleDefaults;
+  duplicateImeis: ReadonlySet<string>;
+  duplicateLeaseIds: ReadonlySet<string>;
+  existingClaimedImeis: ReadonlySet<string>;
+  existingClaimedLeaseIds: ReadonlySet<string>;
+  evaluationDate: string;
+  evaluatedAt: string;
+  actor: Actor;
+  decisionId: string;
+  version: number;
+  previousDecision?: EligibilityDecision;
+}
+
+function passed(code: string, label: string, reason: string): RuleResult {
+  return { code, label, outcome: "PASS", reason };
+}
+
+function failed(code: string, label: string, reason: string): RuleResult {
+  return { code, label, outcome: "FAIL", reason };
+}
+
+function reviewed(code: string, label: string, reason: string): RuleResult {
+  return { code, label, outcome: "REVIEW", reason };
+}
+
+function statusFor(ruleResults: RuleResult[]): EligibilityStatus {
+  if (ruleResults.some((rule) => rule.outcome === "FAIL")) {
+    return "INELIGIBLE";
+  }
+  if (ruleResults.some((rule) => rule.outcome === "REVIEW")) {
+    return "EXCEPTION_REVIEW";
+  }
+  return "ELIGIBLE";
+}
+
+function leaseStatusResult(
+  status: PurchaseTransaction["leaseStatus"],
+): RuleResult {
+  if (status === "ACTIVE") {
+    return passed("LEASE_STATUS_ACTIVE", "Lease status", "The lease is active.");
+  }
+
+  return failed(
+    status,
+    "Lease status",
+    `${status[0]}${status.slice(1).toLowerCase()} transactions are not eligible.`,
+  );
+}
+
+export function evaluateEligibility(
+  input: EvaluateEligibilityInput,
+): EligibilityDecision {
+  const { transaction } = input;
+  const duplicateImei = input.duplicateImeis.has(transaction.imei);
+  const duplicateLease = input.duplicateLeaseIds.has(transaction.leaseId);
+  const claimedImei = input.existingClaimedImeis.has(transaction.imei);
+  const claimedLease = input.existingClaimedLeaseIds.has(transaction.leaseId);
+  const preMappingResults: RuleResult[] = [
+    passed(
+      "TRANSACTION_FIELDS_VALID",
+      "Transaction fields",
+      "Required transaction fields and financial values are valid.",
+    ),
+    leaseStatusResult(transaction.leaseStatus),
+    duplicateImei
+      ? failed(
+          "DUPLICATE_IMEI",
+          "IMEI uniqueness",
+          "The IMEI is duplicated in the purchase repository.",
+        )
+      : passed(
+          "IMEI_UNIQUE",
+          "IMEI uniqueness",
+          "The IMEI is not duplicated.",
+        ),
+    duplicateLease
+      ? failed(
+          "DUPLICATE_LEASE",
+          "Lease uniqueness",
+          "The lease is duplicated in the purchase repository.",
+        )
+      : passed(
+          "LEASE_UNIQUE",
+          "Lease uniqueness",
+          "The lease is not duplicated.",
+        ),
+    claimedImei
+      ? failed(
+          "ALREADY_CLAIMED_IMEI",
+          "Prior IMEI claim",
+          "The IMEI has already been claimed.",
+        )
+      : passed(
+          "IMEI_NOT_CLAIMED",
+          "Prior IMEI claim",
+          "The IMEI has not already been claimed.",
+        ),
+    claimedLease
+      ? failed(
+          "ALREADY_CLAIMED_LEASE",
+          "Prior lease claim",
+          "The lease has already been claimed.",
+        )
+      : passed(
+          "LEASE_NOT_CLAIMED",
+          "Prior lease claim",
+          "The lease has not already been claimed.",
+        ),
+  ];
+  const mappingResolution = resolveProgrammeMapping(
+    transaction,
+    input.mappings,
+  );
+  if (mappingResolution.status !== "RESOLVED") {
+    const ambiguous = mappingResolution.status === "AMBIGUOUS";
+    const ruleResults = [
+      ...preMappingResults,
+      reviewed(
+        ambiguous
+          ? "PROGRAMME_MAPPING_AMBIGUOUS"
+          : "PROGRAMME_MAPPING_MISSING",
+        "Programme mapping",
+        ambiguous
+          ? "More than one approved programme mapping applies."
+          : "No approved programme mapping applies.",
+      ),
+    ];
+    return {
+      id: input.decisionId,
+      transactionId: transaction.id,
+      version: input.version,
+      status: statusFor(ruleResults),
+      expectedAmountPaise: 0,
+      filingDeadline: "",
+      evaluatedAt: input.evaluatedAt,
+      evaluatedBy: input.actor.userId,
+      previousDecisionId: input.previousDecision?.id,
+      ruleResults,
+    };
+  }
+
+  const mapping = mappingResolution.mapping;
+  const beforeProgrammeLaunch = transaction.invoiceDate < mapping.launchDate;
+  const mappingResults: RuleResult[] = [
+    ...preMappingResults,
+    passed(
+      "PROGRAMME_MAPPING_RESOLVED",
+      "Programme mapping",
+      "Exactly one approved programme mapping applies.",
+    ),
+    beforeProgrammeLaunch
+      ? failed(
+          "BEFORE_PROGRAMME_LAUNCH",
+          "Programme launch",
+          "The transaction predates programme launch.",
+        )
+      : passed(
+          "PROGRAMME_LAUNCHED",
+          "Programme launch",
+          "The invoice date is on or after programme launch.",
+        ),
+  ];
+  const scheme = input.schemes.find(
+    (candidate) => candidate.id === mapping.schemeVersionId,
+  );
+  if (!scheme || scheme.workflowStatus !== "APPROVED") {
+    const ruleResults = [
+      ...mappingResults,
+      reviewed(
+        "SCHEME_NOT_APPROVED",
+        "Scheme approval",
+        "The explicitly mapped scheme version is missing or not approved.",
+      ),
+    ];
+    return {
+      id: input.decisionId,
+      transactionId: transaction.id,
+      version: input.version,
+      status: statusFor(ruleResults),
+      expectedAmountPaise: 0,
+      filingDeadline: "",
+      evaluatedAt: input.evaluatedAt,
+      evaluatedBy: input.actor.userId,
+      previousDecisionId: input.previousDecision?.id,
+      ruleResults,
+    };
+  }
+  const schemeResults: RuleResult[] = [
+    ...mappingResults,
+    passed(
+      "SCHEME_APPROVED",
+      "Scheme approval",
+      "The mapped scheme version is approved.",
+    ),
+  ];
+  if (
+    !dateIsWithinInclusive(
+      transaction.invoiceDate,
+      scheme.effectiveFrom,
+      scheme.effectiveTo,
+    )
+  ) {
+    const ruleResults = [
+      ...schemeResults,
+      reviewed(
+        "SCHEME_OUTSIDE_VALIDITY",
+        "Scheme validity",
+        "The mapped scheme does not cover the invoice date.",
+      ),
+    ];
+    return {
+      id: input.decisionId,
+      transactionId: transaction.id,
+      version: input.version,
+      status: statusFor(ruleResults),
+      expectedAmountPaise: 0,
+      filingDeadline: "",
+      evaluatedAt: input.evaluatedAt,
+      evaluatedBy: input.actor.userId,
+      previousDecisionId: input.previousDecision?.id,
+      ruleResults,
+    };
+  }
+
+  const validatedSchemeResults: RuleResult[] = [
+    ...schemeResults,
+    passed(
+      "SCHEME_WITHIN_VALIDITY",
+      "Scheme validity",
+      "The scheme covers the invoice date.",
+    ),
+  ];
+  let ruleSnapshot: EligibilityRuleSnapshot;
+  try {
+    ruleSnapshot = resolveEffectiveRules(mapping, scheme, input.oemDefaults);
+  } catch {
+    const ruleResults = [
+      ...validatedSchemeResults,
+      reviewed(
+        "RULE_CONFIGURATION_MISSING",
+        "Rule values",
+        "Required effective rule configuration could not be resolved.",
+      ),
+    ];
+    return {
+      id: input.decisionId,
+      transactionId: transaction.id,
+      version: input.version,
+      status: statusFor(ruleResults),
+      expectedAmountPaise: 0,
+      filingDeadline: "",
+      evaluatedAt: input.evaluatedAt,
+      evaluatedBy: input.actor.userId,
+      previousDecisionId: input.previousDecision?.id,
+      ruleResults,
+    };
+  }
+  const productEligible = ruleSnapshot.eligibleProductIds.includes(
+    transaction.productId,
+  );
+  const expectedAmountPaise = calculateExpectedAmountPaise({
+    calculationBasis: ruleSnapshot.calculationBasis,
+    invoiceValuePaise: transaction.invoiceValuePaise,
+    baseValuePaise: transaction.baseValuePaise,
+    rateBps: ruleSnapshot.rateBps,
+    flatAmountPaise: ruleSnapshot.flatAmountPaise,
+  });
+  const filingDeadline = addDaysIso(
+    transaction.invoiceDate,
+    ruleSnapshot.claimTimelineDays,
+  );
+  const filingTimelineExpired = input.evaluationDate > filingDeadline;
+  const ruleResults: RuleResult[] = [
+    ...validatedSchemeResults,
+    productEligible
+      ? passed(
+          "PRODUCT_ELIGIBLE",
+          "Product eligibility",
+          "The product is covered by the effective rules.",
+        )
+      : failed(
+          "PRODUCT_NOT_ELIGIBLE",
+          "Product eligibility",
+          "The product is not covered by the effective rules.",
+        ),
+    passed(
+      "RULE_VALUES_RESOLVED",
+      "Rule values",
+      "All required rule values resolved from approved configuration.",
+    ),
+    passed(
+      "EXPECTED_AMOUNT_CALCULATED",
+      "Expected amount",
+      "The expected amount was calculated in integer paise.",
+    ),
+    passed(
+      "FILING_DEADLINE_CALCULATED",
+      "Filing deadline",
+      "The filing deadline was calculated from the configured timeline.",
+    ),
+    filingTimelineExpired
+      ? reviewed(
+          "FILING_TIMELINE_EXPIRED",
+          "Filing timeline",
+          "The filing deadline has passed and requires authorised review.",
+        )
+      : passed(
+          "FILING_TIMELINE_CURRENT",
+          "Filing timeline",
+          "The filing deadline has not passed.",
+        ),
+  ];
+
+  return {
+    id: input.decisionId,
+    transactionId: transaction.id,
+    version: input.version,
+    status: statusFor(ruleResults),
+    expectedAmountPaise,
+    filingDeadline,
+    evaluatedAt: input.evaluatedAt,
+    evaluatedBy: input.actor.userId,
+    previousDecisionId: input.previousDecision?.id,
+    ruleSnapshot: {
+      ...ruleSnapshot,
+      eligibleProductIds: [...ruleSnapshot.eligibleProductIds],
+      precedenceSources: [...ruleSnapshot.precedenceSources],
+    },
+    ruleResults,
+  };
+}
