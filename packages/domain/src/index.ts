@@ -25,6 +25,7 @@ export * from "./subvention/master-workflow";
 export * from "./subvention/money";
 export * from "./subvention/purchase-import";
 export * from "./subvention/programme-mapping";
+export * from "./subvention/repositories";
 export * from "./subvention/schemas";
 export * from "./subvention/scheme-rules";
 export * from "./subvention/types";
