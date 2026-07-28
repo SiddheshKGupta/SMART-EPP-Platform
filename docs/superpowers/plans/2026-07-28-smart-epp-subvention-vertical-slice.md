@@ -1515,13 +1515,14 @@ git commit -m "feat: add scheme and programme control workspace"
 
 - Consumes: `PurchaseTransaction`, `EligibilityDecision`, import result, provider evaluation commands.
 - Produces: Dense purchase grid, deterministic LMS import summary, eligibility queue, rule trace, history comparison.
+- Evidence contract: `docs/subvention-client-data-contract.md`. Client workbooks are read-only sources; do not copy real rows or identifiers into fixtures.
 
 - [ ] **Step 1: Write failing repository and eligibility E2E**
 
 ```ts
 test("filters purchases and opens adaptive eligibility evidence", async ({ page }) => {
   await page.goto("/subvention/transactions");
-  await page.getByPlaceholder("Search lease, IMEI, invoice, employer").fill(
+  await page.getByPlaceholder("Search lease, IMEI/serial, invoice, employer").fill(
     "351234567890123",
   );
   await page.getByRole("row", { name: /351234567890123/ }).click();
@@ -1564,15 +1565,18 @@ Grid columns:
 
 ```text
 Lease ID
-IMEI
+IMEI / serial
 Employer
 Employee
+Connect legal entity
 Product
+Product code
 Invoice
 Invoice date
 Invoice value
 Base value
 Programme
+Distributor / reseller
 Lease status
 Eligibility status
 Filing deadline
@@ -1581,7 +1585,7 @@ Expected amount
 
 Provide search, status/OEM/employer/deadline filters, sortable headers, sticky identifiers, column visibility, and export of filtered rows to CSV.
 
-The `Import transactions` sheet runs the deterministic LMS seed import and renders totals plus a quarantined-row table with issue code and recovery action.
+The `Import transactions` sheet runs deterministic synthetic imports shaped by the verified client evidence and renders totals plus a quarantined-row table with issue code and recovery action. It must preserve source file/checksum, sheet/row, source label, legal entity, counterparty aliases, and calculation evidence. Numeric IMEIs and alphanumeric serials are valid device identifiers. Formula-total rows, ambiguous aliases, unresolved masters, and malformed rows are quarantined rather than partially imported.
 
 - [ ] **Step 4: Implement Rule Trace**
 
@@ -1618,7 +1622,9 @@ Detail:
 
 - Transaction summary
 - Applied mapping and scheme version
+- Applied Connect legal entity and settlement path
 - Integer-paise calculation rendered as INR
+- Source amount, basis, rate, and system-recalculated variance
 - Filing deadline and remaining days
 - Rule trace
 - Previous/current decision comparison
