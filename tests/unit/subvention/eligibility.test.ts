@@ -388,4 +388,151 @@ describe("subvention eligibility", () => {
     expect(current.version).toBe(2);
     expect(previous).toEqual(before);
   });
+
+  it.each([
+    ["lease ID", { leaseId: "" }],
+    ["lot ID", { lotId: "" }],
+    ["employee ID", { employeeId: "" }],
+    ["employer ID", { employerId: "" }],
+    ["programme ID", { programmeId: "" }],
+    ["OEM ID", { oemId: "" }],
+    ["product ID", { productId: "" }],
+    ["IMEI", { imei: "" }],
+    ["purchase order number", { purchaseOrderNumber: "" }],
+    ["invoice number", { invoiceNumber: "" }],
+    ["invoice date", { invoiceDate: "" }],
+    ["reseller ID", { resellerId: "" }],
+  ] satisfies ReadonlyArray<readonly [string, Partial<PurchaseTransaction>]>)(
+    "returns ineligible when mandatory %s is empty",
+    (_label, overrides) => {
+      const decision = evaluateEligibility(
+        eligibilityInputFixture({
+          transaction: purchaseFixture(overrides),
+        }),
+      );
+
+      expect(decision.status).toBe("INELIGIBLE");
+      expect(decision.ruleResults[0]?.code).toBe(
+        "TRANSACTION_FIELDS_INVALID",
+      );
+      expect(decision.ruleResults[0]?.outcome).toBe("FAIL");
+      expect(decision.expectedAmountPaise).toBe(0);
+      expect(decision.filingDeadline).toBe("");
+      expect(decision.ruleResults).toHaveLength(1);
+    },
+  );
+
+  it.each([
+    ["zero invoice value", { invoiceValuePaise: 0 }],
+    ["zero base value", { baseValuePaise: 0 }],
+    ["zero GST value", { gstAmountPaise: 0 }],
+    ["negative GST value", { gstAmountPaise: -1 }],
+    ["fractional invoice value", { invoiceValuePaise: 12.5 }],
+    [
+      "unsafe base value",
+      { baseValuePaise: Number.MAX_SAFE_INTEGER + 1 },
+    ],
+  ] satisfies ReadonlyArray<readonly [string, Partial<PurchaseTransaction>]>)(
+    "returns ineligible for %s without attempting calculation",
+    (_label, overrides) => {
+      const decision = evaluateEligibility(
+        eligibilityInputFixture({
+          transaction: purchaseFixture(overrides),
+        }),
+      );
+
+      expect(decision.status).toBe("INELIGIBLE");
+      expect(decision.ruleResults).toEqual([
+        expect.objectContaining({
+          code: "TRANSACTION_FINANCIALS_INVALID",
+          outcome: "FAIL",
+        }),
+      ]);
+      expect(decision.expectedAmountPaise).toBe(0);
+      expect(decision.filingDeadline).toBe("");
+      expect(decision.ruleSnapshot).toBeUndefined();
+    },
+  );
+
+  it.each([
+    ["empty input", ""],
+    ["nonexistent calendar date", "2026-02-30"],
+    ["timestamp input", "2026-10-14T00:00:00.000Z"],
+  ])(
+    "returns controlled review for malformed evaluation date: %s",
+    (_label, evaluationDate) => {
+      const decision = evaluateEligibility(
+        eligibilityInputFixture({ evaluationDate }),
+      );
+
+      expect(decision.status).toBe("EXCEPTION_REVIEW");
+      expect(
+        decision.ruleResults.find((rule) => rule.outcome !== "PASS")?.code,
+      ).toBe("EVALUATION_DATE_INVALID");
+      expect(decision.expectedAmountPaise).toBe(288_750);
+      expect(decision.filingDeadline).toBe("2026-10-13");
+      expect(decision.ruleSnapshot?.schemeVersionId).toBe("scheme-version-1");
+    },
+  );
+
+  it.each([0, 2])(
+    "rejects initial decision version %s",
+    (version) => {
+      expect(() =>
+        evaluateEligibility(
+          eligibilityInputFixture({
+            decisionId: `decision-${version}`,
+            version,
+          }),
+        ),
+      ).toThrow("Initial eligibility decision version must be 1");
+    },
+  );
+
+  it("rejects a previous decision for another transaction", () => {
+    expect(() =>
+      evaluateEligibility({
+        ...eligibilityInputFixture(),
+        decisionId: "decision-2",
+        version: 2,
+        previousDecision: eligibilityDecisionFixture({
+          transactionId: "purchase-2",
+        }),
+      }),
+    ).toThrow(
+      "Previous eligibility decision must reference the same transaction",
+    );
+  });
+
+  it.each([0, 1, 3])(
+    "rejects nonconsecutive re-evaluation version %s",
+    (version) => {
+      expect(() =>
+        evaluateEligibility({
+          ...eligibilityInputFixture(),
+          decisionId: `decision-${version}`,
+          version,
+          previousDecision: eligibilityDecisionFixture({ version: 1 }),
+        }),
+      ).toThrow(
+        "Eligibility decision version must increment previous version by exactly 1",
+      );
+    },
+  );
+
+  it("rejects reuse of the previous decision ID", () => {
+    expect(() =>
+      evaluateEligibility({
+        ...eligibilityInputFixture(),
+        decisionId: "decision-1",
+        version: 2,
+        previousDecision: eligibilityDecisionFixture({
+          id: "decision-1",
+          version: 1,
+        }),
+      }),
+    ).toThrow(
+      "Eligibility decision ID must differ from the previous decision ID",
+    );
+  });
 });

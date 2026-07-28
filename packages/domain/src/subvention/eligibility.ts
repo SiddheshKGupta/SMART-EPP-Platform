@@ -5,6 +5,7 @@ import {
   resolveEffectiveRules,
   resolveProgrammeMapping,
 } from "./programme-mapping";
+import { purchaseTransactionInputSchema } from "./schemas";
 import type {
   Actor,
   EligibilityDecision,
@@ -55,6 +56,86 @@ function statusFor(ruleResults: RuleResult[]): EligibilityStatus {
   return "ELIGIBLE";
 }
 
+function transactionValidationFailure(
+  transaction: PurchaseTransaction,
+): RuleResult | undefined {
+  const parsed = purchaseTransactionInputSchema.safeParse(transaction);
+  const financialFields = new Set([
+    "invoiceValuePaise",
+    "baseValuePaise",
+    "gstAmountPaise",
+  ]);
+  const hasInvalidRequiredField =
+    !transaction.id.trim() ||
+    !transaction.importedAt.trim() ||
+    (!parsed.success &&
+      parsed.error.issues.some(
+        (validationIssue) =>
+          !financialFields.has(String(validationIssue.path[0])),
+      ));
+
+  if (hasInvalidRequiredField) {
+    return failed(
+      "TRANSACTION_FIELDS_INVALID",
+      "Transaction fields",
+      "One or more required transaction fields are invalid.",
+    );
+  }
+
+  const financialValues = [
+    transaction.invoiceValuePaise,
+    transaction.baseValuePaise,
+    transaction.gstAmountPaise,
+  ];
+  if (
+    financialValues.some(
+      (value) => !Number.isSafeInteger(value) || value <= 0,
+    )
+  ) {
+    return failed(
+      "TRANSACTION_FINANCIALS_INVALID",
+      "Transaction financials",
+      "Invoice, base, and GST values must be positive safe-integer paise.",
+    );
+  }
+
+  return undefined;
+}
+
+function isValidDateOnly(value: string): boolean {
+  try {
+    return dateIsWithinInclusive(value, value, value);
+  } catch {
+    return false;
+  }
+}
+
+function assertDecisionChain(input: EvaluateEligibilityInput): void {
+  const previous = input.previousDecision;
+  if (!previous) {
+    if (input.version !== 1) {
+      throw new Error("Initial eligibility decision version must be 1");
+    }
+    return;
+  }
+
+  if (previous.transactionId !== input.transaction.id) {
+    throw new Error(
+      "Previous eligibility decision must reference the same transaction",
+    );
+  }
+  if (input.version !== previous.version + 1) {
+    throw new Error(
+      "Eligibility decision version must increment previous version by exactly 1",
+    );
+  }
+  if (input.decisionId === previous.id) {
+    throw new Error(
+      "Eligibility decision ID must differ from the previous decision ID",
+    );
+  }
+}
+
 function leaseStatusResult(
   status: PurchaseTransaction["leaseStatus"],
 ): RuleResult {
@@ -72,7 +153,23 @@ function leaseStatusResult(
 export function evaluateEligibility(
   input: EvaluateEligibilityInput,
 ): EligibilityDecision {
+  assertDecisionChain(input);
   const { transaction } = input;
+  const transactionFailure = transactionValidationFailure(transaction);
+  if (transactionFailure) {
+    return {
+      id: input.decisionId,
+      transactionId: transaction.id,
+      version: input.version,
+      status: "INELIGIBLE",
+      expectedAmountPaise: 0,
+      filingDeadline: "",
+      evaluatedAt: input.evaluatedAt,
+      evaluatedBy: input.actor.userId,
+      previousDecisionId: input.previousDecision?.id,
+      ruleResults: [transactionFailure],
+    };
+  }
   const duplicateImei = input.duplicateImeis.has(transaction.imei);
   const duplicateLease = input.duplicateLeaseIds.has(transaction.leaseId);
   const claimedImei = input.existingClaimedImeis.has(transaction.imei);
@@ -291,7 +388,26 @@ export function evaluateEligibility(
     transaction.invoiceDate,
     ruleSnapshot.claimTimelineDays,
   );
-  const filingTimelineExpired = input.evaluationDate > filingDeadline;
+  const evaluationDateValid = isValidDateOnly(input.evaluationDate);
+  const filingTimelineExpired =
+    evaluationDateValid && input.evaluationDate > filingDeadline;
+  const filingTimelineResult = !evaluationDateValid
+    ? reviewed(
+        "EVALUATION_DATE_INVALID",
+        "Evaluation date",
+        "The evaluation date must be a valid YYYY-MM-DD calendar date.",
+      )
+    : filingTimelineExpired
+      ? reviewed(
+          "FILING_TIMELINE_EXPIRED",
+          "Filing timeline",
+          "The filing deadline has passed and requires authorised review.",
+        )
+      : passed(
+          "FILING_TIMELINE_CURRENT",
+          "Filing timeline",
+          "The filing deadline has not passed.",
+        );
   const ruleResults: RuleResult[] = [
     ...validatedSchemeResults,
     productEligible
@@ -320,17 +436,7 @@ export function evaluateEligibility(
       "Filing deadline",
       "The filing deadline was calculated from the configured timeline.",
     ),
-    filingTimelineExpired
-      ? reviewed(
-          "FILING_TIMELINE_EXPIRED",
-          "Filing timeline",
-          "The filing deadline has passed and requires authorised review.",
-        )
-      : passed(
-          "FILING_TIMELINE_CURRENT",
-          "Filing timeline",
-          "The filing deadline has not passed.",
-        ),
+    filingTimelineResult,
   ];
 
   return {
