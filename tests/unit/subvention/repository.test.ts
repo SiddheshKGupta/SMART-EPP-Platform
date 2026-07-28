@@ -502,6 +502,73 @@ describe("subvention repository", () => {
     ]);
   });
 
+  it.each([
+    [
+      "another row in the same import",
+      seedFixture(),
+      [
+        purchaseInputFixture({
+          employeeId: "",
+          leaseId: "lease-quarantine-1",
+          imei: "323456789012345",
+          invoiceNumber: "INV-Q1",
+        }),
+        purchaseInputFixture({
+          employeeId: "",
+          leaseId: "lease-quarantine-2",
+          imei: "423456789012345",
+          invoiceNumber: "INV-Q2",
+        }),
+      ],
+      "purchase-import-row-collision",
+    ],
+    [
+      "a prior correlated quarantine audit",
+      seedFixture({
+        auditEvents: [
+          auditEventFixture({
+            entityType: "PurchaseImportRow",
+            entityId: "purchase-import-row-existing",
+            action: "PURCHASE_IMPORT_QUARANTINED",
+          }),
+        ],
+      }),
+      [
+        purchaseInputFixture({
+          employeeId: "",
+          leaseId: "lease-quarantine-1",
+          imei: "323456789012345",
+          invoiceNumber: "INV-Q1",
+        }),
+      ],
+      "purchase-import-row-existing",
+    ],
+  ])(
+    "rolls back a complete import when a quarantine identity collides with %s",
+    async (_label, seed, rows, collidingId) => {
+      let auditSequence = 0;
+      const repository = createRepositoryFixture(seed, {
+        now: () => "2026-07-28T10:00:00.000Z",
+        nextId: (prefix) =>
+          prefix === "purchase-import-row"
+            ? collidingId
+            : `${prefix}-generated-${++auditSequence}`,
+      });
+      const before = await repository.getSnapshot();
+
+      await expect(
+        repository.importTransactions(
+          rows,
+          { userId: "maker-1", role: "SALES_OPS_MAKER" },
+        ),
+      ).rejects.toThrow(
+        `Generated PurchaseImportRow ID ${collidingId} already exists`,
+      );
+
+      expect(await repository.getSnapshot()).toEqual(before);
+    },
+  );
+
   it("applies maker-checker workflow to programme mappings", async () => {
     const submitted = mappingFixture({
       id: "mapping-version-submitted",
@@ -632,6 +699,26 @@ describe("subvention repository", () => {
         ],
       }),
       "Duplicate AuditEvent ID audit-existing",
+    ],
+    [
+      "correlated quarantine identity",
+      seedFixture({
+        auditEvents: [
+          auditEventFixture({
+            id: "audit-quarantine-1",
+            entityType: "PurchaseImportRow",
+            entityId: "purchase-import-row-1",
+            action: "PURCHASE_IMPORT_QUARANTINED",
+          }),
+          auditEventFixture({
+            id: "audit-quarantine-2",
+            entityType: "PurchaseImportRow",
+            entityId: "purchase-import-row-1",
+            action: "PURCHASE_IMPORT_QUARANTINED",
+          }),
+        ],
+      }),
+      "Duplicate PurchaseImportRow correlated identity purchase-import-row-1",
     ],
   ])("rejects duplicate seed identity: %s", (_label, seed, message) => {
     expect(() => createRepositoryFixture(seed)).toThrow(message);
@@ -799,12 +886,20 @@ describe("subvention repository", () => {
     snapshot.schemes
       .filter((scheme) => scheme.workflowStatus === "APPROVED")
       .forEach((scheme) => {
-        const approval = snapshot.auditEvents.find(
+        const events = snapshot.auditEvents.filter(
           (event) =>
             event.entityType === "SchemeVersion" &&
-            event.entityId === scheme.id &&
-            event.action === "SCHEME_APPROVED",
+            event.entityId === scheme.id,
         );
+        expect(events.map((event) => event.action)).toEqual([
+          "SCHEME_SUBMITTED",
+          "SCHEME_APPROVED",
+        ]);
+        const [submission, approval] = events;
+        expect(submission?.actor.userId).toBe(scheme.makerUserId);
+        expect(approval?.actor.userId).toBe(scheme.checkerUserId);
+        expect(submission?.occurredAt >= scheme.createdAt).toBe(true);
+        expect(submission?.occurredAt < approval!.occurredAt).toBe(true);
         expect(approval?.occurredAt).toBe(scheme.approvedAt);
       });
   });

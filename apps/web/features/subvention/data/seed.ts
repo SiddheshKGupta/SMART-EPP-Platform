@@ -428,7 +428,15 @@ function historicalAuditEvent(input: {
 const auditEvents: AuditEvent[] = [
   ...schemes
     .filter((scheme) => scheme.workflowStatus === "APPROVED")
-    .map((scheme) =>
+    .flatMap((scheme) => [
+      historicalAuditEvent({
+        entityType: "SchemeVersion",
+        entityId: scheme.id,
+        action: "SCHEME_SUBMITTED",
+        actor: actors[2]!,
+        occurredAt: "2025-12-10T10:00:00.000Z",
+        remarks: "Scheme configuration submitted for approval",
+      }),
       historicalAuditEvent({
         entityType: "SchemeVersion",
         entityId: scheme.id,
@@ -437,7 +445,7 @@ const auditEvents: AuditEvent[] = [
         occurredAt: scheme.approvedAt!,
         remarks: "Scheme configuration reviewed and approved",
       }),
-    ),
+    ]),
   ...programmeMappings.flatMap((programmeMapping) => [
     historicalAuditEvent({
       entityType: "EmployerProgrammeMappingVersion",

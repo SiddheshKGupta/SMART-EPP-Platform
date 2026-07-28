@@ -337,8 +337,17 @@ export class InMemorySubventionRepository
       occurredAt,
       remarks: `Imported purchase transaction ${transaction.id}`,
     }));
+    const quarantineEntityIds = new Set(
+      this.auditEvents.flatMap((event) =>
+        event.entityType === "PurchaseImportRow" ? [event.entityId] : [],
+      ),
+    );
     const quarantineEvents = result.quarantined.map<AuditEvent>((row) => {
-      const entityId = this.dependencies.nextId("purchase-import-row");
+      const entityId = this.nextUniqueId(
+        "purchase-import-row",
+        "PurchaseImportRow",
+        quarantineEntityIds,
+      );
       return {
         id: this.nextUniqueId("audit", "AuditEvent", auditIds),
         entityType: "PurchaseImportRow",
@@ -635,6 +644,14 @@ export class InMemorySubventionRepository
       (event) => event.id,
       (event) => event.id,
       "AuditEvent ID",
+    );
+    this.assertUniqueIdentity(
+      this.auditEvents.filter(
+        (event) => event.entityType === "PurchaseImportRow",
+      ),
+      (event) => event.entityId,
+      (event) => event.entityId,
+      "PurchaseImportRow correlated identity",
     );
   }
 
