@@ -58,8 +58,26 @@ describe("purchase imports", () => {
 
   it("uses source system, lease, IMEI, and invoice as upload key", () => {
     expect(buildPurchaseSourceRowKey(purchaseInputFixture())).toBe(
-      "LMS|LES-1001|351234567890123|INV-1001",
+      '["LMS","LES-1001","351234567890123","INV-1001"]',
     );
+  });
+
+  it("accepts distinct rows whose source-key values contain delimiters", () => {
+    const first = purchaseInputFixture({
+      leaseId: "A|B",
+      imei: "12345678",
+      invoiceNumber: "INV-1001",
+    });
+    const second = purchaseInputFixture({
+      leaseId: "A",
+      imei: "B|12345678",
+      invoiceNumber: "INV-1001",
+    });
+
+    const result = validatePurchaseImport([], [first, second], importContext);
+
+    expect(result.accepted).toHaveLength(2);
+    expect(result.quarantined).toHaveLength(0);
   });
 
   it("quarantines a duplicate lease without suppressing a later valid row", () => {

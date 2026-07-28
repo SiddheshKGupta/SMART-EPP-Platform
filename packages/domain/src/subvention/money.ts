@@ -11,19 +11,23 @@ export function calculateExpectedAmountPaise(input: CalculationInput) {
   assertNonNegativeSafeIntegerPaise(input.baseValuePaise);
 
   if (input.calculationBasis === "FLAT_AMOUNT") {
+    const flatAmountPaise = input.flatAmountPaise;
     if (
-      !Number.isSafeInteger(input.flatAmountPaise) ||
-      input.flatAmountPaise <= 0
+      flatAmountPaise === undefined ||
+      !Number.isSafeInteger(flatAmountPaise) ||
+      flatAmountPaise <= 0
     ) {
       throw new Error("Positive flat amount required");
     }
-    return input.flatAmountPaise;
+    return flatAmountPaise;
   }
 
+  const rateBps = input.rateBps;
   if (
-    !Number.isSafeInteger(input.rateBps) ||
-    input.rateBps <= 0 ||
-    input.rateBps > 10_000
+    rateBps === undefined ||
+    !Number.isSafeInteger(rateBps) ||
+    rateBps <= 0 ||
+    rateBps > 10_000
   ) {
     throw new Error("Rate must be between 1 and 10000 basis points");
   }
@@ -32,5 +36,5 @@ export function calculateExpectedAmountPaise(input: CalculationInput) {
     input.calculationBasis === "INVOICE_VALUE"
       ? input.invoiceValuePaise
       : input.baseValuePaise;
-  return Math.round((basis * input.rateBps) / 10_000);
+  return Math.round((basis * rateBps) / 10_000);
 }

@@ -19,12 +19,12 @@ export interface PurchaseImportContext {
 }
 
 export function buildPurchaseSourceRowKey(input: PurchaseTransactionInput): string {
-  return [
+  return JSON.stringify([
     input.sourceSystem,
     input.leaseId,
     input.imei,
     input.invoiceNumber,
-  ].join("|");
+  ]);
 }
 
 function inputIssue(
