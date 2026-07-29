@@ -1,15 +1,20 @@
 import { SchemeProgrammeWorkspace } from "@/features/subvention/schemes/SchemeProgrammeWorkspace";
-import type { RouteSearchParams } from "@/components/shared/RouteContractPage";
+
+type SchemeWorkspaceSearchParams = Promise<{
+  status?: string | string[];
+  scheme?: string | string[];
+}>;
 
 export default async function Page({
   searchParams,
 }: {
-  searchParams: RouteSearchParams;
+  searchParams: SchemeWorkspaceSearchParams;
 }) {
-  const { status } = await searchParams;
+  const { status, scheme } = await searchParams;
   return (
     <SchemeProgrammeWorkspace
-      initialStatus={Array.isArray(status) ? status[0] : status}
+      initialStatus={typeof status === "string" ? status.trim() : undefined}
+      initialSchemeId={typeof scheme === "string" ? scheme.trim() : undefined}
     />
   );
 }

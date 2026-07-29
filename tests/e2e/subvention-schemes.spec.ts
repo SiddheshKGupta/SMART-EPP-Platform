@@ -146,3 +146,49 @@ test("programme successor uses an explicit window and closes prior validity", as
     page.getByRole("row", { name: /v2.*2026-10-01.*2027-03-31.*Approved/i }),
   ).toBeVisible();
 });
+
+test("scheme deep link restores its selected scheme", async ({ page }) => {
+  await page.goto("/subvention/schemes?scheme=scheme-version-draft");
+
+  await expect(
+    page.getByRole("heading", { name: "APL-CORP-Q3-26", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("row", { name: /APL-CORP-Q3-26.*Draft/i }),
+  ).toHaveAttribute("aria-selected", "true");
+});
+
+test("programme mapping deep link restores its selected mapping", async ({
+  page,
+}) => {
+  await page.goto(
+    "/subvention/programme-mappings?mapping=mapping-alpha-apple",
+  );
+
+  await expect(
+    page.getByRole("heading", { name: "programme-apple", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("row", {
+      name: /employer-alpha.*programme-apple.*Approved/i,
+    }),
+  ).toHaveAttribute("aria-selected", "true");
+});
+
+test("programme conflict deep link restores employer and programme scope", async ({
+  page,
+}) => {
+  await page.goto(
+    "/subvention/programme-mappings?employer=employer-unmapped&programme=programme-apple",
+  );
+
+  await expect(
+    page.getByRole("heading", { name: "employer-unmapped", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Review validity and product scope" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("row", { name: /employer-unmapped.*programme-apple/i }),
+  ).toHaveAttribute("aria-selected", "true");
+});

@@ -605,44 +605,19 @@ function DetailTabs({
 export function SchemeProgrammeWorkspace({
   initialView = "schemes",
   initialStatus = "ALL",
+  initialSchemeId,
+  initialMappingId,
+  initialEmployerId,
+  initialProgrammeId,
 }: {
   initialView?: MasterView;
   initialStatus?: string;
+  initialSchemeId?: string;
+  initialMappingId?: string;
+  initialEmployerId?: string;
+  initialProgrammeId?: string;
 }) {
   const store = useSubvention();
-  const [view, setView] = useState<MasterView>(initialView);
-  const [search, setSearch] = useState("");
-  const [status, setStatus] = useState(() =>
-    statuses.includes(initialStatus as MasterWorkflowStatus)
-      ? initialStatus!
-      : "ALL",
-  );
-  const [oem, setOem] = useState("ALL");
-  const [effectiveOn, setEffectiveOn] = useState("");
-  const [selectedId, setSelectedId] = useState<string>();
-  const [detailTab, setDetailTab] = useState<DetailTab>("summary");
-  const [workflowAction, setWorkflowAction] = useState<WorkflowAction>();
-  const [rejectOpen, setRejectOpen] = useState(false);
-
-  const oemName = (id: string) =>
-    store.snapshot.oems.find((item) => item.id === id)?.name ?? id;
-
-  const filteredSchemes = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    return store.snapshot.schemes.filter(
-      (scheme) =>
-        (!query ||
-          `${scheme.code} ${scheme.name} ${scheme.schemeId}`
-            .toLowerCase()
-            .includes(query)) &&
-        (status === "ALL" || scheme.workflowStatus === status) &&
-        (oem === "ALL" || scheme.oemId === oem) &&
-        (!effectiveOn ||
-          (scheme.effectiveFrom <= effectiveOn &&
-            scheme.effectiveTo >= effectiveOn)),
-    );
-  }, [effectiveOn, oem, search, status, store.snapshot.schemes]);
-
   const mappingConflicts = useMemo(() => {
     const seen = new Set<string>();
     return store.snapshot.transactions.flatMap<MappingConflict>(
@@ -672,6 +647,79 @@ export function SchemeProgrammeWorkspace({
       },
     );
   }, [store.snapshot.programmeMappings, store.snapshot.transactions]);
+  const employerScope =
+    initialEmployerId &&
+    (store.snapshot.programmeMappings.some(
+      (mapping) => mapping.employerId === initialEmployerId,
+    ) ||
+      mappingConflicts.some(
+        (conflict) => conflict.employerId === initialEmployerId,
+      ))
+      ? initialEmployerId
+      : undefined;
+  const programmeScope =
+    initialProgrammeId &&
+    (store.snapshot.programmeMappings.some(
+      (mapping) => mapping.programmeId === initialProgrammeId,
+    ) ||
+      mappingConflicts.some(
+        (conflict) => conflict.programmeId === initialProgrammeId,
+      ))
+      ? initialProgrammeId
+      : undefined;
+  const initialSelectedId =
+    initialView === "schemes"
+      ? store.snapshot.schemes.find((scheme) => scheme.id === initialSchemeId)
+          ?.id
+      : store.snapshot.programmeMappings.find(
+            (mapping) => mapping.id === initialMappingId,
+          )?.id ??
+        (employerScope && programmeScope
+          ? mappingConflicts.find(
+              (conflict) =>
+                conflict.employerId === employerScope &&
+                conflict.programmeId === programmeScope,
+            )?.id ??
+            store.snapshot.programmeMappings.find(
+              (mapping) =>
+                mapping.employerId === employerScope &&
+                mapping.programmeId === programmeScope,
+            )?.id
+          : undefined);
+  const [view, setView] = useState<MasterView>(initialView);
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState(() =>
+    statuses.includes(initialStatus as MasterWorkflowStatus)
+      ? initialStatus!
+      : "ALL",
+  );
+  const [oem, setOem] = useState("ALL");
+  const [effectiveOn, setEffectiveOn] = useState("");
+  const [selectedId, setSelectedId] = useState<string | undefined>(
+    initialSelectedId,
+  );
+  const [detailTab, setDetailTab] = useState<DetailTab>("summary");
+  const [workflowAction, setWorkflowAction] = useState<WorkflowAction>();
+  const [rejectOpen, setRejectOpen] = useState(false);
+
+  const oemName = (id: string) =>
+    store.snapshot.oems.find((item) => item.id === id)?.name ?? id;
+
+  const filteredSchemes = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return store.snapshot.schemes.filter(
+      (scheme) =>
+        (!query ||
+          `${scheme.code} ${scheme.name} ${scheme.schemeId}`
+            .toLowerCase()
+            .includes(query)) &&
+        (status === "ALL" || scheme.workflowStatus === status) &&
+        (oem === "ALL" || scheme.oemId === oem) &&
+        (!effectiveOn ||
+          (scheme.effectiveFrom <= effectiveOn &&
+            scheme.effectiveTo >= effectiveOn)),
+    );
+  }, [effectiveOn, oem, search, status, store.snapshot.schemes]);
 
   const filteredMappings = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -683,13 +731,17 @@ export function SchemeProgrammeWorkspace({
             .includes(query)) &&
         (status === "ALL" || mapping.workflowStatus === status) &&
         (oem === "ALL" || mapping.oemId === oem) &&
+        (!employerScope || mapping.employerId === employerScope) &&
+        (!programmeScope || mapping.programmeId === programmeScope) &&
         (!effectiveOn ||
           (mapping.effectiveFrom <= effectiveOn &&
             mapping.effectiveTo >= effectiveOn)),
     );
   }, [
     effectiveOn,
+    employerScope,
     oem,
+    programmeScope,
     search,
     status,
     store.snapshot.programmeMappings,
@@ -704,9 +756,18 @@ export function SchemeProgrammeWorkspace({
           `${conflict.employerId} ${conflict.programmeId}`
             .toLowerCase()
             .includes(query)) &&
-        (oem === "ALL" || conflict.oemId === oem),
+        (oem === "ALL" || conflict.oemId === oem) &&
+        (!employerScope || conflict.employerId === employerScope) &&
+        (!programmeScope || conflict.programmeId === programmeScope),
     );
-  }, [mappingConflicts, oem, search, status]);
+  }, [
+    employerScope,
+    mappingConflicts,
+    oem,
+    programmeScope,
+    search,
+    status,
+  ]);
 
   const selectedScheme = store.snapshot.schemes.find(
     (scheme) => view === "schemes" && scheme.id === selectedId,

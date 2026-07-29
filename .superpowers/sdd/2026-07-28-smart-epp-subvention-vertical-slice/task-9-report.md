@@ -68,3 +68,11 @@ Task 9 intentionally did not broaden into seed-model remediation. Current demo s
 - transactions do not yet carry the Equipment Leasing versus Residuary Connect legal-entity dimension.
 
 These should be reconciled in the dedicated seed/domain task so Task 9 remains scoped to master-control UX and workflow behavior.
+
+## Independent review fix — round 2
+
+- Replaced the remaining route-contract usage with explicit route-local query types for schemes and programme mappings.
+- `status`, `scheme`, `mapping`, `employer`, and `programme` now pass into typed initial workspace props; repeated query values are discarded instead of selecting an arbitrary array member.
+- The workspace validates initial scheme and mapping IDs, plus employer/programme scope, against the provider snapshot and conflict results before applying them.
+- Valid deep links now open the selected scheme, mapping, or conflict detail while status filtering remains intact; unknown IDs stay unselected and unsupported scope values are discarded.
+- Added browser coverage for scheme selection, programme-mapping selection, and employer/programme conflict-recovery links. The new tests first failed with the expected empty-detail state, then passed 3/3 after the route-state fix.
