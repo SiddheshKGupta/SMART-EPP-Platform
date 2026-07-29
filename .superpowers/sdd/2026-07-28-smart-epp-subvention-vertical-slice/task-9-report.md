@@ -76,3 +76,5 @@ These should be reconciled in the dedicated seed/domain task so Task 9 remains s
 - The workspace validates initial scheme and mapping IDs, plus employer/programme scope, against the provider snapshot and conflict results before applying them.
 - Valid deep links now open the selected scheme, mapping, or conflict detail while status filtering remains intact; unknown IDs stay unselected and unsupported scope values are discarded.
 - Added browser coverage for scheme selection, programme-mapping selection, and employer/programme conflict-recovery links. The new tests first failed with the expected empty-detail state, then passed 3/3 after the route-state fix.
+- Made Playwright deterministic for a cold local run: one worker, a 60-second test budget, and no reuse of stale development servers.
+- Fresh post-fix gates: full Playwright 13/13, unit 136/136, lint, strict web/domain typecheck, and production build all passed.
