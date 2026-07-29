@@ -158,6 +158,35 @@ describe("employer programme mapping resolution", () => {
       mapping: { id: "map-v1" },
     });
   });
+
+  it("does not resolve a mapping constrained to another reseller", () => {
+    const result = resolveProgrammeMapping(purchaseFixture(), [
+      mappingFixture({ resellerId: "reseller-2" }),
+    ]);
+
+    expect(result.status).toBe("MISSING");
+  });
+
+  it("selects the configured distributor path when mappings share employer scope", () => {
+    const result = resolveProgrammeMapping(
+      purchaseFixture({ distributorId: "distributor-redington" }),
+      [
+        mappingFixture({
+          id: "map-ingram",
+          distributorId: "distributor-ingram",
+        }),
+        mappingFixture({
+          id: "map-redington",
+          distributorId: "distributor-redington",
+        }),
+      ],
+    );
+
+    expect(result).toMatchObject({
+      status: "RESOLVED",
+      mapping: { id: "map-redington" },
+    });
+  });
 });
 
 describe("effective programme rules", () => {

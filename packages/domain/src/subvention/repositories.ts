@@ -64,6 +64,8 @@ export interface SubventionSeed {
   purchaseImportMasterData: PurchaseImportMasterData;
   existingClaimedDeviceIdentifiers: string[];
   existingClaimedLeaseIds: string[];
+  alternativePartnerDeviceIdentifiers: string[];
+  alternativePartnerLeaseIds: string[];
   duplicateDeviceIdentifiers: string[];
   duplicateLeaseIds: string[];
 }
@@ -173,6 +175,10 @@ export interface EligibilityDecisionRepository {
     transactionId: string,
     actor: Actor,
   ): Promise<EligibilityDecision>;
+  evaluateTransactions(
+    transactionIds: string[],
+    actor: Actor,
+  ): Promise<EligibilityDecision[]>;
 }
 
 export interface AuditRepository {

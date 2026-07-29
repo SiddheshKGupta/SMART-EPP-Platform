@@ -3,6 +3,7 @@ import {
   buildPurchaseSourceRowKey,
   purchaseTransactionInputSchema,
   validatePurchaseImport,
+  type EmployerProgrammeMappingVersion,
   type PurchaseImportMasterData,
   type PurchaseTransactionInput,
 } from "../../../packages/domain/src";
@@ -19,7 +20,30 @@ const masterData: PurchaseImportMasterData = {
   resellerAliases: new Map([
     ["Radius Systems Private Limited", "reseller-radius"],
   ]),
-  distributorAliases: new Map([["Ingram", "distributor-ingram"]]),
+  distributorAliases: new Map([
+    ["Ingram", "distributor-ingram"],
+    ["Redington", "distributor-redington"],
+  ]),
+};
+
+const configuredMapping: EmployerProgrammeMappingVersion = {
+  id: "mapping-alpha-ingram",
+  mappingId: "mapping-alpha-ingram",
+  version: 1,
+  employerId: "employer-alpha",
+  programmeId: "programme-apple",
+  oemId: "oem-apple",
+  schemeVersionId: "scheme-apple",
+  resellerId: "reseller-radius",
+  distributorId: "distributor-ingram",
+  launchDate: "2026-01-01",
+  effectiveFrom: "2026-01-01",
+  effectiveTo: "2026-12-31",
+  workflowStatus: "APPROVED",
+  makerUserId: "maker-1",
+  checkerUserId: "checker-1",
+  approvedAt: "2025-12-20T10:00:00.000Z",
+  createdAt: "2025-12-10T10:00:00.000Z",
 };
 
 function evidenceInput(
@@ -70,9 +94,23 @@ function evidenceInput(
 }
 
 const importContext = {
+  importId: "import-evidence-1",
   importedAt: "2026-07-28T10:00:00.000Z",
+  importedBy: "maker-1",
   idForRow: (rowNumber: number) => `transaction-${rowNumber}`,
-  masterData,
+  idForQuarantineRow: (rowNumber: number) =>
+    `quarantine-evidence-${rowNumber}`,
+  masterData: {
+    ...masterData,
+    productCodesByProductId: new Map([
+      ["product-phone", new Set(["APL-PHONE-16"])],
+    ]),
+  },
+  programmeMappings: [configuredMapping],
+  existingClaimedDeviceIdentifiers: new Set<string>(),
+  existingClaimedLeaseIds: new Set<string>(),
+  alternativePartnerDeviceIdentifiers: new Set<string>(),
+  alternativePartnerLeaseIds: new Set<string>(),
 };
 
 describe("purchase evidence contract", () => {
@@ -175,6 +213,76 @@ describe("purchase evidence contract", () => {
     "quarantines %s atomically",
     (_label, input, expectedIssueCode) => {
       const result = validatePurchaseImport([], [input], importContext);
+
+      expect(result.accepted).toEqual([]);
+      expect(result.quarantined).toHaveLength(1);
+      expect(
+        result.quarantined[0]?.issues.map((found) => found.code),
+      ).toContain(expectedIssueCode);
+    },
+  );
+
+  it.each([
+    [
+      "device identifier already used by an approved claim",
+      evidenceInput(),
+      {
+        existingClaimedDeviceIdentifiers: new Set(["351234567890123"]),
+      },
+      "ALREADY_CLAIMED_DEVICE_IDENTIFIER",
+    ],
+    [
+      "lease identifier already used by an approved claim",
+      evidenceInput(),
+      { existingClaimedLeaseIds: new Set(["LES-1001"]) },
+      "ALREADY_CLAIMED_LEASE",
+    ],
+    [
+      "device identifier submitted through another partner",
+      evidenceInput(),
+      {
+        alternativePartnerDeviceIdentifiers: new Set([
+          "351234567890123",
+        ]),
+      },
+      "ALTERNATIVE_PARTNER_DEVICE_IDENTIFIER",
+    ],
+    [
+      "lease identifier submitted through another partner",
+      evidenceInput(),
+      {
+        alternativePartnerLeaseIds: new Set(["LES-1001"]),
+      },
+      "ALTERNATIVE_PARTNER_LEASE",
+    ],
+    [
+      "product code incompatible with the resolved product",
+      evidenceInput({ productCode: "APL-PHONE-17" }),
+      {},
+      "PRODUCT_CODE_MISMATCH",
+    ],
+    [
+      "counterparties incompatible with the configured mapping",
+      evidenceInput({
+        distributorId: "distributor-redington",
+        sourceEvidence: {
+          ...evidenceInput().sourceEvidence,
+          counterpartyAliases: {
+            ...evidenceInput().sourceEvidence.counterpartyAliases,
+            distributor: "Redington",
+          },
+        },
+      }),
+      {},
+      "PROGRAMME_MAPPING_MISSING",
+    ],
+  ] as const)(
+    "quarantines %s as one row",
+    (_label, input, contextOverrides, expectedIssueCode) => {
+      const result = validatePurchaseImport([], [input], {
+        ...importContext,
+        ...contextOverrides,
+      });
 
       expect(result.accepted).toEqual([]);
       expect(result.quarantined).toHaveLength(1);

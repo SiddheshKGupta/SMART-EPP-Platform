@@ -10,6 +10,7 @@ import {
 import type {
   Actor,
   DomainIssue,
+  EligibilityDecision,
   ImportResult,
   PurchaseTransactionInput,
   ProgrammeMappingEffectiveWindow,
@@ -45,8 +46,12 @@ export interface SubventionContextValue {
     remarks: string,
     effectiveWindow: ProgrammeMappingEffectiveWindow,
   ): Promise<string | undefined>;
-  evaluateTransaction(id: string): Promise<void>;
-  evaluateTransactions(ids: string[]): Promise<void>;
+  evaluateTransaction(
+    id: string,
+  ): Promise<EligibilityDecision | undefined>;
+  evaluateTransactions(
+    ids: string[],
+  ): Promise<EligibilityDecision[] | undefined>;
   importTransactions(
     rows: PurchaseTransactionInput[],
   ): Promise<ImportResult | undefined>;
@@ -225,22 +230,18 @@ export function SubventionProvider({ children }: { children: ReactNode }) {
   );
 
   const evaluateTransaction = useCallback(
-    async (id: string) => {
+    async (id: string) =>
       await runCommand(() =>
         repository.evaluateTransaction(id, activeActor),
-      );
-    },
+      ),
     [activeActor, repository, runCommand],
   );
 
   const evaluateTransactions = useCallback(
-    async (ids: string[]) => {
-      await runCommand(async () => {
-        for (const id of ids) {
-          await repository.evaluateTransaction(id, activeActor);
-        }
-      });
-    },
+    async (ids: string[]) =>
+      await runCommand(() =>
+        repository.evaluateTransactions(ids, activeActor),
+      ),
     [activeActor, repository, runCommand],
   );
 

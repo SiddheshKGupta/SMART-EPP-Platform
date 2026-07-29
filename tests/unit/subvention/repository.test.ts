@@ -212,6 +212,9 @@ function seedFixture(overrides: Partial<SubventionSeed> = {}): SubventionSeed {
       programmeIds: new Set(["programme-1"]),
       oemIds: new Set(["oem-1"]),
       productIds: new Set(["product-1"]),
+      productCodesByProductId: new Map([
+        ["product-1", new Set(["PRODUCT-1"])],
+      ]),
       connectLegalEntityIds: new Set([
         "connect-equipment-leasing",
       ]),
@@ -220,6 +223,8 @@ function seedFixture(overrides: Partial<SubventionSeed> = {}): SubventionSeed {
     },
     existingClaimedDeviceIdentifiers: [],
     existingClaimedLeaseIds: [],
+    alternativePartnerDeviceIdentifiers: [],
+    alternativePartnerLeaseIds: [],
     duplicateDeviceIdentifiers: [],
     duplicateLeaseIds: [],
     ...overrides,
@@ -559,6 +564,36 @@ describe("subvention repository", () => {
     expect(await repository.getSnapshot()).toEqual(before);
   });
 
+  it("allows overlapping dates for disjoint configured distributor paths", async () => {
+    const ingram = mappingFixture({
+      id: "mapping-ingram",
+      mappingId: "mapping-ingram",
+      distributorId: "distributor-ingram",
+    });
+    const redington = mappingFixture({
+      id: "mapping-redington",
+      mappingId: "mapping-redington",
+      distributorId: "distributor-redington",
+      workflowStatus: "SUBMITTED",
+      checkerUserId: undefined,
+      approvedAt: undefined,
+    });
+    const repository = createRepositoryFixture(
+      seedFixture({ programmeMappings: [ingram, redington] }),
+    );
+
+    await repository.approveProgrammeMapping(
+      redington.id,
+      { userId: "checker-1", role: "BUSINESS_HEAD_CHECKER" },
+      "Approve separate settlement path",
+    );
+
+    expect(await repository.getProgrammeMapping(redington.id)).toMatchObject({
+      workflowStatus: "APPROVED",
+      distributorId: "distributor-redington",
+    });
+  });
+
   it("does not let an approved payload be resaved as a draft", async () => {
     const repository = createRepositoryFixture();
     const approved = await repository.getScheme("scheme-version-approved");
@@ -784,6 +819,79 @@ describe("subvention repository", () => {
     ).toBe("maker-1");
   });
 
+  it("returns the decisions actually persisted by a bulk evaluation", async () => {
+    const secondPurchase = purchaseFixture({
+      id: "purchase-2",
+      leaseId: "lease-2",
+      deviceIdentifier: "223456789012345",
+      invoiceNumber: "INV-2",
+      sourceEvidence: {
+        ...purchaseFixture().sourceEvidence,
+        sourceChecksum: "sha256:bulk-purchase-2",
+      },
+    });
+    const repository = createRepositoryFixture(
+      seedFixture({
+        transactions: [purchaseFixture(), secondPurchase],
+      }),
+    ) as InMemorySubventionRepository & {
+      evaluateTransactions?: (
+        ids: string[],
+        actor: { userId: string; role: string },
+      ) => Promise<EligibilityDecision[]>;
+    };
+
+    expect(repository.evaluateTransactions).toBeTypeOf("function");
+    if (!repository.evaluateTransactions) return;
+    const decisions = await repository.evaluateTransactions(
+      ["purchase-1", "purchase-2"],
+      { userId: "maker-1", role: "SALES_OPS_MAKER" },
+    );
+
+    expect(decisions).toHaveLength(2);
+    expect(
+      (await repository.listEligibilityDecisions()).map(
+        ({ id, transactionId, status, expectedAmountPaise }) => ({
+          id,
+          transactionId,
+          status,
+          expectedAmountPaise,
+        }),
+      ),
+    ).toEqual(
+      decisions.map(
+        ({ id, transactionId, status, expectedAmountPaise }) => ({
+          id,
+          transactionId,
+          status,
+          expectedAmountPaise,
+        }),
+      ),
+    );
+  });
+
+  it("rolls back every bulk decision when any transaction cannot be evaluated", async () => {
+    const repository = createRepositoryFixture() as InMemorySubventionRepository & {
+      evaluateTransactions?: (
+        ids: string[],
+        actor: { userId: string; role: string },
+      ) => Promise<EligibilityDecision[]>;
+    };
+    const before = await repository.getSnapshot();
+
+    expect(repository.evaluateTransactions).toBeTypeOf("function");
+    if (!repository.evaluateTransactions) return;
+    await expect(
+      repository.evaluateTransactions(
+        ["purchase-1", "purchase-missing"],
+        { userId: "maker-1", role: "SALES_OPS_MAKER" },
+      ),
+    ).rejects.toThrow(
+      "Purchase transaction purchase-missing was not found",
+    );
+    expect(await repository.getSnapshot()).toEqual(before);
+  });
+
   it("appends an audit event for every quarantined import row", async () => {
     const repository = createRepositoryFixture();
     const duplicate: PurchaseTransactionInput = {
@@ -808,20 +916,33 @@ describe("subvention repository", () => {
     expect(result.quarantined[0]?.issues[0]?.code).toBe(
       "DUPLICATE_DEVICE_IDENTIFIER",
     );
+    expect(result.quarantined[0]).toMatchObject({
+      id: expect.stringMatching(/^purchase-import-row-/),
+      importId: expect.stringMatching(/^purchase-import-/),
+      importedAt: "2026-07-28T10:00:00.000Z",
+      importedBy: "maker-1",
+      sourceChecksum: "sha256:repository-duplicate-device",
+      sourceSheetName: "Transactions",
+      sourceRowNumber: 2,
+      issueCodes: ["DUPLICATE_DEVICE_IDENTIFIER"],
+    });
     const events = await repository.listAuditEvents();
-    expect(events).toEqual([
-      expect.objectContaining({
-        id: "audit-2",
-        entityType: "PurchaseImportRow",
-        entityId: "purchase-import-row-1",
-        action: "PURCHASE_IMPORT_QUARANTINED",
-        occurredAt: "2026-07-28T10:00:00.000Z",
-        metadata: expect.objectContaining({
-          rowNumber: 1,
-          issueCodes: ["DUPLICATE_DEVICE_IDENTIFIER"],
-        }),
-      }),
-    ]);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      entityType: "PurchaseImportRow",
+      entityId: result.quarantined[0]?.id,
+      action: "PURCHASE_IMPORT_QUARANTINED",
+      actor: { userId: "maker-1", role: "SALES_OPS_MAKER" },
+      occurredAt: "2026-07-28T10:00:00.000Z",
+      metadata: {
+        importId: result.quarantined[0]?.importId,
+        rowNumber: 1,
+        sourceChecksum: "sha256:repository-duplicate-device",
+        sourceSheetName: "Transactions",
+        sourceRowNumber: 2,
+        issueCodes: ["DUPLICATE_DEVICE_IDENTIFIER"],
+      },
+    });
   });
 
   it.each([
@@ -1138,7 +1259,7 @@ describe("subvention repository", () => {
     expect(
       first.schemes.filter((scheme) => scheme.workflowStatus === "DRAFT"),
     ).toHaveLength(1);
-    expect(first.programmeMappings).toHaveLength(8);
+    expect(first.programmeMappings).toHaveLength(10);
     expect(
       first.programmeMappings.filter(
         (mapping) => mapping.workflowStatus === "SUBMITTED",
@@ -1205,6 +1326,18 @@ describe("subvention repository", () => {
       "MANAGEMENT_VIEWER",
       "AUDITOR",
     ]);
+    first.transactions
+      .filter((transaction) => transaction.employerId !== "employer-unmapped")
+      .forEach((transaction) => {
+        const resolution = resolveProgrammeMapping(
+          transaction,
+          first.programmeMappings,
+        );
+        expect(
+          resolution,
+          `${transaction.id} must resolve through its configured counterparties`,
+        ).toMatchObject({ status: "RESOLVED" });
+      });
   });
 
   it("correlates seeded material events with entity transitions and timestamps", async () => {

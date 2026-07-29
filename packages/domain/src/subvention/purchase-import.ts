@@ -1,9 +1,22 @@
 import { purchaseTransactionInputSchema } from "./schemas";
 import { issue, type DomainIssue } from "./issues";
-import type { PurchaseTransaction, PurchaseTransactionInput } from "./types";
+import { resolveProgrammeMapping } from "./programme-mapping";
+import type {
+  EmployerProgrammeMappingVersion,
+  PurchaseTransaction,
+  PurchaseTransactionInput,
+} from "./types";
 
 export interface QuarantinedPurchaseImportRow {
+  id: string;
+  importId: string;
+  importedAt: string;
+  importedBy: string;
   rowNumber: number;
+  sourceChecksum: string;
+  sourceSheetName: string;
+  sourceRowNumber: number;
+  issueCodes: string[];
   input: PurchaseTransactionInput;
   issues: DomainIssue[];
 }
@@ -14,9 +27,17 @@ export interface ImportResult {
 }
 
 export interface PurchaseImportContext {
+  importId: string;
   importedAt: string;
+  importedBy: string;
   idForRow: (rowNumber: number) => string;
+  idForQuarantineRow: (rowNumber: number) => string;
   masterData: PurchaseImportMasterData;
+  programmeMappings: EmployerProgrammeMappingVersion[];
+  existingClaimedDeviceIdentifiers: ReadonlySet<string>;
+  existingClaimedLeaseIds: ReadonlySet<string>;
+  alternativePartnerDeviceIdentifiers: ReadonlySet<string>;
+  alternativePartnerLeaseIds: ReadonlySet<string>;
 }
 
 export interface PurchaseImportMasterData {
@@ -24,9 +45,72 @@ export interface PurchaseImportMasterData {
   programmeIds: ReadonlySet<string>;
   oemIds: ReadonlySet<string>;
   productIds: ReadonlySet<string>;
+  productCodesByProductId: ReadonlyMap<string, ReadonlySet<string>>;
   connectLegalEntityIds: ReadonlySet<string>;
   resellerAliases: ReadonlyMap<string, string>;
   distributorAliases: ReadonlyMap<string, string>;
+}
+
+function importControlIssues(
+  input: PurchaseTransactionInput,
+  context: PurchaseImportContext,
+): DomainIssue[] {
+  const configuredProductCodes =
+    context.masterData.productCodesByProductId.get(input.productId);
+  const mappingResolution = resolveProgrammeMapping(
+    {
+      ...input,
+      id: `import-preview:${buildPurchaseSourceRowKey(input)}`,
+      importedAt: context.importedAt,
+    },
+    context.programmeMappings,
+  );
+
+  return [
+    context.existingClaimedDeviceIdentifiers.has(input.deviceIdentifier)
+      ? quarantineIssue(
+          "ALREADY_CLAIMED_DEVICE_IDENTIFIER",
+          "deviceIdentifier",
+          "The device identifier is already present in an approved claim.",
+          "Remove the row or resolve the approved-claim duplication before import.",
+        )
+      : undefined,
+    context.existingClaimedLeaseIds.has(input.leaseId)
+      ? quarantineIssue(
+          "ALREADY_CLAIMED_LEASE",
+          "leaseId",
+          "The lease identifier is already present in an approved claim.",
+          "Remove the row or resolve the approved-claim duplication before import.",
+        )
+      : undefined,
+    context.alternativePartnerDeviceIdentifiers.has(input.deviceIdentifier)
+      ? quarantineIssue(
+          "ALTERNATIVE_PARTNER_DEVICE_IDENTIFIER",
+          "deviceIdentifier",
+          "The device identifier was submitted through another partner.",
+          "Resolve partner ownership through an authorised exception before import.",
+        )
+      : undefined,
+    context.alternativePartnerLeaseIds.has(input.leaseId)
+      ? quarantineIssue(
+          "ALTERNATIVE_PARTNER_LEASE",
+          "leaseId",
+          "The lease identifier was submitted through another partner.",
+          "Resolve partner ownership through an authorised exception before import.",
+        )
+      : undefined,
+    configuredProductCodes?.has(input.productCode)
+      ? undefined
+      : quarantineIssue(
+          "PRODUCT_CODE_MISMATCH",
+          "productCode",
+          `Product code ${input.productCode} is not configured for product ${input.productId}.`,
+          "Correct the product ID/code pair or update approved product configuration.",
+        ),
+    mappingResolution.status === "RESOLVED"
+      ? undefined
+      : mappingResolution.issues[0],
+  ].flatMap((found) => (found ? [found] : []));
 }
 
 export function buildPurchaseSourceRowKey(input: PurchaseTransactionInput): string {
@@ -170,8 +254,9 @@ function masterIssues(
 
 function validateInput(
   input: PurchaseTransactionInput,
-  masterData: PurchaseImportMasterData,
+  context: PurchaseImportContext,
 ): DomainIssue[] {
+  const { masterData } = context;
   const parsed = purchaseTransactionInputSchema.safeParse(input);
   const schemaIssues = parsed.success
     ? []
@@ -208,12 +293,19 @@ function validateInput(
       : [];
   const resolvedMasterIssues =
     parsed.success && !rowKindIssue ? masterIssues(input, masterData) : [];
+  const resolvedControlIssues =
+    parsed.success &&
+    !rowKindIssue &&
+    resolvedMasterIssues.length === 0
+      ? importControlIssues(input, context)
+      : [];
 
   return [
     ...schemaIssues,
     ...zeroValueIssues,
     ...(rowKindIssue ? [rowKindIssue] : []),
     ...resolvedMasterIssues,
+    ...resolvedControlIssues,
   ];
 }
 
@@ -293,12 +385,24 @@ export function validatePurchaseImport(
 
   rows.forEach((input, index) => {
     const rowNumber = index + 1;
-    const issues = validateInput(input, context.masterData);
+    const issues = validateInput(input, context);
     const rowIssues =
       issues.length > 0 ? issues : duplicateIssues(workingSet, input);
 
     if (rowIssues.length > 0) {
-      quarantined.push({ rowNumber, input, issues: rowIssues });
+      quarantined.push({
+        id: context.idForQuarantineRow(rowNumber),
+        importId: context.importId,
+        importedAt: context.importedAt,
+        importedBy: context.importedBy,
+        rowNumber,
+        sourceChecksum: input.sourceEvidence.sourceChecksum,
+        sourceSheetName: input.sourceEvidence.sourceSheetName,
+        sourceRowNumber: input.sourceEvidence.sourceRowNumber,
+        issueCodes: rowIssues.map((foundIssue) => foundIssue.code),
+        input,
+        issues: rowIssues,
+      });
       return;
     }
 

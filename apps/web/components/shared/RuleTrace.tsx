@@ -51,6 +51,12 @@ export function RuleTrace({ results }: RuleTraceProps) {
                 <span>{outcomeCopy[result.outcome]}</span>
               </div>
               <p>{result.reason}</p>
+              {result.recoveryAction ? (
+                <p className="rule-recovery">
+                  <strong>Recovery action:</strong>{" "}
+                  {result.recoveryAction}
+                </p>
+              ) : null}
               {href ? (
                 <Link href={href} className="rule-source-link">
                   Open source control

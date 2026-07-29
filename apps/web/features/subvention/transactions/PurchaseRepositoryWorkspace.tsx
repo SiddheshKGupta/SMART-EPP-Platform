@@ -9,11 +9,8 @@ import {
   Search,
   Upload,
 } from "lucide-react";
-import { gsap } from "gsap";
 import {
-  useLayoutEffect,
   useMemo,
-  useRef,
   useState,
   type KeyboardEvent,
   type ReactNode,
@@ -60,7 +57,7 @@ import {
 } from "@/components/ui/table";
 import { DEMO_NOW } from "@/features/subvention/data/seed";
 import { useSubvention } from "@/features/subvention/store/SubventionProvider";
-import { MOTION } from "@/lib/motion";
+import { buildTransactionCsv } from "./transactionCsv";
 
 type SortKey =
   | "leaseId"
@@ -274,30 +271,6 @@ function EvidenceSection({
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(true);
-  const contentRef = useRef<HTMLDivElement>(null);
-
-  useLayoutEffect(() => {
-    const content = contentRef.current;
-    if (!content || !open) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      gsap.set(content, { opacity: 1, y: 0 });
-      return;
-    }
-    const tween = gsap.fromTo(
-      content,
-      { opacity: 0, y: -6 },
-      {
-        opacity: 1,
-        y: 0,
-        duration: MOTION.evidence,
-        ease: MOTION.panelEase,
-        overwrite: "auto",
-      },
-    );
-    return () => {
-      tween.kill();
-    };
-  }, [open]);
 
   return (
     <section className="evidence-section">
@@ -309,7 +282,7 @@ function EvidenceSection({
         {title}
         <span aria-hidden>{open ? "−" : "+"}</span>
       </button>
-      {open ? <div ref={contentRef}>{children}</div> : null}
+      {open ? <div>{children}</div> : null}
     </section>
   );
 }
@@ -412,45 +385,12 @@ export function PurchaseRepositoryWorkspace() {
     }));
 
   const exportCsv = () => {
-    const csv = [
-      [
-        "Lease ID",
-        "Device identifier",
-        "Employer",
-        "Connect legal entity",
-        "Product code",
-        "Invoice",
-        "Invoice date",
-        "Invoice value paise",
-        "Base value paise",
-        "Eligibility",
-        "Filing deadline",
-        "Expected amount paise",
-      ],
-      ...filtered.map((transaction) => {
-        const decision = decisions.get(transaction.id)!;
-        return [
-          transaction.leaseId,
-          transaction.deviceIdentifier,
-          transaction.employerId,
-          transaction.connectLegalEntityId,
-          transaction.productCode,
-          transaction.invoiceNumber,
-          transaction.invoiceDate,
-          transaction.invoiceValuePaise,
-          transaction.baseValuePaise,
-          decision.status,
-          decision.filingDeadline,
-          decision.expectedAmountPaise,
-        ];
-      }),
-    ]
-      .map((row) =>
-        row
-          .map((value) => `"${String(value).replaceAll('"', '""')}"`)
-          .join(","),
-      )
-      .join("\n");
+    const csv = buildTransactionCsv(
+      filtered.map((transaction) => ({
+        transaction,
+        decision: decisions.get(transaction.id),
+      })),
+    );
     const href = URL.createObjectURL(
       new Blob([csv], { type: "text/csv;charset=utf-8" }),
     );
@@ -459,6 +399,14 @@ export function PurchaseRepositoryWorkspace() {
     link.download = "subvention-transactions.csv";
     link.click();
     URL.revokeObjectURL(href);
+  };
+
+  const resetFilters = () => {
+    setSearch("");
+    setStatus("ALL");
+    setOem("ALL");
+    setEmployer("ALL");
+    setDeadline("ALL");
   };
 
   const runSyntheticImport = async () => {
@@ -625,6 +573,27 @@ export function PurchaseRepositoryWorkspace() {
             </TableRow>
           </TableHeader>
           <TableBody>
+            {filtered.length === 0 ? (
+              <TableRow>
+                <TableCell
+                  className="repository-empty-state"
+                  colSpan={Math.max(visibleColumns.size, 1)}
+                >
+                  <strong>No purchases match these filters</strong>
+                  <span>
+                    Clear the current search and filter controls to restore
+                    the repository view.
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={resetFilters}
+                  >
+                    Reset filters
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ) : null}
             {filtered.map((transaction) => {
               const decision = decisions.get(transaction.id)!;
               const values: Record<Exclude<ColumnKey, "leaseId" | "deviceIdentifier">, ReactNode> = {
@@ -870,6 +839,11 @@ export function PurchaseRepositoryWorkspace() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Import ID</TableHead>
+                    <TableHead>Audit row ID</TableHead>
+                    <TableHead>Imported by</TableHead>
+                    <TableHead>Imported at</TableHead>
+                    <TableHead>Checksum</TableHead>
                     <TableHead>Source row</TableHead>
                     <TableHead>Issue code</TableHead>
                     <TableHead>Recovery action</TableHead>
@@ -881,9 +855,17 @@ export function PurchaseRepositoryWorkspace() {
                       <TableRow
                         key={`${row.rowNumber}-${foundIssue.code}-${foundIssue.field}`}
                       >
+                        <TableCell className="mono-cell">
+                          {row.importId}
+                        </TableCell>
+                        <TableCell className="mono-cell">{row.id}</TableCell>
+                        <TableCell>{row.importedBy}</TableCell>
+                        <TableCell>{row.importedAt}</TableCell>
+                        <TableCell className="mono-cell">
+                          {row.sourceChecksum}
+                        </TableCell>
                         <TableCell>
-                          {row.input.sourceEvidence.sourceSheetName} /{" "}
-                          {row.input.sourceEvidence.sourceRowNumber}
+                          {row.sourceSheetName} / {row.sourceRowNumber}
                         </TableCell>
                         <TableCell className="mono-cell">
                           {foundIssue.code}

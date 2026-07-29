@@ -1,10 +1,8 @@
 "use client";
 
 import { Expand, PanelRightClose } from "lucide-react";
-import { gsap } from "gsap";
 import {
   useEffect,
-  useLayoutEffect,
   useRef,
   useState,
   type ReactNode,
@@ -17,7 +15,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { MOTION } from "@/lib/motion";
 
 export interface AdaptiveSplitWorkspaceProps {
   listLabel: string;
@@ -40,7 +37,6 @@ export function AdaptiveSplitWorkspace({
 }: AdaptiveSplitWorkspaceProps) {
   const [isCompact, setIsCompact] = useState(false);
   const returnFocusRef = useRef<HTMLElement | null>(null);
-  const detailRef = useRef<HTMLElement | null>(null);
   const wasOpenRef = useRef(false);
 
   useEffect(() => {
@@ -79,29 +75,6 @@ export function AdaptiveSplitWorkspace({
         .querySelector<HTMLElement>("[data-detail-heading]")
         ?.focus();
     });
-  }, [isCompact, isOpen, selectedLabel]);
-
-  useLayoutEffect(() => {
-    const detail = detailRef.current;
-    if (!detail || !isOpen || isCompact) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      gsap.set(detail, { opacity: 1, x: 0 });
-      return;
-    }
-    const tween = gsap.fromTo(
-      detail,
-      { opacity: 0, x: 18 },
-      {
-        opacity: 1,
-        x: 0,
-        duration: MOTION.enter,
-        ease: MOTION.panelEase,
-        overwrite: "auto",
-      },
-    );
-    return () => {
-      tween.kill();
-    };
   }, [isCompact, isOpen, selectedLabel]);
 
   if (isCompact) {
@@ -148,7 +121,6 @@ export function AdaptiveSplitWorkspace({
       </section>
       {isOpen ? (
         <aside
-          ref={detailRef}
           className="adaptive-detail"
           aria-label={selectedLabel}
         >

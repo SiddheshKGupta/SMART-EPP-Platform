@@ -153,14 +153,23 @@ export type EligibilityStatus =
 
 export type RuleOutcome = "PASS" | "FAIL" | "REVIEW";
 
-export interface RuleResult {
+interface RuleResultBase {
   code: string;
   label: string;
-  outcome: RuleOutcome;
   reason: string;
   sourceEntityType?: string;
   sourceEntityId?: string;
 }
+
+export type RuleResult =
+  | (RuleResultBase & {
+      outcome: "PASS";
+      recoveryAction?: never;
+    })
+  | (RuleResultBase & {
+      outcome: "FAIL" | "REVIEW";
+      recoveryAction: string;
+    });
 
 export interface EligibilityRuleSnapshot {
   employerProgrammeMappingVersionId: string;

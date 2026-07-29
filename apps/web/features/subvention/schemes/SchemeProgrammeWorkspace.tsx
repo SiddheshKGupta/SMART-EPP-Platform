@@ -504,6 +504,7 @@ function ProgrammeList({
           <TableHead className="sticky-master-name">Programme</TableHead>
           <TableHead>OEM</TableHead>
           <TableHead>Scheme version</TableHead>
+          <TableHead>Configured path</TableHead>
           <TableHead>Validity</TableHead>
           <TableHead>Status</TableHead>
         </TableRow>
@@ -531,7 +532,7 @@ function ProgrammeList({
               {conflict.programmeId}
             </TableCell>
             <TableCell>{oemName(conflict.oemId)}</TableCell>
-            <TableCell colSpan={2}>{conflict.issue.message}</TableCell>
+            <TableCell colSpan={3}>{conflict.issue.message}</TableCell>
             <TableCell>
               <span className="conflict-label">
                 <AlertTriangle aria-hidden />
@@ -562,6 +563,11 @@ function ProgrammeList({
             </TableCell>
             <TableCell>{oemName(mapping.oemId)}</TableCell>
             <TableCell>{mapping.schemeVersionId}</TableCell>
+            <TableCell>
+              {[mapping.distributorId, mapping.resellerId]
+                .filter(Boolean)
+                .join(" / ") || "Not constrained"}
+            </TableCell>
             <TableCell>
               {mapping.effectiveFrom} – {mapping.effectiveTo}
             </TableCell>

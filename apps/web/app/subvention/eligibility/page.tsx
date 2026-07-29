@@ -3,6 +3,7 @@ import { EligibilityWorkspace } from "@/features/subvention/eligibility/Eligibil
 type EligibilitySearchParams = Promise<{
   status?: string | string[];
   deadline?: string | string[];
+  transaction?: string | string[];
 }>;
 
 export default async function Page({
@@ -10,7 +11,7 @@ export default async function Page({
 }: {
   searchParams: EligibilitySearchParams;
 }) {
-  const { status, deadline } = await searchParams;
+  const { status, deadline, transaction } = await searchParams;
   return (
     <EligibilityWorkspace
       initialStatus={
@@ -18,6 +19,11 @@ export default async function Page({
       }
       initialDeadline={
         typeof deadline === "string" ? deadline.trim() : undefined
+      }
+      initialTransaction={
+        typeof transaction === "string"
+          ? transaction.trim()
+          : undefined
       }
     />
   );

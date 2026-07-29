@@ -38,12 +38,22 @@ function passed(code: string, label: string, reason: string): RuleResult {
   return { code, label, outcome: "PASS", reason };
 }
 
-function failed(code: string, label: string, reason: string): RuleResult {
-  return { code, label, outcome: "FAIL", reason };
+function failed(
+  code: string,
+  label: string,
+  reason: string,
+  recoveryAction: string,
+): RuleResult {
+  return { code, label, outcome: "FAIL", reason, recoveryAction };
 }
 
-function reviewed(code: string, label: string, reason: string): RuleResult {
-  return { code, label, outcome: "REVIEW", reason };
+function reviewed(
+  code: string,
+  label: string,
+  reason: string,
+  recoveryAction: string,
+): RuleResult {
+  return { code, label, outcome: "REVIEW", reason, recoveryAction };
 }
 
 function statusFor(ruleResults: RuleResult[]): EligibilityStatus {
@@ -79,6 +89,7 @@ function transactionValidationFailure(
       "TRANSACTION_FIELDS_INVALID",
       "Transaction fields",
       "One or more required transaction fields are invalid.",
+      "Correct the required transaction fields, then re-import and re-evaluate.",
     );
   }
 
@@ -96,6 +107,7 @@ function transactionValidationFailure(
       "TRANSACTION_FINANCIALS_INVALID",
       "Transaction financials",
       "Invoice, base, and GST values must be positive safe-integer paise.",
+      "Correct the source amounts in integer paise, then re-import and re-evaluate.",
     );
   }
 
@@ -147,6 +159,7 @@ function leaseStatusResult(
     status,
     "Lease status",
     `${status[0]}${status.slice(1).toLowerCase()} transactions are not eligible.`,
+    "Restore the lease to an active, authoritative status before re-evaluating.",
   );
 }
 
@@ -189,6 +202,7 @@ export function evaluateEligibility(
           "DUPLICATE_DEVICE_IDENTIFIER",
           "Device identifier uniqueness",
           "The IMEI or serial is duplicated in the purchase repository.",
+          "Resolve the duplicate device record before re-evaluating.",
         )
       : passed(
           "DEVICE_IDENTIFIER_UNIQUE",
@@ -200,6 +214,7 @@ export function evaluateEligibility(
           "DUPLICATE_LEASE",
           "Lease uniqueness",
           "The lease is duplicated in the purchase repository.",
+          "Resolve the duplicate lease record before re-evaluating.",
         )
       : passed(
           "LEASE_UNIQUE",
@@ -211,6 +226,7 @@ export function evaluateEligibility(
           "ALREADY_CLAIMED_DEVICE_IDENTIFIER",
           "Prior device claim",
           "The IMEI or serial has already been claimed.",
+          "Reconcile the approved claim or use an authorised exception process.",
         )
       : passed(
           "DEVICE_IDENTIFIER_NOT_CLAIMED",
@@ -222,6 +238,7 @@ export function evaluateEligibility(
           "ALREADY_CLAIMED_LEASE",
           "Prior lease claim",
           "The lease has already been claimed.",
+          "Reconcile the approved claim or use an authorised exception process.",
         )
       : passed(
           "LEASE_NOT_CLAIMED",
@@ -245,6 +262,9 @@ export function evaluateEligibility(
         ambiguous
           ? "More than one approved programme mapping applies."
           : "No approved programme mapping applies.",
+        ambiguous
+          ? "Close overlapping mapping scopes, then re-evaluate."
+          : "Create and approve a mapping for the transaction counterparties, then re-evaluate.",
       ),
     ];
     return {
@@ -279,6 +299,7 @@ export function evaluateEligibility(
           "BEFORE_PROGRAMME_LAUNCH",
           "Programme launch",
           "The transaction predates programme launch.",
+          "Correct the programme assignment or obtain an authorised exception.",
         )
       : passed(
           "PROGRAMME_LAUNCHED",
@@ -296,6 +317,7 @@ export function evaluateEligibility(
         "SCHEME_NOT_APPROVED",
         "Scheme approval",
         "The explicitly mapped scheme version is missing or not approved.",
+        "Approve the mapped scheme version or correct the programme mapping.",
       ),
     ];
     return {
@@ -336,6 +358,7 @@ export function evaluateEligibility(
         "SCHEME_OUTSIDE_VALIDITY",
         "Scheme validity",
         "The mapped scheme does not cover the invoice date.",
+        "Map an approved scheme version covering the invoice date.",
       ),
     ];
     return {
@@ -374,6 +397,7 @@ export function evaluateEligibility(
         "RULE_CONFIGURATION_MISSING",
         "Rule values",
         "Required effective rule configuration could not be resolved.",
+        "Complete and approve the missing commercial rule configuration.",
       ),
     ];
     return {
@@ -411,12 +435,14 @@ export function evaluateEligibility(
         "EVALUATION_DATE_INVALID",
         "Evaluation date",
         "The evaluation date must be a valid YYYY-MM-DD calendar date.",
+        "Use a valid calendar date and re-evaluate.",
       )
     : filingTimelineExpired
       ? reviewed(
           "FILING_TIMELINE_EXPIRED",
           "Filing timeline",
           "The filing deadline has passed and requires authorised review.",
+          "Record an authorised, audited filing-timeline override before proceeding.",
         )
       : passed(
           "FILING_TIMELINE_CURRENT",
@@ -435,6 +461,7 @@ export function evaluateEligibility(
           "PRODUCT_NOT_ELIGIBLE",
           "Product eligibility",
           "The product is not covered by the effective rules.",
+          "Correct the product mapping or obtain an authorised product exception.",
         ),
     passed(
       "RULE_VALUES_RESOLVED",

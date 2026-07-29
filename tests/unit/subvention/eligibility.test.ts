@@ -385,6 +385,38 @@ describe("subvention eligibility", () => {
     ).toBe("FILING_TIMELINE_EXPIRED");
   });
 
+  it.each([
+    [
+      "failed lease control",
+      eligibilityInputFixture({
+        transaction: purchaseFixture({ leaseStatus: "CANCELLED" }),
+      }),
+    ],
+    [
+      "missing mapping review",
+      eligibilityInputFixture({ mappings: [] }),
+    ],
+    [
+      "expired filing review",
+      eligibilityInputFixture({ evaluationDate: "2026-10-14" }),
+    ],
+  ])("provides actionable recovery guidance for %s", (_label, input) => {
+    const decision = evaluateEligibility(input);
+    const exceptions = decision.ruleResults.filter(
+      (rule) => rule.outcome !== "PASS",
+    );
+
+    expect(exceptions.length).toBeGreaterThan(0);
+    exceptions.forEach((rule) => {
+      expect("recoveryAction" in rule).toBe(true);
+      expect(
+        "recoveryAction" in rule
+          ? String(rule.recoveryAction).trim().length
+          : 0,
+      ).toBeGreaterThan(0);
+    });
+  });
+
   it("links re-evaluation without mutating the previous snapshot", () => {
     const previous = eligibilityDecisionFixture({
       id: "decision-1",

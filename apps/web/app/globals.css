@@ -1650,7 +1650,7 @@ th.sticky-master-name {
   background: var(--workspace-header);
   color: var(--muted);
   padding: 7px 12px;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .repository-result-strip strong {
@@ -1668,7 +1668,7 @@ th.sticky-master-name {
 
 .repository-table {
   min-width: 2260px;
-  font-size: 10.5px;
+  font-size: 12px;
 }
 
 .repository-table th,
@@ -1679,7 +1679,7 @@ th.sticky-master-name {
   height: 35px;
   background: #f7f9fc;
   color: #536174;
-  font-size: 9.5px;
+  font-size: 12px;
   font-weight: 760;
   letter-spacing: 0.045em;
   text-transform: uppercase;
@@ -1778,7 +1778,7 @@ th.sticky-eligibility-lease {
   align-items: center;
   gap: 7px;
   color: #445166;
-  font-size: 11.5px;
+  font-size: 12px;
 }
 
 .column-picker input,
@@ -1819,7 +1819,7 @@ th.sticky-eligibility-lease {
 .inspector-header p {
   margin: 0;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .evidence-section,
@@ -1869,7 +1869,7 @@ th.sticky-eligibility-lease {
 
 .evidence-grid dt {
   color: var(--muted);
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 740;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -1879,7 +1879,7 @@ th.sticky-eligibility-lease {
   margin: 4px 0 0;
   overflow-wrap: anywhere;
   color: var(--text);
-  font-size: 11.5px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1961,7 +1961,7 @@ th.sticky-eligibility-lease {
   background: color-mix(in srgb, currentColor 11%, transparent);
   padding-inline: 5px;
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .bulk-action-bar {
@@ -1980,7 +1980,7 @@ th.sticky-eligibility-lease {
   gap: 10px;
   margin-inline-start: auto;
   color: var(--muted);
-  font-size: 10.5px;
+  font-size: 12px;
 }
 
 .bulk-result strong {
@@ -1993,7 +1993,7 @@ th.sticky-eligibility-lease {
 
 .eligibility-table {
   min-width: 1260px;
-  font-size: 10.5px;
+  font-size: 12px;
 }
 
 .selection-column {
@@ -2017,7 +2017,7 @@ th.selection-column {
   color: #445166;
   padding: 6px 10px;
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  font-size: 10.5px;
+  font-size: 12px;
 }
 
 .eligibility-filter-context {
@@ -2026,7 +2026,7 @@ th.selection-column {
   gap: 5px;
   margin-block-start: 7px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .eligibility-filter-context span,
@@ -2048,7 +2048,7 @@ th.selection-column {
   gap: 8px;
   margin-block-start: 7px;
   color: var(--muted);
-  font-size: 10.5px;
+  font-size: 12px;
 }
 
 .eligibility-action-strip {
@@ -2067,7 +2067,7 @@ th.selection-column {
   align-items: center;
   gap: 6px;
   color: #445166;
-  font-size: 10.5px;
+  font-size: 12px;
 }
 
 .eligibility-action-strip svg,
@@ -2099,11 +2099,11 @@ th.selection-column {
 }
 
 .override-required strong {
-  font-size: 11.5px;
+  font-size: 12px;
 }
 
 .override-required span {
-  font-size: 10.5px;
+  font-size: 12px;
 }
 
 .inspector-section h3 {
@@ -2162,12 +2162,12 @@ th.selection-column {
 
 .rule-trace-heading strong {
   color: var(--text);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .rule-trace-heading span {
   color: var(--muted);
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 720;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -2176,7 +2176,7 @@ th.selection-column {
 .rule-trace p {
   margin: 2px 0 0;
   color: var(--muted);
-  font-size: 10.5px;
+  font-size: 12px;
 }
 
 .rule-source-link {
@@ -2185,7 +2185,7 @@ th.selection-column {
   gap: 4px;
   margin-block-start: 4px;
   color: var(--primary);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   text-decoration: underline;
   text-underline-offset: 2px;
@@ -2197,13 +2197,38 @@ th.selection-column {
 }
 
 .comparison-table {
-  font-size: 10.5px;
+  font-size: 12px;
 }
 
 .comparison-table th {
   color: var(--muted);
-  font-size: 9px;
+  font-size: 12px;
   text-transform: uppercase;
+}
+
+.rule-recovery {
+  color: #6f450f !important;
+}
+
+.repository-empty-state {
+  padding: 32px 16px !important;
+  text-align: center;
+  white-space: normal !important;
+}
+
+.repository-empty-state strong,
+.repository-empty-state span {
+  display: block;
+}
+
+.repository-empty-state span {
+  margin: 5px auto 12px;
+  color: var(--muted);
+}
+
+.bulk-error {
+  color: var(--critical);
+  font-weight: 700;
 }
 
 @media (max-width: 1320px) {

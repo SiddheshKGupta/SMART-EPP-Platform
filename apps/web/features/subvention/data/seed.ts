@@ -189,6 +189,8 @@ function mapping(input: {
   programmeId: string;
   oemId: string;
   schemeVersionId: string;
+  resellerId?: string;
+  distributorId?: string;
   workflowStatus?: "APPROVED" | "SUBMITTED";
 }): EmployerProgrammeMappingVersion {
   const workflowStatus = input.workflowStatus ?? "APPROVED";
@@ -200,8 +202,8 @@ function mapping(input: {
     programmeId: input.programmeId,
     oemId: input.oemId,
     schemeVersionId: input.schemeVersionId,
-    resellerId: "reseller-national",
-    distributorId: "distributor-national",
+    resellerId: input.resellerId ?? "reseller-national",
+    distributorId: input.distributorId ?? "distributor-national",
     launchDate: "2026-07-01",
     effectiveFrom: "2026-07-01",
     effectiveTo: "2026-12-31",
@@ -225,6 +227,18 @@ const programmeMappings: EmployerProgrammeMappingVersion[] = [
     programmeId: "programme-apple",
     oemId: "oem-apple",
     schemeVersionId: "scheme-apple-h2-2026",
+    resellerId: "reseller-radius",
+    distributorId: "distributor-ingram",
+  }),
+  mapping({
+    id: "mapping-alpha-apple-redington",
+    mappingId: "mapping-alpha-apple-redington",
+    employerId: "employer-alpha",
+    programmeId: "programme-apple",
+    oemId: "oem-apple",
+    schemeVersionId: "scheme-apple-h2-2026",
+    resellerId: "reseller-radius",
+    distributorId: "distributor-redington",
   }),
   mapping({
     id: "mapping-alpha-samsung",
@@ -241,6 +255,18 @@ const programmeMappings: EmployerProgrammeMappingVersion[] = [
     programmeId: "programme-google",
     oemId: "oem-google",
     schemeVersionId: "scheme-google-h2-2026",
+    resellerId: "reseller-radius",
+    distributorId: "distributor-ingram",
+  }),
+  mapping({
+    id: "mapping-beta-google-redington",
+    mappingId: "mapping-beta-google-redington",
+    employerId: "employer-beta",
+    programmeId: "programme-google",
+    oemId: "oem-google",
+    schemeVersionId: "scheme-google-h2-2026",
+    resellerId: "reseller-radius",
+    distributorId: "distributor-redington",
   }),
   mapping({
     id: "mapping-beta-apple",
@@ -459,7 +485,21 @@ const duplicateImportInput: PurchaseTransactionInput = {
 
 const quarantinedImports: QuarantinedPurchaseImportRow[] = [
   {
+    id: "seed-import-row-1",
+    importId: "seed-import-1",
+    importedAt: "2026-07-20T12:00:00.000Z",
+    importedBy: actors[0]!.userId,
     rowNumber: 1,
+    sourceChecksum:
+      duplicateImportInput.sourceEvidence.sourceChecksum,
+    sourceSheetName:
+      duplicateImportInput.sourceEvidence.sourceSheetName,
+    sourceRowNumber:
+      duplicateImportInput.sourceEvidence.sourceRowNumber,
+    issueCodes: [
+      "DUPLICATE_DEVICE_IDENTIFIER",
+      "DUPLICATE_LEASE",
+    ],
     input: duplicateImportInput,
     issues: [
       {
@@ -491,6 +531,7 @@ function historicalAuditEvent(input: {
   actor: Actor;
   occurredAt: string;
   remarks: string;
+  metadata?: Record<string, unknown>;
 }): AuditEvent {
   auditSequence += 1;
   return {
@@ -559,6 +600,20 @@ const auditEvents: AuditEvent[] = [
     actor: actors[0]!,
     occurredAt: "2026-07-20T12:00:00.000Z",
     remarks: "Duplicate import row quarantined",
+    metadata: {
+      importId: "seed-import-1",
+      rowNumber: 1,
+      sourceChecksum:
+        duplicateImportInput.sourceEvidence.sourceChecksum,
+      sourceSheetName:
+        duplicateImportInput.sourceEvidence.sourceSheetName,
+      sourceRowNumber:
+        duplicateImportInput.sourceEvidence.sourceRowNumber,
+      issueCodes: [
+        "DUPLICATE_DEVICE_IDENTIFIER",
+        "DUPLICATE_LEASE",
+      ],
+    },
   }),
 ];
 
@@ -586,6 +641,14 @@ const demoSeed: SubventionSeed = {
     ]),
     oemIds: new Set(oems.map((oem) => oem.id)),
     productIds: new Set(oems.flatMap((oem) => oem.productIds ?? [])),
+    productCodesByProductId: new Map([
+      ["apple-phone-16", new Set(["APL-PHONE-16"])],
+      ["apple-phone-16-pro", new Set(["APL-PHONE-16-PRO"])],
+      ["samsung-galaxy-s25", new Set(["SAM-GALAXY-S25"])],
+      ["samsung-galaxy-fold", new Set(["SAM-GALAXY-FOLD"])],
+      ["google-pixel-10", new Set(["GOO-PIXEL-10"])],
+      ["google-pixel-10-pro", new Set(["GOO-PIXEL-10-PRO"])],
+    ]),
     connectLegalEntityIds: new Set([
       "connect-equipment-leasing",
       "connect-residuary",
@@ -605,6 +668,8 @@ const demoSeed: SubventionSeed = {
     claimedTransactions[0]!.deviceIdentifier,
   ],
   existingClaimedLeaseIds: [claimedTransactions[1]!.leaseId],
+  alternativePartnerDeviceIdentifiers: [],
+  alternativePartnerLeaseIds: [],
   duplicateDeviceIdentifiers: [
     duplicateImportTransaction.deviceIdentifier,
   ],

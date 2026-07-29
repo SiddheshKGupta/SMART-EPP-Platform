@@ -149,7 +149,7 @@ export function ControlDesk() {
                 <TableCell>
                   <Link
                     className="record-link"
-                    href={`/subvention/eligibility?transaction=${row.transaction.id}`}
+                    href={`/subvention/eligibility?transaction=${encodeURIComponent(row.transaction.id)}`}
                   >
                     {row.transaction.leaseId}
                   </Link>

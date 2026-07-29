@@ -3,6 +3,7 @@ import {
   assertMasterMutationAuthorized,
   evaluateEligibility,
   intervalsOverlapInclusive,
+  programmeMappingScopesOverlap,
   programmeMappingDraftSchema,
   validatePurchaseImport,
   transitionMaster,
@@ -43,6 +44,8 @@ export class InMemorySubventionRepository
   private purchaseImportMasterData: PurchaseImportMasterData;
   private existingClaimedDeviceIdentifiers: string[];
   private existingClaimedLeaseIds: string[];
+  private alternativePartnerDeviceIdentifiers: string[];
+  private alternativePartnerLeaseIds: string[];
   private duplicateDeviceIdentifiers: string[];
   private duplicateLeaseIds: string[];
   private evaluationQueue: Promise<void> = Promise.resolve();
@@ -64,6 +67,9 @@ export class InMemorySubventionRepository
     this.existingClaimedDeviceIdentifiers =
       copied.existingClaimedDeviceIdentifiers;
     this.existingClaimedLeaseIds = copied.existingClaimedLeaseIds;
+    this.alternativePartnerDeviceIdentifiers =
+      copied.alternativePartnerDeviceIdentifiers;
+    this.alternativePartnerLeaseIds = copied.alternativePartnerLeaseIds;
     this.duplicateDeviceIdentifiers = copied.duplicateDeviceIdentifiers;
     this.duplicateLeaseIds = copied.duplicateLeaseIds;
     this.assertSeedIdentitiesUnique();
@@ -87,6 +93,9 @@ export class InMemorySubventionRepository
       existingClaimedDeviceIdentifiers:
         this.existingClaimedDeviceIdentifiers,
       existingClaimedLeaseIds: this.existingClaimedLeaseIds,
+      alternativePartnerDeviceIdentifiers:
+        this.alternativePartnerDeviceIdentifiers,
+      alternativePartnerLeaseIds: this.alternativePartnerLeaseIds,
       duplicateDeviceIdentifiers: this.duplicateDeviceIdentifiers,
       duplicateLeaseIds: this.duplicateLeaseIds,
     });
@@ -473,21 +482,54 @@ export class InMemorySubventionRepository
     actor: Actor,
   ): Promise<ImportResult> {
     const occurredAt = this.dependencies.now();
+    const usedImportIds = new Set(
+      this.quarantinedImports.map((row) => row.importId),
+    );
+    const importId = this.nextUniqueId(
+      "purchase-import",
+      "PurchaseImport",
+      usedImportIds,
+    );
     const transactionIds = new Set(
       this.transactions.map((transaction) => transaction.id),
     );
+    const quarantineEntityIds = new Set([
+      ...this.quarantinedImports.map((row) => row.id),
+      ...this.auditEvents.flatMap((event) =>
+        event.entityType === "PurchaseImportRow" ? [event.entityId] : [],
+      ),
+    ]);
     const result = validatePurchaseImport(
       clone(this.transactions),
       clone(rows),
       {
+        importId,
         importedAt: occurredAt,
+        importedBy: actor.userId,
         idForRow: () =>
           this.nextUniqueId(
             "purchase-transaction",
             "PurchaseTransaction",
             transactionIds,
           ),
+        idForQuarantineRow: () =>
+          this.nextUniqueId(
+            "purchase-import-row",
+            "PurchaseImportRow",
+            quarantineEntityIds,
+          ),
         masterData: clone(this.purchaseImportMasterData),
+        programmeMappings: clone(this.programmeMappings),
+        existingClaimedDeviceIdentifiers: new Set(
+          this.existingClaimedDeviceIdentifiers,
+        ),
+        existingClaimedLeaseIds: new Set(this.existingClaimedLeaseIds),
+        alternativePartnerDeviceIdentifiers: new Set(
+          this.alternativePartnerDeviceIdentifiers,
+        ),
+        alternativePartnerLeaseIds: new Set(
+          this.alternativePartnerLeaseIds,
+        ),
       },
     );
     const auditIds = new Set(this.auditEvents.map((event) => event.id));
@@ -499,32 +541,30 @@ export class InMemorySubventionRepository
       actor: clone(actor),
       occurredAt,
       remarks: `Imported purchase transaction ${transaction.id}`,
+      metadata: {
+        importId,
+        sourceChecksum: transaction.sourceEvidence.sourceChecksum,
+        sourceSheetName: transaction.sourceEvidence.sourceSheetName,
+        sourceRowNumber: transaction.sourceEvidence.sourceRowNumber,
+      },
     }));
-    const quarantineEntityIds = new Set(
-      this.auditEvents.flatMap((event) =>
-        event.entityType === "PurchaseImportRow" ? [event.entityId] : [],
-      ),
-    );
-    const quarantineEvents = result.quarantined.map<AuditEvent>((row) => {
-      const entityId = this.nextUniqueId(
-        "purchase-import-row",
-        "PurchaseImportRow",
-        quarantineEntityIds,
-      );
-      return {
+    const quarantineEvents = result.quarantined.map<AuditEvent>((row) => ({
         id: this.nextUniqueId("audit", "AuditEvent", auditIds),
         entityType: "PurchaseImportRow",
-        entityId,
+        entityId: row.id,
         action: "PURCHASE_IMPORT_QUARANTINED",
         actor: clone(actor),
         occurredAt,
         remarks: `Quarantined purchase import row ${row.rowNumber}`,
         metadata: {
+          importId: row.importId,
           rowNumber: row.rowNumber,
-          issueCodes: row.issues.map((foundIssue) => foundIssue.code),
+          sourceChecksum: row.sourceChecksum,
+          sourceSheetName: row.sourceSheetName,
+          sourceRowNumber: row.sourceRowNumber,
+          issueCodes: row.issueCodes,
         },
-      };
-    });
+      }));
 
     this.transactions.push(...result.accepted);
     this.quarantinedImports.push(...result.quarantined);
@@ -566,9 +606,25 @@ export class InMemorySubventionRepository
     actor: Actor,
   ): Promise<EligibilityDecision> {
     const actorCopy = clone(actor);
-    const evaluation = this.evaluationQueue.then(() =>
-      this.evaluateTransactionNow(transactionId, actorCopy),
+    const evaluation = this.enqueueEvaluation(
+      () => this.evaluateTransactionsNow([transactionId], actorCopy)[0]!,
     );
+    return evaluation;
+  }
+
+  evaluateTransactions(
+    transactionIds: string[],
+    actor: Actor,
+  ): Promise<EligibilityDecision[]> {
+    const idsCopy = clone(transactionIds);
+    const actorCopy = clone(actor);
+    return this.enqueueEvaluation(
+      () => this.evaluateTransactionsNow(idsCopy, actorCopy),
+    );
+  }
+
+  private enqueueEvaluation<T>(command: () => T): Promise<T> {
+    const evaluation = this.evaluationQueue.then(command);
     this.evaluationQueue = evaluation.then(
       () => undefined,
       () => undefined,
@@ -576,73 +632,100 @@ export class InMemorySubventionRepository
     return evaluation;
   }
 
-  private async evaluateTransactionNow(
-    transactionId: string,
+  private evaluateTransactionsNow(
+    transactionIds: string[],
     actor: Actor,
-  ): Promise<EligibilityDecision> {
-    const transaction = this.transactions.find(
-      (candidate) => candidate.id === transactionId,
-    );
-    if (!transaction) {
-      throw new Error(`Purchase transaction ${transactionId} was not found`);
+  ): EligibilityDecision[] {
+    const uniqueIds = new Set(transactionIds);
+    if (uniqueIds.size !== transactionIds.length) {
+      throw new Error("Bulk evaluation transaction IDs must be unique");
     }
-    const previousDecision = await this.getLatestEligibilityDecision(
-      transactionId,
-    );
+    const transactions = transactionIds.map((transactionId) => {
+      const transaction = this.transactions.find(
+        (candidate) => candidate.id === transactionId,
+      );
+      if (!transaction) {
+        throw new Error(
+          `Purchase transaction ${transactionId} was not found`,
+        );
+      }
+      return transaction;
+    });
+
     const occurredAt = this.dependencies.now();
     const decisionIds = new Set(
       this.eligibilityDecisions.map((decision) => decision.id),
     );
-    const decisionId = this.nextUniqueId(
-      "eligibility-decision",
-      "EligibilityDecision",
-      decisionIds,
-    );
-    const decision = evaluateEligibility({
-      transaction: clone(transaction),
-      schemes: clone(this.schemes),
-      mappings: clone(this.programmeMappings),
-      oemDefaults: clone(
-        this.oems.find((oem) => oem.id === transaction.oemId)?.defaults,
-      ),
-      duplicateDeviceIdentifiers: this.duplicateValues(
-        this.transactions.map((purchase) => purchase.deviceIdentifier),
-        this.duplicateDeviceIdentifiers,
-      ),
-      duplicateLeaseIds: this.duplicateValues(
-        this.transactions.map((purchase) => purchase.leaseId),
-        this.duplicateLeaseIds,
-      ),
-      existingClaimedDeviceIdentifiers: new Set(
-        this.existingClaimedDeviceIdentifiers,
-      ),
-      existingClaimedLeaseIds: new Set(this.existingClaimedLeaseIds),
-      evaluationDate: occurredAt.slice(0, 10),
-      evaluatedAt: occurredAt,
-      actor: clone(actor),
-      decisionId,
-      version: (previousDecision?.version ?? 0) + 1,
-      previousDecision,
-    });
     const auditIds = new Set(this.auditEvents.map((event) => event.id));
-    const auditEvent: AuditEvent = {
-      id: this.nextUniqueId("audit", "AuditEvent", auditIds),
-      entityType: "EligibilityDecision",
-      entityId: decision.id,
-      action: "ELIGIBILITY_EVALUATED",
-      actor: clone(actor),
-      occurredAt,
-      remarks: `Evaluated transaction ${transaction.id}`,
-      metadata: {
-        transactionId: transaction.id,
-        decisionVersion: decision.version,
-        status: decision.status,
-      },
-    };
+    const stagedDecisions = clone(this.eligibilityDecisions);
+    const decisions: EligibilityDecision[] = [];
+    const auditEvents: AuditEvent[] = [];
 
-    this.eligibilityDecisions.push(decision);
-    this.auditEvents.push(auditEvent);
-    return clone(decision);
+    transactions.forEach((transaction) => {
+      const previousDecision = stagedDecisions
+        .filter(
+          (decision) => decision.transactionId === transaction.id,
+        )
+        .reduce<EligibilityDecision | undefined>(
+          (latest, decision) =>
+            latest === undefined || decision.version > latest.version
+              ? decision
+              : latest,
+          undefined,
+        );
+      const decisionId = this.nextUniqueId(
+        "eligibility-decision",
+        "EligibilityDecision",
+        decisionIds,
+      );
+      const decision = evaluateEligibility({
+        transaction: clone(transaction),
+        schemes: clone(this.schemes),
+        mappings: clone(this.programmeMappings),
+        oemDefaults: clone(
+          this.oems.find((oem) => oem.id === transaction.oemId)?.defaults,
+        ),
+        duplicateDeviceIdentifiers: this.duplicateValues(
+          this.transactions.map((purchase) => purchase.deviceIdentifier),
+          this.duplicateDeviceIdentifiers,
+        ),
+        duplicateLeaseIds: this.duplicateValues(
+          this.transactions.map((purchase) => purchase.leaseId),
+          this.duplicateLeaseIds,
+        ),
+        existingClaimedDeviceIdentifiers: new Set(
+          this.existingClaimedDeviceIdentifiers,
+        ),
+        existingClaimedLeaseIds: new Set(this.existingClaimedLeaseIds),
+        evaluationDate: occurredAt.slice(0, 10),
+        evaluatedAt: occurredAt,
+        actor: clone(actor),
+        decisionId,
+        version: (previousDecision?.version ?? 0) + 1,
+        previousDecision,
+      });
+      const auditEvent: AuditEvent = {
+        id: this.nextUniqueId("audit", "AuditEvent", auditIds),
+        entityType: "EligibilityDecision",
+        entityId: decision.id,
+        action: "ELIGIBILITY_EVALUATED",
+        actor: clone(actor),
+        occurredAt,
+        remarks: `Evaluated transaction ${transaction.id}`,
+        metadata: {
+          transactionId: transaction.id,
+          decisionVersion: decision.version,
+          status: decision.status,
+        },
+      };
+      decisions.push(decision);
+      auditEvents.push(auditEvent);
+      stagedDecisions.push(decision);
+    });
+
+    this.eligibilityDecisions.push(...decisions);
+    this.auditEvents.push(...auditEvents);
+    return clone(decisions);
   }
 
   async listForEntity(
@@ -757,9 +840,7 @@ export class InMemorySubventionRepository
         );
       const conflict = approvedCandidates.find(
         (mapping) =>
-          mapping.employerId === updated.employerId &&
-          mapping.programmeId === updated.programmeId &&
-          mapping.oemId === updated.oemId &&
+          programmeMappingScopesOverlap(mapping, updated) &&
           intervalsOverlapInclusive(
             mapping.effectiveFrom,
             mapping.effectiveTo,

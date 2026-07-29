@@ -63,7 +63,7 @@ function expiredTransactionItems(
         dueDate: deadline,
         severity: "CRITICAL" as const,
         financialImpactPaise: transaction.invoiceValuePaise,
-        href: `/subvention/eligibility?deadline=overdue&transaction=${transaction.id}`,
+        href: `/subvention/eligibility?deadline=overdue&transaction=${encodeURIComponent(transaction.id)}`,
       },
     ];
   });

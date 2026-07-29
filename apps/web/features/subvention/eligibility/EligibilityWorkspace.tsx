@@ -13,11 +13,14 @@ import {
   useState,
   type KeyboardEvent,
 } from "react";
+import { useRouter } from "next/navigation";
 import {
   evaluateEligibility,
+  type Actor,
   type EligibilityDecision,
   type EligibilityStatus,
   type PurchaseTransaction,
+  type SubventionSnapshot,
 } from "@smart-epp/domain";
 import { AdaptiveSplitWorkspace } from "@/components/shared/AdaptiveSplitWorkspace";
 import { AuditTimeline } from "@/components/shared/AuditTimeline";
@@ -41,6 +44,7 @@ type QueueFilter =
   | "ELIGIBLE"
   | "INELIGIBLE"
   | "EXCEPTION_REVIEW"
+  | "BLOCKED"
   | "DUE_15"
   | "DUE_7"
   | "EXPIRED";
@@ -65,6 +69,7 @@ const filterLabels: Array<{ value: QueueFilter; label: string }> = [
   { value: "ELIGIBLE", label: "Eligible decisions" },
   { value: "INELIGIBLE", label: "Ineligible decisions" },
   { value: "EXCEPTION_REVIEW", label: "Exception review" },
+  { value: "BLOCKED", label: "Blocked source" },
   { value: "DUE_15", label: "Due in 15 days" },
   { value: "DUE_7", label: "Due in 7 days" },
   { value: "EXPIRED", label: "Expired" },
@@ -103,42 +108,44 @@ function latestPersisted(
 
 function evaluatePreview(
   transaction: PurchaseTransaction,
-  store: ReturnType<typeof useSubvention>,
+  snapshot: SubventionSnapshot,
+  actor: Actor,
 ): EligibilityDecision {
   return evaluateEligibility({
     transaction,
-    schemes: store.snapshot.schemes,
-    mappings: store.snapshot.programmeMappings,
-    oemDefaults: store.snapshot.oems.find(
+    schemes: snapshot.schemes,
+    mappings: snapshot.programmeMappings,
+    oemDefaults: snapshot.oems.find(
       (oem) => oem.id === transaction.oemId,
     )?.defaults,
     duplicateDeviceIdentifiers: new Set(
-      store.snapshot.duplicateDeviceIdentifiers,
+      snapshot.duplicateDeviceIdentifiers,
     ),
-    duplicateLeaseIds: new Set(store.snapshot.duplicateLeaseIds),
+    duplicateLeaseIds: new Set(snapshot.duplicateLeaseIds),
     existingClaimedDeviceIdentifiers: new Set(
-      store.snapshot.existingClaimedDeviceIdentifiers,
+      snapshot.existingClaimedDeviceIdentifiers,
     ),
     existingClaimedLeaseIds: new Set(
-      store.snapshot.existingClaimedLeaseIds,
+      snapshot.existingClaimedLeaseIds,
     ),
     evaluationDate: DEMO_NOW.slice(0, 10),
     evaluatedAt: DEMO_NOW,
-    actor: store.activeActor,
+    actor,
     decisionId: `queue-preview-${transaction.id}`,
     version: 1,
   });
 }
 
 function queueRows(
-  store: ReturnType<typeof useSubvention>,
+  snapshot: SubventionSnapshot,
+  actor: Actor,
 ): QueueRow[] {
-  return store.snapshot.transactions.map((transaction) => {
+  return snapshot.transactions.map((transaction) => {
     const persisted = latestPersisted(
-      store.snapshot.eligibilityDecisions,
+      snapshot.eligibilityDecisions,
       transaction.id,
     );
-    const decision = persisted ?? evaluatePreview(transaction, store);
+    const decision = persisted ?? evaluatePreview(transaction, snapshot, actor);
     const remainingDays = decision.filingDeadline
       ? daysBetween(DEMO_NOW.slice(0, 10), decision.filingDeadline)
       : undefined;
@@ -179,9 +186,57 @@ function matchesFilter(row: QueueRow, filter: QueueFilter): boolean {
       );
     case "EXPIRED":
       return row.remainingDays !== undefined && row.remainingDays < 0;
+    case "BLOCKED":
+      return row.transaction.leaseStatus !== "ACTIVE";
     default:
-      return row.decision.status === filter;
+      return row.persisted && row.decision.status === filter;
   }
+}
+
+function filterFromQuery(
+  initialStatus?: string,
+  initialDeadline?: string,
+): QueueFilter {
+  if (
+    initialStatus === "AWAITING" ||
+    initialStatus === "ELIGIBLE" ||
+    initialStatus === "INELIGIBLE" ||
+    initialStatus === "EXCEPTION_REVIEW" ||
+    initialStatus === "BLOCKED"
+  ) {
+    return initialStatus;
+  }
+  if (initialDeadline === "15d") return "DUE_15";
+  if (initialDeadline === "7d") return "DUE_7";
+  if (initialDeadline === "overdue") return "EXPIRED";
+  return "AWAITING";
+}
+
+function eligibilityHref(
+  filter: QueueFilter,
+  transactionId?: string,
+): string {
+  const params = new URLSearchParams();
+  if (
+    filter === "AWAITING" ||
+    filter === "ELIGIBLE" ||
+    filter === "INELIGIBLE" ||
+    filter === "EXCEPTION_REVIEW" ||
+    filter === "BLOCKED"
+  ) {
+    params.set("status", filter);
+  } else {
+    params.set(
+      "deadline",
+      filter === "DUE_15"
+        ? "15d"
+        : filter === "DUE_7"
+          ? "7d"
+          : "overdue",
+    );
+  }
+  if (transactionId) params.set("transaction", transactionId);
+  return `/subvention/eligibility?${params.toString()}`;
 }
 
 function StatusSummary({ result }: { result: BulkResult }) {
@@ -211,26 +266,34 @@ function StatusSummary({ result }: { result: BulkResult }) {
 export function EligibilityWorkspace({
   initialStatus,
   initialDeadline,
+  initialTransaction,
 }: {
   initialStatus?: string;
   initialDeadline?: string;
+  initialTransaction?: string;
 }) {
   const store = useSubvention();
-  const normalizedInitialFilter: QueueFilter =
-    initialStatus === "ELIGIBLE" ||
-    initialStatus === "INELIGIBLE" ||
-    initialStatus === "EXCEPTION_REVIEW"
-      ? initialStatus
-      : initialDeadline === "7d"
-        ? "DUE_7"
-        : "AWAITING";
+  const router = useRouter();
+  const normalizedInitialFilter = filterFromQuery(
+    initialStatus,
+    initialDeadline,
+  );
   const [filter, setFilter] = useState<QueueFilter>(
     normalizedInitialFilter,
   );
-  const [selectedId, setSelectedId] = useState<string>();
+  const [selectedId, setSelectedId] = useState<string | undefined>(
+    store.snapshot.transactions.some(
+      (transaction) => transaction.id === initialTransaction,
+    )
+      ? initialTransaction
+      : undefined,
+  );
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const [bulkResult, setBulkResult] = useState<BulkResult>();
-  const rows = useMemo(() => queueRows(store), [store]);
+  const rows = useMemo(
+    () => queueRows(store.snapshot, store.activeActor),
+    [store.activeActor, store.snapshot],
+  );
   const filtered = rows.filter((row) => matchesFilter(row, filter));
   const selected = rows.find((row) => row.transaction.id === selectedId);
   const decisionHistory = selected
@@ -269,23 +332,33 @@ export function EligibilityWorkspace({
     const selectedRows = rows.filter((row) =>
       checkedIds.has(row.transaction.id),
     );
+    const decisions = await store.evaluateTransactions(
+      selectedRows.map((row) => row.transaction.id),
+    );
+    if (!decisions) return;
     const outcomes: BulkResult["outcomes"] = {};
-    selectedRows.forEach((row) => {
-      const outcome = outcomes[row.decision.status] ?? {
+    decisions.forEach((decision) => {
+      const outcome = outcomes[decision.status] ?? {
         count: 0,
         valuePaise: 0,
       };
-      outcomes[row.decision.status] = {
+      outcomes[decision.status] = {
         count: outcome.count + 1,
-        valuePaise:
-          outcome.valuePaise + row.decision.expectedAmountPaise,
+        valuePaise: outcome.valuePaise + decision.expectedAmountPaise,
       };
     });
-    await store.evaluateTransactions(
-      selectedRows.map((row) => row.transaction.id),
-    );
-    setBulkResult({ count: selectedRows.length, outcomes });
+    setBulkResult({ count: decisions.length, outcomes });
     setCheckedIds(new Set());
+  };
+
+  const changeFilter = (nextFilter: QueueFilter) => {
+    setFilter(nextFilter);
+    router.replace(eligibilityHref(nextFilter, selectedId));
+  };
+
+  const selectTransaction = (transactionId: string) => {
+    setSelectedId(transactionId);
+    router.replace(eligibilityHref(filter, transactionId));
   };
 
   const list = (
@@ -297,7 +370,7 @@ export function EligibilityWorkspace({
             size="sm"
             variant={filter === item.value ? "default" : "outline"}
             aria-pressed={filter === item.value}
-            onClick={() => setFilter(item.value)}
+            onClick={() => changeFilter(item.value)}
           >
             {item.label}
             <span>
@@ -317,6 +390,11 @@ export function EligibilityWorkspace({
           Evaluate {checkedIds.size} selected
         </Button>
         {bulkResult ? <StatusSummary result={bulkResult} /> : null}
+        {store.actionError ? (
+          <span className="bulk-error" role="alert">
+            {store.actionError.message}
+          </span>
+        ) : null}
       </div>
       <div className="eligibility-table-scroll">
         <Table className="eligibility-table">
@@ -342,9 +420,12 @@ export function EligibilityWorkspace({
               const onKeyDown = (
                 event: KeyboardEvent<HTMLTableRowElement>,
               ) => {
-                if (event.key === "Enter" || event.key === " ") {
+                if (
+                  event.target === event.currentTarget &&
+                  (event.key === "Enter" || event.key === " ")
+                ) {
                   event.preventDefault();
-                  setSelectedId(row.transaction.id);
+                  selectTransaction(row.transaction.id);
                 }
               };
               return (
@@ -359,7 +440,7 @@ export function EligibilityWorkspace({
                   }
                   onClick={(event) => {
                     event.currentTarget.focus();
-                    setSelectedId(row.transaction.id);
+                    selectTransaction(row.transaction.id);
                   }}
                   onKeyDown={onKeyDown}
                 >
@@ -371,6 +452,7 @@ export function EligibilityWorkspace({
                       type="checkbox"
                       aria-label={`Select ${row.transaction.leaseId}`}
                       checked={checkedIds.has(row.transaction.id)}
+                      onKeyDown={(event) => event.stopPropagation()}
                       onChange={(event) =>
                         setCheckedIds((current) => {
                           const next = new Set(current);
@@ -405,7 +487,14 @@ export function EligibilityWorkspace({
                         : `${row.remainingDays}d`}
                   </TableCell>
                   <TableCell>
-                    <StatusBadge status={row.decision.status} />
+                    {row.persisted ? (
+                      <StatusBadge status={row.decision.status} />
+                    ) : (
+                      <StatusBadge
+                        status="INFO"
+                        label="Awaiting evaluation"
+                      />
+                    )}
                   </TableCell>
                   <TableCell>{row.exceptionLabel}</TableCell>
                 </TableRow>
@@ -431,7 +520,9 @@ export function EligibilityWorkspace({
           />
           <span>
             Decision v{selected.decision.version} ·{" "}
-            {selected.persisted ? "Recorded" : "Awaiting evaluation"}
+            {selected.persisted
+              ? "Recorded"
+              : "Preview · not recorded"}
           </span>
         </div>
       </header>
@@ -643,7 +734,10 @@ export function EligibilityWorkspace({
         list={list}
         detail={detail}
         isOpen={Boolean(selected)}
-        onClose={() => setSelectedId(undefined)}
+        onClose={() => {
+          setSelectedId(undefined);
+          router.replace(eligibilityHref(filter));
+        }}
       />
     </div>
   );

@@ -45,17 +45,46 @@ function purchaseInputFixture(
 }
 
 const importContext = {
+  importId: "import-1",
   importedAt: "2026-07-28T10:00:00.000Z",
+  importedBy: "maker-1",
   idForRow: (rowNumber: number) => `txn-${rowNumber}`,
+  idForQuarantineRow: (rowNumber: number) => `quarantine-${rowNumber}`,
   masterData: {
     employerIds: new Set(["ER-1001"]),
     programmeIds: new Set(["PRG-1001"]),
     oemIds: new Set(["OEM-1001"]),
     productIds: new Set(["PROD-1001"]),
+    productCodesByProductId: new Map([
+      ["PROD-1001", new Set(["PHONE-1001"])],
+    ]),
     connectLegalEntityIds: new Set(["connect-equipment-leasing"]),
     resellerAliases: new Map<string, string>(),
     distributorAliases: new Map<string, string>(),
   },
+  programmeMappings: [
+    {
+      id: "mapping-1",
+      mappingId: "mapping-1",
+      version: 1,
+      employerId: "ER-1001",
+      programmeId: "PRG-1001",
+      oemId: "OEM-1001",
+      schemeVersionId: "scheme-1",
+      launchDate: "2026-01-01",
+      effectiveFrom: "2026-01-01",
+      effectiveTo: "2026-12-31",
+      workflowStatus: "APPROVED" as const,
+      makerUserId: "maker-1",
+      checkerUserId: "checker-1",
+      approvedAt: "2025-12-20T10:00:00.000Z",
+      createdAt: "2025-12-10T10:00:00.000Z",
+    },
+  ],
+  existingClaimedDeviceIdentifiers: new Set<string>(),
+  existingClaimedLeaseIds: new Set<string>(),
+  alternativePartnerDeviceIdentifiers: new Set<string>(),
+  alternativePartnerLeaseIds: new Set<string>(),
 };
 
 describe("purchase imports", () => {

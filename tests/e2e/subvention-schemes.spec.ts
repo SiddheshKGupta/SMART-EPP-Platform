@@ -115,7 +115,9 @@ test("programme successor uses an explicit window and closes prior validity", as
 }) => {
   await page.goto("/subvention/programme-mappings");
   await page
-    .getByRole("row", { name: /employer-alpha.*programme-apple.*Approved/i })
+    .getByRole("row", {
+      name: /employer-alpha.*programme-apple.*distributor-ingram.*Approved/i,
+    })
     .click();
   await page.getByRole("button", { name: "New version" }).click();
   await page.getByLabel("Successor effective from").fill("2026-10-01");
@@ -170,7 +172,7 @@ test("programme mapping deep link restores its selected mapping", async ({
   ).toBeVisible();
   await expect(
     page.getByRole("row", {
-      name: /employer-alpha.*programme-apple.*Approved/i,
+      name: /employer-alpha.*programme-apple.*distributor-ingram.*Approved/i,
     }),
   ).toHaveAttribute("aria-selected", "true");
 });

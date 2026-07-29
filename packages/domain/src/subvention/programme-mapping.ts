@@ -21,6 +21,26 @@ export type MappingResolution =
   | { status: "RESOLVED"; mapping: EmployerProgrammeMappingVersion }
   | { status: "MISSING" | "AMBIGUOUS"; issues: DomainIssue[] };
 
+function optionalConstraintOverlaps(
+  left: string | undefined,
+  right: string | undefined,
+): boolean {
+  return left === undefined || right === undefined || left === right;
+}
+
+export function programmeMappingScopesOverlap(
+  left: EmployerProgrammeMappingVersion,
+  right: EmployerProgrammeMappingVersion,
+): boolean {
+  return (
+    left.employerId === right.employerId &&
+    left.programmeId === right.programmeId &&
+    left.oemId === right.oemId &&
+    optionalConstraintOverlaps(left.resellerId, right.resellerId) &&
+    optionalConstraintOverlaps(left.distributorId, right.distributorId)
+  );
+}
+
 function mappingIssue(
   code: "PROGRAMME_MAPPING_MISSING" | "PROGRAMME_MAPPING_AMBIGUOUS",
   transaction: PurchaseTransaction,
@@ -52,6 +72,10 @@ export function resolveProgrammeMapping(
       mapping.employerId === transaction.employerId &&
       mapping.programmeId === transaction.programmeId &&
       mapping.oemId === transaction.oemId &&
+      (mapping.resellerId === undefined ||
+        mapping.resellerId === transaction.resellerId) &&
+      (mapping.distributorId === undefined ||
+        mapping.distributorId === transaction.distributorId) &&
       dateIsWithinInclusive(
         transaction.invoiceDate,
         mapping.effectiveFrom,
