@@ -15,6 +15,7 @@ import {
   type OemConfiguration,
   type PurchaseTransaction,
   type PurchaseTransactionInput,
+  type PurchaseImportMasterData,
   type ProgrammeMappingEffectiveWindow,
   type QuarantinedPurchaseImportRow,
   type RepositoryDependencies,
@@ -39,9 +40,10 @@ export class InMemorySubventionRepository
   private eligibilityDecisions: EligibilityDecision[];
   private auditEvents: AuditEvent[];
   private actors: Actor[];
-  private existingClaimedImeis: string[];
+  private purchaseImportMasterData: PurchaseImportMasterData;
+  private existingClaimedDeviceIdentifiers: string[];
   private existingClaimedLeaseIds: string[];
-  private duplicateImeis: string[];
+  private duplicateDeviceIdentifiers: string[];
   private duplicateLeaseIds: string[];
   private evaluationQueue: Promise<void> = Promise.resolve();
 
@@ -58,9 +60,11 @@ export class InMemorySubventionRepository
     this.eligibilityDecisions = copied.eligibilityDecisions;
     this.auditEvents = copied.auditEvents;
     this.actors = copied.actors;
-    this.existingClaimedImeis = copied.existingClaimedImeis;
+    this.purchaseImportMasterData = copied.purchaseImportMasterData;
+    this.existingClaimedDeviceIdentifiers =
+      copied.existingClaimedDeviceIdentifiers;
     this.existingClaimedLeaseIds = copied.existingClaimedLeaseIds;
-    this.duplicateImeis = copied.duplicateImeis;
+    this.duplicateDeviceIdentifiers = copied.duplicateDeviceIdentifiers;
     this.duplicateLeaseIds = copied.duplicateLeaseIds;
     this.assertSeedIdentitiesUnique();
   }
@@ -79,9 +83,11 @@ export class InMemorySubventionRepository
       quarantinedImports: this.quarantinedImports,
       auditEvents: this.auditEvents,
       actors: this.actors,
-      existingClaimedImeis: this.existingClaimedImeis,
+      purchaseImportMasterData: this.purchaseImportMasterData,
+      existingClaimedDeviceIdentifiers:
+        this.existingClaimedDeviceIdentifiers,
       existingClaimedLeaseIds: this.existingClaimedLeaseIds,
-      duplicateImeis: this.duplicateImeis,
+      duplicateDeviceIdentifiers: this.duplicateDeviceIdentifiers,
       duplicateLeaseIds: this.duplicateLeaseIds,
     });
   }
@@ -481,6 +487,7 @@ export class InMemorySubventionRepository
             "PurchaseTransaction",
             transactionIds,
           ),
+        masterData: clone(this.purchaseImportMasterData),
       },
     );
     const auditIds = new Set(this.auditEvents.map((event) => event.id));
@@ -598,15 +605,17 @@ export class InMemorySubventionRepository
       oemDefaults: clone(
         this.oems.find((oem) => oem.id === transaction.oemId)?.defaults,
       ),
-      duplicateImeis: this.duplicateValues(
-        this.transactions.map((purchase) => purchase.imei),
-        this.duplicateImeis,
+      duplicateDeviceIdentifiers: this.duplicateValues(
+        this.transactions.map((purchase) => purchase.deviceIdentifier),
+        this.duplicateDeviceIdentifiers,
       ),
       duplicateLeaseIds: this.duplicateValues(
         this.transactions.map((purchase) => purchase.leaseId),
         this.duplicateLeaseIds,
       ),
-      existingClaimedImeis: new Set(this.existingClaimedImeis),
+      existingClaimedDeviceIdentifiers: new Set(
+        this.existingClaimedDeviceIdentifiers,
+      ),
       existingClaimedLeaseIds: new Set(this.existingClaimedLeaseIds),
       evaluationDate: occurredAt.slice(0, 10),
       evaluatedAt: occurredAt,

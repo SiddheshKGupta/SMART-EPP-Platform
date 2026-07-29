@@ -16,14 +16,24 @@ export interface ImportResult {
 export interface PurchaseImportContext {
   importedAt: string;
   idForRow: (rowNumber: number) => string;
+  masterData: PurchaseImportMasterData;
+}
+
+export interface PurchaseImportMasterData {
+  employerIds: ReadonlySet<string>;
+  programmeIds: ReadonlySet<string>;
+  oemIds: ReadonlySet<string>;
+  productIds: ReadonlySet<string>;
+  connectLegalEntityIds: ReadonlySet<string>;
+  resellerAliases: ReadonlyMap<string, string>;
+  distributorAliases: ReadonlyMap<string, string>;
 }
 
 export function buildPurchaseSourceRowKey(input: PurchaseTransactionInput): string {
   return JSON.stringify([
-    input.sourceSystem,
-    input.leaseId,
-    input.imei,
-    input.invoiceNumber,
+    input.sourceEvidence.sourceChecksum,
+    input.sourceEvidence.sourceSheetName,
+    input.sourceEvidence.sourceRowNumber,
   ]);
 }
 
@@ -63,7 +73,105 @@ function inputIssue(
   });
 }
 
-function validateInput(input: PurchaseTransactionInput): DomainIssue[] {
+function quarantineIssue(
+  code: string,
+  field: string,
+  message: string,
+  recoveryAction: string,
+): DomainIssue {
+  return issue({
+    code,
+    severity: "ERROR",
+    entityType: "PurchaseTransaction",
+    field,
+    message,
+    recoveryAction,
+  });
+}
+
+function masterIssues(
+  input: PurchaseTransactionInput,
+  masterData: PurchaseImportMasterData,
+): DomainIssue[] {
+  const checks: Array<DomainIssue | undefined> = [
+    masterData.employerIds.has(input.employerId)
+      ? undefined
+      : quarantineIssue(
+          "UNRESOLVED_EMPLOYER",
+          "employerId",
+          `Employer ${input.employerId} did not resolve to an approved master.`,
+          "Map the source employer label to an approved employer.",
+        ),
+    masterData.programmeIds.has(input.programmeId)
+      ? undefined
+      : quarantineIssue(
+          "UNRESOLVED_PROGRAMME",
+          "programmeId",
+          `Programme ${input.programmeId} did not resolve to an approved master.`,
+          "Resolve the employer programme before importing the row.",
+        ),
+    masterData.oemIds.has(input.oemId)
+      ? undefined
+      : quarantineIssue(
+          "UNRESOLVED_OEM",
+          "oemId",
+          `OEM ${input.oemId} did not resolve to configured master data.`,
+          "Resolve the OEM through configured master data.",
+        ),
+    masterData.productIds.has(input.productId)
+      ? undefined
+      : quarantineIssue(
+          "UNRESOLVED_PRODUCT",
+          "productId",
+          `Product ${input.productId} did not resolve to an approved master.`,
+          "Map the product code to an approved product.",
+        ),
+    masterData.connectLegalEntityIds.has(input.connectLegalEntityId)
+      ? undefined
+      : quarantineIssue(
+          "UNRESOLVED_CONNECT_LEGAL_ENTITY",
+          "connectLegalEntityId",
+          `Connect legal entity ${input.connectLegalEntityId} did not resolve.`,
+          "Map the source legal-entity label to an approved Connect entity.",
+        ),
+  ];
+
+  const { reseller, distributor } =
+    input.sourceEvidence.counterpartyAliases;
+  if (
+    reseller &&
+    masterData.resellerAliases.get(reseller) !== input.resellerId
+  ) {
+    checks.push(
+      quarantineIssue(
+        "UNRESOLVED_COUNTERPARTY_ALIAS",
+        "sourceEvidence.counterpartyAliases.reseller",
+        `Reseller alias ${reseller} is unresolved or ambiguous.`,
+        "Resolve the source reseller alias to one canonical reseller.",
+      ),
+    );
+  }
+  if (
+    distributor &&
+    masterData.distributorAliases.get(distributor) !== input.distributorId
+  ) {
+    checks.push(
+      quarantineIssue(
+        "UNRESOLVED_COUNTERPARTY_ALIAS",
+        "sourceEvidence.counterpartyAliases.distributor",
+        `Distributor alias ${distributor} is unresolved or ambiguous.`,
+        "Resolve the source distributor alias to one canonical distributor.",
+      ),
+    );
+  }
+
+  return checks.flatMap((found) => (found ? [found] : []));
+}
+
+function validateInput(
+  input: PurchaseTransactionInput,
+  masterData: PurchaseImportMasterData,
+): DomainIssue[] {
   const parsed = purchaseTransactionInputSchema.safeParse(input);
   const schemaIssues = parsed.success
     ? []
@@ -78,13 +186,42 @@ function validateInput(input: PurchaseTransactionInput): DomainIssue[] {
         );
       });
 
-  return input.invoiceValuePaise === 0
-    ? [...schemaIssues, inputIssue("invoiceValuePaise", "ZERO_VALUE")]
-    : schemaIssues;
+  const rowKindIssue =
+    input.sourceEvidence?.rowKind === "FORMULA"
+      ? quarantineIssue(
+          "FORMULA_ROW",
+          "sourceEvidence.rowKind",
+          "Formula and total rows are control evidence, not transactions.",
+          "Classify this workbook row as a formula/control outside the transaction population.",
+        )
+      : input.sourceEvidence?.rowKind === "CONTROL"
+        ? quarantineIssue(
+            "CONTROL_ROW",
+            "sourceEvidence.rowKind",
+            "Workbook control rows cannot be imported as transactions.",
+            "Classify this workbook row as a control outside the transaction population.",
+          )
+        : undefined;
+  const zeroValueIssues =
+    input.invoiceValuePaise === 0
+      ? [inputIssue("invoiceValuePaise", "ZERO_VALUE")]
+      : [];
+  const resolvedMasterIssues =
+    parsed.success && !rowKindIssue ? masterIssues(input, masterData) : [];
+
+  return [
+    ...schemaIssues,
+    ...zeroValueIssues,
+    ...(rowKindIssue ? [rowKindIssue] : []),
+    ...resolvedMasterIssues,
+  ];
 }
 
 function duplicateIssue(
-  code: "DUPLICATE_SOURCE_ROW_KEY" | "DUPLICATE_IMEI" | "DUPLICATE_LEASE",
+  code:
+    | "DUPLICATE_SOURCE_ROW_KEY"
+    | "DUPLICATE_DEVICE_IDENTIFIER"
+    | "DUPLICATE_LEASE",
   input: PurchaseTransactionInput,
 ): DomainIssue {
   if (code === "DUPLICATE_SOURCE_ROW_KEY") {
@@ -98,13 +235,13 @@ function duplicateIssue(
     });
   }
 
-  if (code === "DUPLICATE_IMEI") {
+  if (code === "DUPLICATE_DEVICE_IDENTIFIER") {
     return issue({
       code,
       severity: "ERROR",
       entityType: "PurchaseTransaction",
-      field: "imei",
-      message: `IMEI ${input.imei} already exists.`,
+      field: "deviceIdentifier",
+      message: `Device identifier ${input.deviceIdentifier} already exists.`,
       recoveryAction: "Remove the duplicate or correct the source transaction.",
     });
   }
@@ -127,7 +264,9 @@ function duplicateIssues(
   const hasSourceRowKey = existing.some(
     (purchase) => buildPurchaseSourceRowKey(purchase) === sourceRowKey,
   );
-  const hasImei = existing.some((purchase) => purchase.imei === input.imei);
+  const hasDeviceIdentifier = existing.some(
+    (purchase) => purchase.deviceIdentifier === input.deviceIdentifier,
+  );
   const hasLease = existing.some(
     (purchase) => purchase.leaseId === input.leaseId,
   );
@@ -136,7 +275,9 @@ function duplicateIssues(
     hasSourceRowKey
       ? duplicateIssue("DUPLICATE_SOURCE_ROW_KEY", input)
       : undefined,
-    hasImei ? duplicateIssue("DUPLICATE_IMEI", input) : undefined,
+    hasDeviceIdentifier
+      ? duplicateIssue("DUPLICATE_DEVICE_IDENTIFIER", input)
+      : undefined,
     hasLease ? duplicateIssue("DUPLICATE_LEASE", input) : undefined,
   ].flatMap((found) => (found === undefined ? [] : [found]));
 }
@@ -152,7 +293,7 @@ export function validatePurchaseImport(
 
   rows.forEach((input, index) => {
     const rowNumber = index + 1;
-    const issues = validateInput(input);
+    const issues = validateInput(input, context.masterData);
     const rowIssues =
       issues.length > 0 ? issues : duplicateIssues(workingSet, input);
 

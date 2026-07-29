@@ -41,9 +41,15 @@ institutional control with calm, precise, Apple-influenced interaction craft.
 | Warning | `#C87912` | Attention, nearing SLA, review |
 | Critical | `#C43C3C` | Blocked, rejected, overdue |
 | Exception | `#6D55B5` | Authorised exception review |
+| V L & CO plum | `#53284F` | Restrained provenance/authorship accent only |
 
 Use semantic tokens in components. Do not introduce page-local foundational
 hex values or a second accent system.
+
+Deep Plum `#53284F` is reserved for the single shared-shell
+“Developed by V L & CO” provenance treatment. It is not an operational,
+workflow, risk, eligibility, or exception status colour and must not be
+repeated as promotional advertising within workspaces.
 
 ## Typography
 

@@ -46,6 +46,9 @@ function ShellFrame({ children }: { children: ReactNode }) {
           <main id="main-content" className="shell-main" tabIndex={-1}>
             {children}
           </main>
+          <footer className="platform-provenance">
+            Developed by <strong>V L &amp; CO</strong>
+          </footer>
         </div>
       </div>
     </>

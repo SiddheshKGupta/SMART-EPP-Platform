@@ -13,7 +13,8 @@ export type SemanticStatus =
   | "SUPERSEDED"
   | "INACTIVE"
   | "INELIGIBLE"
-  | "ELIGIBLE";
+  | "ELIGIBLE"
+  | "EXCEPTION_REVIEW";
 
 const tone: Record<SemanticStatus, string> = {
   INFO: "status-info",
@@ -28,6 +29,7 @@ const tone: Record<SemanticStatus, string> = {
   INACTIVE: "status-info",
   INELIGIBLE: "status-critical",
   ELIGIBLE: "status-approved",
+  EXCEPTION_REVIEW: "status-exception",
 };
 
 export function StatusBadge({

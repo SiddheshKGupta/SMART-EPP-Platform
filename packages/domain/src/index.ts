@@ -4,7 +4,7 @@ export const PurchaseTransactionSchema = z.object({
   leaseId: z.string().min(1),
   employerId: z.string().min(1),
   oemId: z.string().min(1),
-  imei: z.string().min(8),
+  deviceIdentifier: z.string().min(8),
   invoiceValue: z.number().nonnegative(),
   baseValue: z.number().nonnegative(),
   invoiceDate: z.coerce.date(),
@@ -15,7 +15,7 @@ export const PurchaseTransactionSchema = z.object({
 export {
   assertBatchMutable,
   assertMakerChecker,
-  assertUniqueImei,
+  assertUniqueDeviceIdentifier,
   assertWithinClaimTimeline,
 } from "./controls";
 export * from "./subvention/dates";

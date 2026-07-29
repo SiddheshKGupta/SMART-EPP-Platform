@@ -3,6 +3,7 @@ import type {
   AuditEvent,
   EmployerProgrammeMappingVersion,
   OemConfiguration,
+  PurchaseSourceEvidence,
   PurchaseTransaction,
   PurchaseTransactionInput,
   QuarantinedPurchaseImportRow,
@@ -51,6 +52,7 @@ function approvedScheme(input: {
   effectiveTo: string;
   claimTimelineDays: number;
   rateBps: number;
+  calculationBasis?: "INVOICE_VALUE" | "BASE_VALUE";
 }): SchemeVersion {
   return {
     id: input.id,
@@ -60,7 +62,7 @@ function approvedScheme(input: {
     name: input.name,
     oemId: input.oemId,
     settlementCounterpartyType: "DISTRIBUTOR",
-    calculationBasis: "INVOICE_VALUE",
+    calculationBasis: input.calculationBasis ?? "INVOICE_VALUE",
     rateBps: input.rateBps,
     claimTimelineDays: input.claimTimelineDays,
     priority: 10,
@@ -88,7 +90,8 @@ const schemes: SchemeVersion[] = [
     effectiveFrom: "2026-01-01",
     effectiveTo: "2026-06-30",
     claimTimelineDays: 60,
-    rateBps: 325,
+    rateBps: 300,
+    calculationBasis: "BASE_VALUE",
   }),
   approvedScheme({
     id: "scheme-apple-h2-2026",
@@ -127,7 +130,8 @@ const schemes: SchemeVersion[] = [
     effectiveFrom: "2026-07-01",
     effectiveTo: "2026-12-31",
     claimTimelineDays: 45,
-    rateBps: 315,
+    rateBps: 250,
+    calculationBasis: "BASE_VALUE",
   }),
   approvedScheme({
     id: "scheme-google-h1-2026",
@@ -153,7 +157,8 @@ const schemes: SchemeVersion[] = [
     effectiveFrom: "2026-07-01",
     effectiveTo: "2026-12-31",
     claimTimelineDays: 10,
-    rateBps: 290,
+    rateBps: 245,
+    calculationBasis: "BASE_VALUE",
   }),
   {
     id: "scheme-version-draft",
@@ -164,7 +169,7 @@ const schemes: SchemeVersion[] = [
     oemId: "oem-apple",
     settlementCounterpartyType: "OEM",
     calculationBasis: "BASE_VALUE",
-    rateBps: 375,
+    rateBps: 275,
     claimTimelineDays: 60,
     priority: 20,
     eligibleProductIds: ["apple-phone-16-pro"],
@@ -285,26 +290,87 @@ function transaction(
   overrides: Partial<PurchaseTransaction> = {},
 ): PurchaseTransaction {
   const suffix = String(sequence).padStart(3, "0");
+  const invoiceValuePaise = 8_250_000 + sequence * 10_000;
+  const baseValuePaise = 7_000_000 + sequence * 10_000;
+  const calculationBasis =
+    sequence % 2 === 0 ? "INVOICE_VALUE" : "BASE_VALUE";
+  const rateBps = [245, 250, 275, 300, 350][
+    (sequence - 1) % 5
+  ]!;
+  const calculationAmountPaise =
+    calculationBasis === "INVOICE_VALUE"
+      ? invoiceValuePaise
+      : baseValuePaise;
+  const distributorIsIngram = sequence % 2 === 1;
+  const sourceEvidence: PurchaseSourceEvidence = {
+    sourceFileName:
+      sequence === 1
+        ? "source-purchases-april.xlsx"
+        : `synthetic-${distributorIsIngram ? "ingram" : "redington"}-transactions.xlsx`,
+    sourceSheetName: distributorIsIngram ? "Approved" : "Current cycle",
+    sourceRowNumber: sequence + 10,
+    sourceChecksum: `sha256:synthetic-source-${suffix}`,
+    rowKind: "TRANSACTION",
+    sourceLabels: {
+      employer: "Employer Alpha",
+      connectLegalEntity:
+        sequence % 3 === 0
+          ? "Connect Residuary"
+          : "Connect Equipment Leasing",
+      product: "Phone 16",
+      externalOutcome:
+        sequence % 11 === 0
+          ? "Rejected"
+          : sequence % 13 === 0
+            ? "Deferred"
+            : "Approved",
+    },
+    counterpartyAliases: {
+      reseller:
+        sequence % 4 === 0
+          ? "Radius Systems Pvt Ltd"
+          : "Radius Systems Private Limited",
+      distributor: distributorIsIngram ? "Ingram" : "Redington",
+    },
+    calculationBasis,
+    rateBps,
+    expectedSubventionPaise: Math.round(
+      (calculationAmountPaise * rateBps) / 10_000,
+    ),
+  };
   return {
     id: `transaction-${suffix}`,
-    leaseId: `LEASE-2026-${suffix}`,
+    leaseId: `LES-${1000 + sequence}`,
     lotId: `LOT-2026-${suffix}`,
     employeeId: `employee-${suffix}`,
     employerId: "employer-alpha",
     programmeId: "programme-apple",
     oemId: "oem-apple",
     productId: "apple-phone-16",
-    imei: `35123456789${suffix}0`,
+    productCode: "APL-PHONE-16",
+    connectLegalEntityId:
+      sequence % 3 === 0
+        ? "connect-residuary"
+        : "connect-equipment-leasing",
+    deviceIdentifier:
+      sequence === 1
+        ? "351234567890123"
+        : sequence % 6 === 0
+          ? `SN-ALPHA-${suffix}`
+          : `35987654321${suffix}0`,
     purchaseOrderNumber: `PO-2026-${suffix}`,
     invoiceNumber: `INV-2026-${suffix}`,
     invoiceDate: "2026-07-15",
-    invoiceValuePaise: 8_250_000 + sequence * 10_000,
-    baseValuePaise: 7_000_000 + sequence * 10_000,
+    invoiceValuePaise,
+    baseValuePaise,
     gstAmountPaise: 1_250_000,
-    resellerId: "reseller-national",
-    distributorId: "distributor-national",
+    resellerId: "reseller-radius",
+    distributorId: distributorIsIngram
+      ? "distributor-ingram"
+      : "distributor-redington",
     leaseStatus: "ACTIVE",
     sourceSystem: "LMS",
+    sourceEvidence,
     importedAt: "2026-07-16T06:00:00.000Z",
     ...overrides,
   };
@@ -344,7 +410,7 @@ const productIneligibleTransactions = Array.from({ length: 2 }, (_, index) =>
   }),
 );
 const claimedTransactions = [
-  transaction(30, { id: "transaction-claimed-imei" }),
+  transaction(30, { id: "transaction-claimed-device" }),
   transaction(31, { id: "transaction-claimed-lease" }),
 ];
 const duplicateImportTransaction = transaction(32, {
@@ -370,7 +436,9 @@ const duplicateImportInput: PurchaseTransactionInput = {
   programmeId: duplicateImportTransaction.programmeId,
   oemId: duplicateImportTransaction.oemId,
   productId: duplicateImportTransaction.productId,
-  imei: duplicateImportTransaction.imei,
+  productCode: duplicateImportTransaction.productCode,
+  connectLegalEntityId: duplicateImportTransaction.connectLegalEntityId,
+  deviceIdentifier: duplicateImportTransaction.deviceIdentifier,
   purchaseOrderNumber: "PO-DUPLICATE-IMPORT",
   invoiceNumber: "INV-DUPLICATE-IMPORT",
   invoiceDate: "2026-07-20",
@@ -381,6 +449,12 @@ const duplicateImportInput: PurchaseTransactionInput = {
   distributorId: "distributor-national",
   leaseStatus: "ACTIVE",
   sourceSystem: "CONTROLLED_UPLOAD",
+  sourceEvidence: {
+    ...duplicateImportTransaction.sourceEvidence,
+    sourceFileName: "synthetic-import-controls.xlsx",
+    sourceChecksum: "sha256:synthetic-duplicate-row",
+    sourceRowNumber: 4,
+  },
 };
 
 const quarantinedImports: QuarantinedPurchaseImportRow[] = [
@@ -389,11 +463,11 @@ const quarantinedImports: QuarantinedPurchaseImportRow[] = [
     input: duplicateImportInput,
     issues: [
       {
-        code: "DUPLICATE_IMEI",
+        code: "DUPLICATE_DEVICE_IDENTIFIER",
         severity: "ERROR",
         entityType: "PurchaseTransaction",
-        field: "imei",
-        message: `IMEI ${duplicateImportInput.imei} already exists.`,
+        field: "deviceIdentifier",
+        message: `Device identifier ${duplicateImportInput.deviceIdentifier} already exists.`,
         recoveryAction: "Remove the duplicate or correct the source transaction.",
       },
       {
@@ -497,9 +571,43 @@ const demoSeed: SubventionSeed = {
   quarantinedImports,
   auditEvents,
   actors,
-  existingClaimedImeis: [claimedTransactions[0]!.imei],
+  purchaseImportMasterData: {
+    employerIds: new Set([
+      "employer-alpha",
+      "employer-beta",
+      "employer-gamma",
+      "employer-delta",
+      "employer-epsilon",
+    ]),
+    programmeIds: new Set([
+      "programme-apple",
+      "programme-samsung",
+      "programme-google",
+    ]),
+    oemIds: new Set(oems.map((oem) => oem.id)),
+    productIds: new Set(oems.flatMap((oem) => oem.productIds ?? [])),
+    connectLegalEntityIds: new Set([
+      "connect-equipment-leasing",
+      "connect-residuary",
+    ]),
+    resellerAliases: new Map([
+      ["Radius Systems Private Limited", "reseller-radius"],
+      ["Radius Systems Pvt Ltd", "reseller-radius"],
+      ["National Reseller", "reseller-national"],
+    ]),
+    distributorAliases: new Map([
+      ["Ingram", "distributor-ingram"],
+      ["Redington", "distributor-redington"],
+      ["National Distributor", "distributor-national"],
+    ]),
+  },
+  existingClaimedDeviceIdentifiers: [
+    claimedTransactions[0]!.deviceIdentifier,
+  ],
   existingClaimedLeaseIds: [claimedTransactions[1]!.leaseId],
-  duplicateImeis: [duplicateImportTransaction.imei],
+  duplicateDeviceIdentifiers: [
+    duplicateImportTransaction.deviceIdentifier,
+  ],
   duplicateLeaseIds: [duplicateImportTransaction.leaseId],
 };
 

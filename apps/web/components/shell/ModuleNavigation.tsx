@@ -10,11 +10,9 @@ import {
   Scale,
   ScrollText,
 } from "lucide-react";
-import { gsap } from "gsap";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useLayoutEffect, useRef, type ComponentType } from "react";
-import { MOTION } from "@/lib/motion";
+import type { ComponentType } from "react";
 
 interface ModuleItem {
   label: string;
@@ -31,8 +29,8 @@ const subventionItems: ModuleItem[] = [
     icon: GitBranch,
   },
   {
-    label: "Purchase imports",
-    href: "/subvention/purchase-imports",
+    label: "Purchase repository",
+    href: "/subvention/transactions",
     icon: FileInput,
   },
   {
@@ -61,35 +59,9 @@ function isCurrent(pathname: string, href: string): boolean {
 
 export function ModuleNavigation() {
   const pathname = usePathname();
-  const panelRef = useRef<HTMLElement>(null);
-
-  useLayoutEffect(() => {
-    const panel = panelRef.current;
-    if (
-      !panel ||
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    ) {
-      return;
-    }
-
-    const tween = gsap.fromTo(
-      panel,
-      { opacity: 0, x: -12 },
-      {
-        opacity: 1,
-        x: 0,
-        duration: MOTION.enter,
-        ease: MOTION.panelEase,
-      },
-    );
-
-    return () => {
-      tween.kill();
-    };
-  }, []);
 
   return (
-    <aside ref={panelRef} className="module-navigation">
+    <aside className="module-navigation">
       <div className="module-heading">
         <span className="module-kicker">Operating vertical</span>
         <strong>Subvention</strong>

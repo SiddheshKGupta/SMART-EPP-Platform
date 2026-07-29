@@ -74,7 +74,9 @@ function purchaseFixture(
     programmeId: "programme-1",
     oemId: "oem-1",
     productId: "product-1",
-    imei: "123456789012345",
+    productCode: "PRODUCT-1",
+    connectLegalEntityId: "connect-equipment-leasing",
+    deviceIdentifier: "123456789012345",
     purchaseOrderNumber: "PO-1",
     invoiceNumber: "INV-1",
     invoiceDate: "2026-07-15",
@@ -84,6 +86,18 @@ function purchaseFixture(
     resellerId: "reseller-1",
     leaseStatus: "ACTIVE",
     sourceSystem: "LMS",
+    sourceEvidence: {
+      sourceFileName: "synthetic-repository.xlsx",
+      sourceSheetName: "Transactions",
+      sourceRowNumber: 2,
+      sourceChecksum: "sha256:synthetic-repository",
+      rowKind: "TRANSACTION",
+      sourceLabels: {},
+      counterpartyAliases: {},
+      calculationBasis: "INVOICE_VALUE",
+      rateBps: 350,
+      expectedSubventionPaise: 288_750,
+    },
     importedAt: "2026-07-15T00:00:00.000Z",
     ...overrides,
   };
@@ -101,7 +115,9 @@ function purchaseInputFixture(
     programmeId: transaction.programmeId,
     oemId: transaction.oemId,
     productId: transaction.productId,
-    imei: transaction.imei,
+    productCode: transaction.productCode,
+    connectLegalEntityId: transaction.connectLegalEntityId,
+    deviceIdentifier: transaction.deviceIdentifier,
     purchaseOrderNumber: transaction.purchaseOrderNumber,
     invoiceNumber: transaction.invoiceNumber,
     invoiceDate: transaction.invoiceDate,
@@ -112,6 +128,12 @@ function purchaseInputFixture(
     distributorId: transaction.distributorId,
     leaseStatus: transaction.leaseStatus,
     sourceSystem: transaction.sourceSystem,
+    sourceEvidence:
+      overrides.sourceEvidence ??
+      {
+        ...transaction.sourceEvidence,
+        sourceChecksum: `sha256:${transaction.leaseId}:${transaction.invoiceNumber}`,
+      },
   };
 }
 
@@ -159,7 +181,13 @@ function auditEventFixture(
 
 function seedFixture(overrides: Partial<SubventionSeed> = {}): SubventionSeed {
   return {
-    oems: [{ id: "oem-1", name: "Configured OEM" }],
+    oems: [
+      {
+        id: "oem-1",
+        name: "Configured OEM",
+        productIds: ["product-1"],
+      },
+    ],
     schemes: [
       schemeFixture(),
       schemeFixture({
@@ -179,9 +207,20 @@ function seedFixture(overrides: Partial<SubventionSeed> = {}): SubventionSeed {
       { userId: "maker-1", role: "SALES_OPS_MAKER" },
       { userId: "checker-1", role: "BUSINESS_HEAD_CHECKER" },
     ],
-    existingClaimedImeis: [],
+    purchaseImportMasterData: {
+      employerIds: new Set(["employer-1"]),
+      programmeIds: new Set(["programme-1"]),
+      oemIds: new Set(["oem-1"]),
+      productIds: new Set(["product-1"]),
+      connectLegalEntityIds: new Set([
+        "connect-equipment-leasing",
+      ]),
+      resellerAliases: new Map(),
+      distributorAliases: new Map(),
+    },
+    existingClaimedDeviceIdentifiers: [],
     existingClaimedLeaseIds: [],
-    duplicateImeis: [],
+    duplicateDeviceIdentifiers: [],
     duplicateLeaseIds: [],
     ...overrides,
   };
@@ -753,6 +792,10 @@ describe("subvention repository", () => {
         importedAt: undefined,
         leaseId: "lease-2",
         invoiceNumber: "INV-2",
+        sourceEvidence: {
+          ...purchaseFixture().sourceEvidence,
+          sourceChecksum: "sha256:repository-duplicate-device",
+        },
       }),
     };
 
@@ -762,7 +805,9 @@ describe("subvention repository", () => {
     );
 
     expect(result.accepted).toEqual([]);
-    expect(result.quarantined[0]?.issues[0]?.code).toBe("DUPLICATE_IMEI");
+    expect(result.quarantined[0]?.issues[0]?.code).toBe(
+      "DUPLICATE_DEVICE_IDENTIFIER",
+    );
     const events = await repository.listAuditEvents();
     expect(events).toEqual([
       expect.objectContaining({
@@ -773,7 +818,7 @@ describe("subvention repository", () => {
         occurredAt: "2026-07-28T10:00:00.000Z",
         metadata: expect.objectContaining({
           rowNumber: 1,
-          issueCodes: ["DUPLICATE_IMEI"],
+          issueCodes: ["DUPLICATE_DEVICE_IDENTIFIER"],
         }),
       }),
     ]);
@@ -787,13 +832,13 @@ describe("subvention repository", () => {
         purchaseInputFixture({
           employeeId: "",
           leaseId: "lease-quarantine-1",
-          imei: "323456789012345",
+          deviceIdentifier: "323456789012345",
           invoiceNumber: "INV-Q1",
         }),
         purchaseInputFixture({
           employeeId: "",
           leaseId: "lease-quarantine-2",
-          imei: "423456789012345",
+          deviceIdentifier: "423456789012345",
           invoiceNumber: "INV-Q2",
         }),
       ],
@@ -814,7 +859,7 @@ describe("subvention repository", () => {
         purchaseInputFixture({
           employeeId: "",
           leaseId: "lease-quarantine-1",
-          imei: "323456789012345",
+          deviceIdentifier: "323456789012345",
           invoiceNumber: "INV-Q1",
         }),
       ],
@@ -950,7 +995,7 @@ describe("subvention repository", () => {
           purchaseFixture(),
           purchaseFixture({
             leaseId: "lease-2",
-            imei: "223456789012345",
+            deviceIdentifier: "223456789012345",
             invoiceNumber: "INV-2",
           }),
         ],
@@ -1014,7 +1059,7 @@ describe("subvention repository", () => {
         [
           purchaseInputFixture({
             leaseId: "lease-2",
-            imei: "223456789012345",
+            deviceIdentifier: "223456789012345",
             invoiceNumber: "INV-2",
           }),
         ],
@@ -1101,9 +1146,56 @@ describe("subvention repository", () => {
     ).toHaveLength(1);
     expect(first.transactions.length).toBeGreaterThanOrEqual(30);
     expect(
+      [...new Set(first.schemes.flatMap((scheme) => scheme.rateBps ?? []))].sort(
+        (left, right) => left - right,
+      ),
+    ).toEqual([245, 250, 275, 300, 350]);
+    expect(
+      new Set(
+        first.transactions.map(
+          (transaction) => transaction.connectLegalEntityId,
+        ),
+      ),
+    ).toEqual(
+      new Set(["connect-equipment-leasing", "connect-residuary"]),
+    );
+    expect(
+      new Set(
+        first.transactions.map(
+          (transaction) =>
+            transaction.sourceEvidence.counterpartyAliases.distributor,
+        ),
+      ),
+    ).toEqual(new Set(["Ingram", "Redington"]));
+    expect(
+      new Set(
+        first.transactions.map(
+          (transaction) => transaction.sourceEvidence.calculationBasis,
+        ),
+      ),
+    ).toEqual(new Set(["BASE_VALUE", "INVOICE_VALUE"]));
+    expect(
+      first.transactions.some((transaction) =>
+        /[A-Z]/.test(transaction.deviceIdentifier),
+      ),
+    ).toBe(true);
+    expect(
+      first.transactions.some((transaction) =>
+        /^\d{15}$/.test(transaction.deviceIdentifier),
+      ),
+    ).toBe(true);
+    expect(
+      new Set(
+        first.transactions.map(
+          (transaction) =>
+            transaction.sourceEvidence.sourceLabels.externalOutcome,
+        ),
+      ),
+    ).toEqual(new Set(["Approved", "Rejected", "Deferred"]));
+    expect(
       first.quarantinedImports[0]?.issues.map((foundIssue) => foundIssue.code),
-    ).toEqual(["DUPLICATE_IMEI", "DUPLICATE_LEASE"]);
-    expect(first.existingClaimedImeis.length).toBeGreaterThan(0);
+    ).toEqual(["DUPLICATE_DEVICE_IDENTIFIER", "DUPLICATE_LEASE"]);
+    expect(first.existingClaimedDeviceIdentifiers.length).toBeGreaterThan(0);
     expect(first.existingClaimedLeaseIds.length).toBeGreaterThan(0);
     expect(first.auditEvents.length).toBeGreaterThanOrEqual(8);
     expect(first.actors.map((actor) => actor.role)).toEqual([

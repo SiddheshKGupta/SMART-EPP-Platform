@@ -20,7 +20,9 @@ function purchaseFixture(
     programmeId: "programme-1",
     oemId: "oem-apple",
     productId: "iphone-16",
-    imei: "123456789012345",
+    productCode: "APL-IPHONE-16",
+    connectLegalEntityId: "connect-equipment-leasing",
+    deviceIdentifier: "123456789012345",
     purchaseOrderNumber: "PO-1",
     invoiceNumber: "INV-1",
     invoiceDate: "2026-07-15",
@@ -30,6 +32,18 @@ function purchaseFixture(
     resellerId: "reseller-1",
     leaseStatus: "ACTIVE",
     sourceSystem: "LMS",
+    sourceEvidence: {
+      sourceFileName: "synthetic-eligibility.xlsx",
+      sourceSheetName: "Transactions",
+      sourceRowNumber: 2,
+      sourceChecksum: "sha256:synthetic-eligibility",
+      rowKind: "TRANSACTION",
+      sourceLabels: {},
+      counterpartyAliases: {},
+      calculationBasis: "INVOICE_VALUE",
+      rateBps: 350,
+      expectedSubventionPaise: 288_750,
+    },
     importedAt: "2026-07-15T00:00:00.000Z",
     ...overrides,
   };
@@ -91,9 +105,9 @@ function eligibilityInputFixture(
     transaction: purchaseFixture(),
     schemes: [schemeFixture()],
     mappings: [mappingFixture()],
-    duplicateImeis: new Set(),
+    duplicateDeviceIdentifiers: new Set(),
     duplicateLeaseIds: new Set(),
-    existingClaimedImeis: new Set(),
+    existingClaimedDeviceIdentifiers: new Set(),
     existingClaimedLeaseIds: new Set(),
     evaluationDate: "2026-08-01",
     evaluatedAt: "2026-08-01T10:00:00.000Z",
@@ -140,9 +154,9 @@ describe("subvention eligibility", () => {
       }),
       schemes: [schemeFixture({ rateBps: 350 })],
       mappings: [mappingFixture()],
-      duplicateImeis: new Set(),
+      duplicateDeviceIdentifiers: new Set(),
       duplicateLeaseIds: new Set(),
-      existingClaimedImeis: new Set(),
+      existingClaimedDeviceIdentifiers: new Set(),
       existingClaimedLeaseIds: new Set(),
       evaluationDate: "2026-08-01",
       evaluatedAt: "2026-08-01T10:00:00.000Z",
@@ -161,9 +175,9 @@ describe("subvention eligibility", () => {
     expect(decision.ruleResults.map((rule) => rule.code)).toEqual([
       "TRANSACTION_FIELDS_VALID",
       "LEASE_STATUS_ACTIVE",
-      "IMEI_UNIQUE",
+      "DEVICE_IDENTIFIER_UNIQUE",
       "LEASE_UNIQUE",
-      "IMEI_NOT_CLAIMED",
+      "DEVICE_IDENTIFIER_NOT_CLAIMED",
       "LEASE_NOT_CLAIMED",
       "PROGRAMME_MAPPING_RESOLVED",
       "PROGRAMME_LAUNCHED",
@@ -216,17 +230,17 @@ describe("subvention eligibility", () => {
     ).toBe("REVERSED");
   });
 
-  it("returns ineligible for a duplicate IMEI", () => {
+  it("returns ineligible for a duplicate device identifier", () => {
     const decision = evaluateEligibility(
       eligibilityInputFixture({
-        duplicateImeis: new Set(["123456789012345"]),
+        duplicateDeviceIdentifiers: new Set(["123456789012345"]),
       }),
     );
 
     expect(decision.status).toBe("INELIGIBLE");
     expect(
       decision.ruleResults.find((rule) => rule.outcome !== "PASS")?.code,
-    ).toBe("DUPLICATE_IMEI");
+    ).toBe("DUPLICATE_DEVICE_IDENTIFIER");
   });
 
   it("returns ineligible for a duplicate lease", () => {
@@ -242,17 +256,17 @@ describe("subvention eligibility", () => {
     ).toBe("DUPLICATE_LEASE");
   });
 
-  it("returns ineligible when the IMEI was already claimed", () => {
+  it("returns ineligible when the device identifier was already claimed", () => {
     const decision = evaluateEligibility(
       eligibilityInputFixture({
-        existingClaimedImeis: new Set(["123456789012345"]),
+        existingClaimedDeviceIdentifiers: new Set(["123456789012345"]),
       }),
     );
 
     expect(decision.status).toBe("INELIGIBLE");
     expect(
       decision.ruleResults.find((rule) => rule.outcome !== "PASS")?.code,
-    ).toBe("ALREADY_CLAIMED_IMEI");
+    ).toBe("ALREADY_CLAIMED_DEVICE_IDENTIFIER");
   });
 
   it("returns ineligible when the lease was already claimed", () => {
@@ -397,7 +411,7 @@ describe("subvention eligibility", () => {
     ["programme ID", { programmeId: "" }],
     ["OEM ID", { oemId: "" }],
     ["product ID", { productId: "" }],
-    ["IMEI", { imei: "" }],
+    ["device identifier", { deviceIdentifier: "" }],
     ["purchase order number", { purchaseOrderNumber: "" }],
     ["invoice number", { invoiceNumber: "" }],
     ["invoice date", { invoiceDate: "" }],

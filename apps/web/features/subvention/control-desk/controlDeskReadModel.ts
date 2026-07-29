@@ -79,15 +79,19 @@ export function selectControlDeskReadModel(
   options: ControlDeskReadModelOptions,
 ): ControlDeskReadModel {
   const evaluationDate = options.evaluatedAt.slice(0, 10);
-  const duplicateImeis = duplicateValues(
-    snapshot.transactions.map((transaction) => transaction.imei),
-    snapshot.duplicateImeis,
+  const duplicateDeviceIdentifiers = duplicateValues(
+    snapshot.transactions.map(
+      (transaction) => transaction.deviceIdentifier,
+    ),
+    snapshot.duplicateDeviceIdentifiers,
   );
   const duplicateLeaseIds = duplicateValues(
     snapshot.transactions.map((transaction) => transaction.leaseId),
     snapshot.duplicateLeaseIds,
   );
-  const existingClaimedImeis = new Set(snapshot.existingClaimedImeis);
+  const existingClaimedDeviceIdentifiers = new Set(
+    snapshot.existingClaimedDeviceIdentifiers,
+  );
   const existingClaimedLeaseIds = new Set(snapshot.existingClaimedLeaseIds);
 
   const transactions = snapshot.transactions.map((transaction) => {
@@ -104,9 +108,9 @@ export function selectControlDeskReadModel(
           oemDefaults: snapshot.oems.find(
             (oem) => oem.id === transaction.oemId,
           )?.defaults,
-          duplicateImeis,
+          duplicateDeviceIdentifiers,
           duplicateLeaseIds,
-          existingClaimedImeis,
+          existingClaimedDeviceIdentifiers,
           existingClaimedLeaseIds,
           evaluationDate,
           evaluatedAt: options.evaluatedAt,

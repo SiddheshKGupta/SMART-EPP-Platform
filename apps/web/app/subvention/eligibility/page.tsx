@@ -1,18 +1,24 @@
-import {
-  RouteContractPage,
-  type RouteSearchParams,
-} from "@/components/shared/RouteContractPage";
+import { EligibilityWorkspace } from "@/features/subvention/eligibility/EligibilityWorkspace";
+
+type EligibilitySearchParams = Promise<{
+  status?: string | string[];
+  deadline?: string | string[];
+}>;
 
 export default async function Page({
   searchParams,
 }: {
-  searchParams: RouteSearchParams;
+  searchParams: EligibilitySearchParams;
 }) {
+  const { status, deadline } = await searchParams;
   return (
-    <RouteContractPage
-      title="Eligibility Review Queue"
-      description="Trace eligibility decisions, rule outcomes, deadlines and approved-value exposure."
-      filters={await searchParams}
+    <EligibilityWorkspace
+      initialStatus={
+        typeof status === "string" ? status.trim() : undefined
+      }
+      initialDeadline={
+        typeof deadline === "string" ? deadline.trim() : undefined
+      }
     />
   );
 }

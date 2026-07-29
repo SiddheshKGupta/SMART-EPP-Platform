@@ -1,6 +1,7 @@
 import type { OemRuleDefaults } from "./programme-mapping";
 import type {
   ImportResult,
+  PurchaseImportMasterData,
   QuarantinedPurchaseImportRow,
 } from "./purchase-import";
 import type {
@@ -60,9 +61,10 @@ export interface SubventionSeed {
   quarantinedImports: QuarantinedPurchaseImportRow[];
   auditEvents: AuditEvent[];
   actors: Actor[];
-  existingClaimedImeis: string[];
+  purchaseImportMasterData: PurchaseImportMasterData;
+  existingClaimedDeviceIdentifiers: string[];
   existingClaimedLeaseIds: string[];
-  duplicateImeis: string[];
+  duplicateDeviceIdentifiers: string[];
   duplicateLeaseIds: string[];
 }
 

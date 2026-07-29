@@ -22,9 +22,9 @@ export interface EvaluateEligibilityInput {
   schemes: SchemeVersion[];
   mappings: EmployerProgrammeMappingVersion[];
   oemDefaults?: OemRuleDefaults;
-  duplicateImeis: ReadonlySet<string>;
+  duplicateDeviceIdentifiers: ReadonlySet<string>;
   duplicateLeaseIds: ReadonlySet<string>;
-  existingClaimedImeis: ReadonlySet<string>;
+  existingClaimedDeviceIdentifiers: ReadonlySet<string>;
   existingClaimedLeaseIds: ReadonlySet<string>;
   evaluationDate: string;
   evaluatedAt: string;
@@ -170,9 +170,12 @@ export function evaluateEligibility(
       ruleResults: [transactionFailure],
     };
   }
-  const duplicateImei = input.duplicateImeis.has(transaction.imei);
+  const duplicateDeviceIdentifier = input.duplicateDeviceIdentifiers.has(
+    transaction.deviceIdentifier,
+  );
   const duplicateLease = input.duplicateLeaseIds.has(transaction.leaseId);
-  const claimedImei = input.existingClaimedImeis.has(transaction.imei);
+  const claimedDeviceIdentifier =
+    input.existingClaimedDeviceIdentifiers.has(transaction.deviceIdentifier);
   const claimedLease = input.existingClaimedLeaseIds.has(transaction.leaseId);
   const preMappingResults: RuleResult[] = [
     passed(
@@ -181,16 +184,16 @@ export function evaluateEligibility(
       "Required transaction fields and financial values are valid.",
     ),
     leaseStatusResult(transaction.leaseStatus),
-    duplicateImei
+    duplicateDeviceIdentifier
       ? failed(
-          "DUPLICATE_IMEI",
-          "IMEI uniqueness",
-          "The IMEI is duplicated in the purchase repository.",
+          "DUPLICATE_DEVICE_IDENTIFIER",
+          "Device identifier uniqueness",
+          "The IMEI or serial is duplicated in the purchase repository.",
         )
       : passed(
-          "IMEI_UNIQUE",
-          "IMEI uniqueness",
-          "The IMEI is not duplicated.",
+          "DEVICE_IDENTIFIER_UNIQUE",
+          "Device identifier uniqueness",
+          "The IMEI or serial is not duplicated.",
         ),
     duplicateLease
       ? failed(
@@ -203,16 +206,16 @@ export function evaluateEligibility(
           "Lease uniqueness",
           "The lease is not duplicated.",
         ),
-    claimedImei
+    claimedDeviceIdentifier
       ? failed(
-          "ALREADY_CLAIMED_IMEI",
-          "Prior IMEI claim",
-          "The IMEI has already been claimed.",
+          "ALREADY_CLAIMED_DEVICE_IDENTIFIER",
+          "Prior device claim",
+          "The IMEI or serial has already been claimed.",
         )
       : passed(
-          "IMEI_NOT_CLAIMED",
-          "Prior IMEI claim",
-          "The IMEI has not already been claimed.",
+          "DEVICE_IDENTIFIER_NOT_CLAIMED",
+          "Prior device claim",
+          "The IMEI or serial has not already been claimed.",
         ),
     claimedLease
       ? failed(
@@ -262,11 +265,15 @@ export function evaluateEligibility(
   const beforeProgrammeLaunch = transaction.invoiceDate < mapping.launchDate;
   const mappingResults: RuleResult[] = [
     ...preMappingResults,
-    passed(
+    {
+      ...passed(
       "PROGRAMME_MAPPING_RESOLVED",
-      "Programme mapping",
+      "Programme mapping resolved",
       "Exactly one approved programme mapping applies.",
-    ),
+      ),
+      sourceEntityType: "EmployerProgrammeMappingVersion",
+      sourceEntityId: mapping.id,
+    },
     beforeProgrammeLaunch
       ? failed(
           "BEFORE_PROGRAMME_LAUNCH",
@@ -306,11 +313,15 @@ export function evaluateEligibility(
   }
   const schemeResults: RuleResult[] = [
     ...mappingResults,
-    passed(
+    {
+      ...passed(
       "SCHEME_APPROVED",
       "Scheme approval",
       "The mapped scheme version is approved.",
-    ),
+      ),
+      sourceEntityType: "SchemeVersion",
+      sourceEntityId: scheme.id,
+    },
   ];
   if (
     !dateIsWithinInclusive(
@@ -343,11 +354,15 @@ export function evaluateEligibility(
 
   const validatedSchemeResults: RuleResult[] = [
     ...schemeResults,
-    passed(
+    {
+      ...passed(
       "SCHEME_WITHIN_VALIDITY",
-      "Scheme validity",
+      "Scheme effective",
       "The scheme covers the invoice date.",
-    ),
+      ),
+      sourceEntityType: "SchemeVersion",
+      sourceEntityId: scheme.id,
+    },
   ];
   let ruleSnapshot: EligibilityRuleSnapshot;
   try {
@@ -428,7 +443,7 @@ export function evaluateEligibility(
     ),
     passed(
       "EXPECTED_AMOUNT_CALCULATED",
-      "Expected amount",
+      "Expected subvention",
       "The expected amount was calculated in integer paise.",
     ),
     passed(

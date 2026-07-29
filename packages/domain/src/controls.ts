@@ -1,5 +1,10 @@
-export function assertUniqueImei(existing: string[], imei: string) {
-  if (existing.includes(imei)) throw new Error("Duplicate IMEI");
+export function assertUniqueDeviceIdentifier(
+  existing: string[],
+  deviceIdentifier: string,
+) {
+  if (existing.includes(deviceIdentifier)) {
+    throw new Error("Duplicate device identifier");
+  }
 }
 
 export function assertWithinClaimTimeline(

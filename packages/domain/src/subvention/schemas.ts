@@ -23,6 +23,22 @@ const calculationBasisSchema = z.enum([
   "FLAT_AMOUNT",
 ]);
 
+const purchaseSourceEvidenceSchema = z.object({
+  sourceFileName: z.string().min(1),
+  sourceSheetName: z.string().min(1),
+  sourceRowNumber: positiveIntegerSchema,
+  sourceChecksum: z.string().min(1),
+  rowKind: z.enum(["TRANSACTION", "FORMULA", "CONTROL"]),
+  sourceLabels: z.record(z.string()),
+  counterpartyAliases: z.object({
+    reseller: z.string().min(1).optional(),
+    distributor: z.string().min(1).optional(),
+  }),
+  calculationBasis: calculationBasisSchema,
+  rateBps: positiveIntegerSchema.max(10_000),
+  expectedSubventionPaise: nonNegativeIntegerSchema,
+});
+
 function refineCalculationRule(
   value: {
     calculationBasis?: z.infer<typeof calculationBasisSchema>;
@@ -138,7 +154,9 @@ export const purchaseTransactionInputSchema = z.object({
   programmeId: z.string().min(1),
   oemId: z.string().min(1),
   productId: z.string().min(1),
-  imei: z.string().min(8),
+  productCode: z.string().min(1),
+  connectLegalEntityId: z.string().min(1),
+  deviceIdentifier: z.string().min(8),
   purchaseOrderNumber: z.string().min(1),
   invoiceNumber: z.string().min(1),
   invoiceDate: isoDateSchema,
@@ -149,4 +167,5 @@ export const purchaseTransactionInputSchema = z.object({
   distributorId: z.string().min(1).optional(),
   leaseStatus: z.enum(["ACTIVE", "CANCELLED", "RETURNED", "REVERSED"]),
   sourceSystem: z.enum(["LMS", "CONTROLLED_UPLOAD"]),
+  sourceEvidence: purchaseSourceEvidenceSchema,
 });

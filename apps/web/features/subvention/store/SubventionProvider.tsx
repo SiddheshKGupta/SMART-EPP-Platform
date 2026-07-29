@@ -10,6 +10,8 @@ import {
 import type {
   Actor,
   DomainIssue,
+  ImportResult,
+  PurchaseTransactionInput,
   ProgrammeMappingEffectiveWindow,
   SubventionSnapshot,
 } from "@smart-epp/domain";
@@ -44,6 +46,10 @@ export interface SubventionContextValue {
     effectiveWindow: ProgrammeMappingEffectiveWindow,
   ): Promise<string | undefined>;
   evaluateTransaction(id: string): Promise<void>;
+  evaluateTransactions(ids: string[]): Promise<void>;
+  importTransactions(
+    rows: PurchaseTransactionInput[],
+  ): Promise<ImportResult | undefined>;
   issues: DomainIssue[];
   actionError?: SubventionActionError;
   isRefreshing: boolean;
@@ -227,6 +233,25 @@ export function SubventionProvider({ children }: { children: ReactNode }) {
     [activeActor, repository, runCommand],
   );
 
+  const evaluateTransactions = useCallback(
+    async (ids: string[]) => {
+      await runCommand(async () => {
+        for (const id of ids) {
+          await repository.evaluateTransaction(id, activeActor);
+        }
+      });
+    },
+    [activeActor, repository, runCommand],
+  );
+
+  const importTransactions = useCallback(
+    async (rows: PurchaseTransactionInput[]) =>
+      await runCommand(() =>
+        repository.importTransactions(rows, activeActor),
+      ),
+    [activeActor, repository, runCommand],
+  );
+
   return (
     <SubventionContext.Provider
       value={{
@@ -244,6 +269,8 @@ export function SubventionProvider({ children }: { children: ReactNode }) {
         rejectProgrammeMapping,
         createNextProgrammeMappingVersion,
         evaluateTransaction,
+        evaluateTransactions,
+        importTransactions,
         issues,
         actionError,
         isRefreshing,

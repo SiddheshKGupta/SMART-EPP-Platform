@@ -26,8 +26,10 @@ describe("control desk read model", () => {
     ).toBe(true);
     expect(
       rows
-        .get("transaction-claimed-imei")
-        ?.decision.ruleResults.some((rule) => rule.code === "ALREADY_CLAIMED_IMEI"),
+        .get("transaction-claimed-device")
+        ?.decision.ruleResults.some(
+          (rule) => rule.code === "ALREADY_CLAIMED_DEVICE_IDENTIFIER",
+        ),
     ).toBe(true);
     expect(
       rows
@@ -37,7 +39,9 @@ describe("control desk read model", () => {
     expect(
       rows
         .get("transaction-duplicate-import-01")
-        ?.decision.ruleResults.some((rule) => rule.code === "DUPLICATE_IMEI"),
+        ?.decision.ruleResults.some(
+          (rule) => rule.code === "DUPLICATE_DEVICE_IDENTIFIER",
+        ),
     ).toBe(true);
   });
 

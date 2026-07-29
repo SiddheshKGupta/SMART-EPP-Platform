@@ -97,6 +97,24 @@ export type LeaseTransactionStatus =
   | "RETURNED"
   | "REVERSED";
 
+export type PurchaseSourceRowKind = "TRANSACTION" | "FORMULA" | "CONTROL";
+
+export interface PurchaseSourceEvidence {
+  sourceFileName: string;
+  sourceSheetName: string;
+  sourceRowNumber: number;
+  sourceChecksum: string;
+  rowKind: PurchaseSourceRowKind;
+  sourceLabels: Record<string, string>;
+  counterpartyAliases: {
+    reseller?: string;
+    distributor?: string;
+  };
+  calculationBasis: CalculationBasis;
+  rateBps: number;
+  expectedSubventionPaise: number;
+}
+
 export interface PurchaseTransaction {
   id: string;
   leaseId: string;
@@ -106,7 +124,9 @@ export interface PurchaseTransaction {
   programmeId: string;
   oemId: string;
   productId: string;
-  imei: string;
+  productCode: string;
+  connectLegalEntityId: string;
+  deviceIdentifier: string;
   purchaseOrderNumber: string;
   invoiceNumber: string;
   invoiceDate: string;
@@ -117,6 +137,7 @@ export interface PurchaseTransaction {
   distributorId?: string;
   leaseStatus: LeaseTransactionStatus;
   sourceSystem: "LMS" | "CONTROLLED_UPLOAD";
+  sourceEvidence: PurchaseSourceEvidence;
   importedAt: string;
 }
 
