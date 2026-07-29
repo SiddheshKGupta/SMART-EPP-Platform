@@ -21,6 +21,7 @@ export type AuditAction =
   | "PROGRAMME_MAPPING_DRAFT_SAVED"
   | "PROGRAMME_MAPPING_SUBMITTED"
   | "PROGRAMME_MAPPING_APPROVED"
+  | "PROGRAMME_MAPPING_EFFECTIVE_PERIOD_CLOSED"
   | "PROGRAMME_MAPPING_RETURNED"
   | "PROGRAMME_MAPPING_REJECTED"
   | "PURCHASE_IMPORTED"
@@ -141,7 +142,13 @@ export interface ProgrammeMappingRepository {
     id: string,
     actor: Actor,
     remarks: string,
+    effectiveWindow: ProgrammeMappingEffectiveWindow,
   ): Promise<EmployerProgrammeMappingVersion>;
+}
+
+export interface ProgrammeMappingEffectiveWindow {
+  effectiveFrom: string;
+  effectiveTo: string;
 }
 
 export interface PurchaseTransactionRepository {

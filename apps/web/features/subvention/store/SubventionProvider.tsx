@@ -10,6 +10,7 @@ import {
 import type {
   Actor,
   DomainIssue,
+  ProgrammeMappingEffectiveWindow,
   SubventionSnapshot,
 } from "@smart-epp/domain";
 import {
@@ -40,6 +41,7 @@ export interface SubventionContextValue {
   createNextProgrammeMappingVersion(
     id: string,
     remarks: string,
+    effectiveWindow: ProgrammeMappingEffectiveWindow,
   ): Promise<string | undefined>;
   evaluateTransaction(id: string): Promise<void>;
   issues: DomainIssue[];
@@ -198,13 +200,18 @@ export function SubventionProvider({ children }: { children: ReactNode }) {
   );
 
   const createNextProgrammeMappingVersion = useCallback(
-    async (id: string, remarks: string) =>
+    async (
+      id: string,
+      remarks: string,
+      effectiveWindow: ProgrammeMappingEffectiveWindow,
+    ) =>
       (
         await runCommand(() =>
           repository.createNextProgrammeMappingVersion(
             id,
             activeActor,
             remarks,
+            effectiveWindow,
           ),
         )
       )?.id,

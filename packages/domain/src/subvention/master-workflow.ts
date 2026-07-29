@@ -7,7 +7,8 @@ export interface VersionedMaster {
   approvedAt?: string;
 }
 
-type MasterAction = "SUBMIT" | "APPROVE" | "RETURN" | "REJECT";
+export type MasterAction = "SUBMIT" | "APPROVE" | "RETURN" | "REJECT";
+export type MasterMutationAction = "CREATE" | "SAVE" | MasterAction;
 
 const allowed = {
   DRAFT: ["SUBMIT"],
@@ -26,6 +27,24 @@ const statusForAction: Record<MasterAction, MasterWorkflowStatus> = {
   REJECT: "REJECTED",
 };
 
+export function assertMasterMutationAuthorized(
+  actor: Actor,
+  action: MasterMutationAction,
+): void {
+  const authorized =
+    action === "CREATE" || action === "SAVE"
+      ? actor.role === "SALES_OPS_MAKER" ||
+        actor.role === "MASTER_DATA_ADMIN"
+      : action === "SUBMIT"
+        ? actor.role === "SALES_OPS_MAKER"
+        : actor.role === "BUSINESS_HEAD_CHECKER";
+  if (!authorized) {
+    throw new Error(
+      `${actor.role} is not authorized to ${action} master data`,
+    );
+  }
+}
+
 export function transitionMaster<T extends VersionedMaster>(
   master: T,
   action: MasterAction,
@@ -33,6 +52,8 @@ export function transitionMaster<T extends VersionedMaster>(
   remarks: string,
   occurredAt: string,
 ): T {
+  assertMasterMutationAuthorized(actor, action);
+
   if (master.workflowStatus === "APPROVED") {
     throw new Error("Approved master version is immutable");
   }

@@ -9,6 +9,7 @@ import type {
   SchemeVersion,
   SubventionSeed,
 } from "../../../packages/domain/src";
+import { resolveProgrammeMapping } from "../../../packages/domain/src";
 import { InMemorySubventionRepository } from "../../../apps/web/features/subvention/data/InMemorySubventionRepository";
 import { createDemoSubventionRepository } from "../../../apps/web/features/subvention/data/seed";
 
@@ -175,7 +176,7 @@ function seedFixture(overrides: Partial<SubventionSeed> = {}): SubventionSeed {
     quarantinedImports: [],
     auditEvents: [],
     actors: [
-      { userId: "maker-1", role: "MASTER_DATA_ADMIN" },
+      { userId: "maker-1", role: "SALES_OPS_MAKER" },
       { userId: "checker-1", role: "BUSINESS_HEAD_CHECKER" },
     ],
     existingClaimedImeis: [],
@@ -205,7 +206,7 @@ describe("subvention repository", () => {
     const repository = createRepositoryFixture();
     await repository.submitScheme(
       "scheme-version-draft",
-      { userId: "maker-1", role: "MASTER_DATA_ADMIN" },
+      { userId: "maker-1", role: "SALES_OPS_MAKER" },
       "Ready for approval",
     );
     const submitted = await repository.getScheme("scheme-version-draft");
@@ -214,14 +215,14 @@ describe("subvention repository", () => {
     await expect(
       repository.saveSchemeDraft(
         submitted,
-        { userId: "maker-1", role: "MASTER_DATA_ADMIN" },
+        { userId: "maker-1", role: "SALES_OPS_MAKER" },
         "Attempt workflow rollback",
       ),
     ).rejects.toThrow("SUBMIT is not allowed from SUBMITTED");
     await expect(
       repository.approveScheme(
         "scheme-version-draft",
-        { userId: "maker-1", role: "MASTER_DATA_ADMIN" },
+        { userId: "maker-1", role: "BUSINESS_HEAD_CHECKER" },
         "Self approve",
       ),
     ).rejects.toThrow("Maker cannot approve own work");
@@ -285,7 +286,7 @@ describe("subvention repository", () => {
 
   it("derives clean draft versions from approved scheme and mapping data", async () => {
     const repository = createRepositoryFixture();
-    const maker = { userId: "maker-1", role: "MASTER_DATA_ADMIN" };
+    const maker = { userId: "maker-1", role: "SALES_OPS_MAKER" };
 
     const scheme = await repository.createNextSchemeVersion(
       "scheme-version-approved",
@@ -296,6 +297,10 @@ describe("subvention repository", () => {
       "mapping-version-1",
       maker,
       "Start the next controlled mapping",
+      {
+        effectiveFrom: "2026-10-01",
+        effectiveTo: "2027-03-31",
+      },
     );
 
     expect(scheme).toMatchObject({
@@ -315,10 +320,204 @@ describe("subvention repository", () => {
       makerUserId: "maker-1",
       checkerUserId: undefined,
       approvedAt: undefined,
+      effectiveFrom: "2026-10-01",
+      effectiveTo: "2027-03-31",
     });
     expect(
       (await repository.listAuditEvents()).map((event) => event.action),
     ).toEqual(["SCHEME_DRAFT_SAVED", "PROGRAMME_MAPPING_DRAFT_SAVED"]);
+  });
+
+  it.each([
+    "MANAGEMENT_VIEWER",
+    "AUDITOR",
+    "BUSINESS_HEAD_CHECKER",
+  ])("rejects draft creation by unauthorized role %s", async (role) => {
+    const repository = createRepositoryFixture();
+    const actor = { userId: "unauthorized-1", role };
+
+    await expect(
+      repository.createNextSchemeVersion(
+        "scheme-version-approved",
+        actor,
+        "Unauthorized derived version",
+      ),
+    ).rejects.toThrow(`${role} is not authorized to CREATE master data`);
+  });
+
+  it.each([
+    "MANAGEMENT_VIEWER",
+    "AUDITOR",
+    "BUSINESS_HEAD_CHECKER",
+  ])("rejects draft save by unauthorized role %s", async (role) => {
+    const repository = createRepositoryFixture();
+    const actor = { userId: "unauthorized-1", role };
+    const draft = await repository.getScheme("scheme-version-draft");
+    if (!draft) throw new Error("Fixture scheme missing");
+
+    await expect(
+      repository.saveSchemeDraft(
+        draft,
+        actor,
+        "Unauthorized draft save",
+      ),
+    ).rejects.toThrow(`${role} is not authorized to SAVE master data`);
+  });
+
+  it("allows the master data administrator to create and save draft versions", async () => {
+    const repository = createRepositoryFixture();
+    const actor = { userId: "master-admin-1", role: "MASTER_DATA_ADMIN" };
+
+    const next = await repository.createNextSchemeVersion(
+      "scheme-version-approved",
+      actor,
+      "Prepare the controlled successor",
+    );
+    expect(next.makerUserId).toBe(actor.userId);
+
+    await expect(
+      repository.saveSchemeDraft(
+        next,
+        actor,
+        "Update controlled master configuration",
+      ),
+    ).resolves.toMatchObject({
+      id: next.id,
+      makerUserId: actor.userId,
+      workflowStatus: "DRAFT",
+    });
+  });
+
+  it("atomically closes the prior mapping window when approving its successor", async () => {
+    const prior = mappingFixture();
+    const successor = mappingFixture({
+      id: "mapping-version-2",
+      version: 2,
+      workflowStatus: "SUBMITTED",
+      checkerUserId: undefined,
+      approvedAt: undefined,
+      effectiveFrom: "2026-10-01",
+      effectiveTo: "2027-03-31",
+      createdAt: "2026-09-01T00:00:00.000Z",
+    });
+    const repository = createRepositoryFixture(
+      seedFixture({ programmeMappings: [prior, successor] }),
+    );
+
+    await repository.approveProgrammeMapping(
+      successor.id,
+      { userId: "checker-1", role: "BUSINESS_HEAD_CHECKER" },
+      "Transition effective from October",
+    );
+
+    expect(
+      await repository.getProgrammeMapping(prior.id),
+    ).toMatchObject({
+      workflowStatus: "APPROVED",
+      effectiveTo: "2026-09-30",
+    });
+    expect(
+      await repository.getProgrammeMapping(successor.id),
+    ).toMatchObject({
+      workflowStatus: "APPROVED",
+      effectiveFrom: "2026-10-01",
+    });
+    expect(
+      (await repository.listAuditEvents()).map(
+        ({ entityId, action }) => ({ entityId, action }),
+      ),
+    ).toEqual([
+      {
+        entityId: prior.id,
+        action: "PROGRAMME_MAPPING_EFFECTIVE_PERIOD_CLOSED",
+      },
+      {
+        entityId: successor.id,
+        action: "PROGRAMME_MAPPING_APPROVED",
+      },
+    ]);
+
+    const snapshot = await repository.getSnapshot();
+    expect(
+      resolveProgrammeMapping(
+        purchaseFixture({ invoiceDate: "2026-09-30" }),
+        snapshot.programmeMappings,
+      ).status,
+    ).toBe("RESOLVED");
+    expect(
+      resolveProgrammeMapping(
+        purchaseFixture({ invoiceDate: "2026-10-01" }),
+        snapshot.programmeMappings,
+      ).status,
+    ).toBe("RESOLVED");
+  });
+
+  it("preserves a historical gap when the successor starts after the prior window", async () => {
+    const prior = mappingFixture();
+    const successor = mappingFixture({
+      id: "mapping-version-2",
+      version: 2,
+      workflowStatus: "SUBMITTED",
+      checkerUserId: undefined,
+      approvedAt: undefined,
+      effectiveFrom: "2027-02-01",
+      effectiveTo: "2027-06-30",
+    });
+    const repository = createRepositoryFixture(
+      seedFixture({ programmeMappings: [prior, successor] }),
+    );
+
+    await repository.approveProgrammeMapping(
+      successor.id,
+      { userId: "checker-1", role: "BUSINESS_HEAD_CHECKER" },
+      "Approve after the configured gap",
+    );
+
+    expect(
+      (await repository.getProgrammeMapping(prior.id))?.effectiveTo,
+    ).toBe("2026-12-31");
+    expect(
+      resolveProgrammeMapping(
+        purchaseFixture({ invoiceDate: "2027-01-15" }),
+        (await repository.getSnapshot()).programmeMappings,
+      ).status,
+    ).toBe("MISSING");
+  });
+
+  it("rejects approval when another approved business-key mapping would still overlap", async () => {
+    const prior = mappingFixture();
+    const conflicting = mappingFixture({
+      id: "mapping-other-approved",
+      mappingId: "mapping-other",
+      effectiveFrom: "2026-09-01",
+      effectiveTo: "2027-01-31",
+    });
+    const successor = mappingFixture({
+      id: "mapping-version-2",
+      version: 2,
+      workflowStatus: "SUBMITTED",
+      checkerUserId: undefined,
+      approvedAt: undefined,
+      effectiveFrom: "2026-10-01",
+      effectiveTo: "2027-03-31",
+    });
+    const repository = createRepositoryFixture(
+      seedFixture({
+        programmeMappings: [prior, conflicting, successor],
+      }),
+    );
+    const before = await repository.getSnapshot();
+
+    await expect(
+      repository.approveProgrammeMapping(
+        successor.id,
+        { userId: "checker-1", role: "BUSINESS_HEAD_CHECKER" },
+        "Attempt conflicting approval",
+      ),
+    ).rejects.toThrow(
+      "Programme mapping effective period overlaps approved mapping mapping-other-approved",
+    );
+    expect(await repository.getSnapshot()).toEqual(before);
   });
 
   it("does not let an approved payload be resaved as a draft", async () => {
@@ -331,7 +530,7 @@ describe("subvention repository", () => {
     await expect(
       repository.saveSchemeDraft(
         approved,
-        { userId: "maker-1", role: "MASTER_DATA_ADMIN" },
+        { userId: "maker-1", role: "SALES_OPS_MAKER" },
         "Save over approved version",
       ),
     ).rejects.toThrow("Approved master version is immutable");
@@ -343,7 +542,7 @@ describe("subvention repository", () => {
     await expect(
       repository.saveSchemeDraft(
         approved,
-        { userId: "maker-1", role: "MASTER_DATA_ADMIN" },
+        { userId: "maker-1", role: "SALES_OPS_MAKER" },
         "Copy approved payload into a draft",
       ),
     ).rejects.toThrow("Approved payload cannot be saved as a draft");
@@ -378,14 +577,14 @@ describe("subvention repository", () => {
     await expect(
       repository.saveSchemeDraft(
         schemeCopy,
-        { userId: "maker-1", role: "MASTER_DATA_ADMIN" },
+        { userId: "maker-1", role: "SALES_OPS_MAKER" },
         "Sanitized approved scheme copy",
       ),
     ).rejects.toThrow("Scheme version must be exactly 3");
     await expect(
       repository.saveProgrammeMappingDraft(
         mappingCopy,
-        { userId: "maker-1", role: "MASTER_DATA_ADMIN" },
+        { userId: "maker-1", role: "SALES_OPS_MAKER" },
         "Sanitized approved mapping copy",
       ),
     ).rejects.toThrow("Programme mapping version must be exactly 2");
@@ -400,14 +599,14 @@ describe("subvention repository", () => {
     await expect(
       repository.saveSchemeDraft(
         schemeCopy,
-        { userId: "maker-1", role: "MASTER_DATA_ADMIN" },
+        { userId: "maker-1", role: "SALES_OPS_MAKER" },
         "Create next scheme version",
       ),
     ).resolves.toMatchObject({ version: 3, workflowStatus: "DRAFT" });
     await expect(
       repository.saveProgrammeMappingDraft(
         mappingCopy,
-        { userId: "maker-1", role: "MASTER_DATA_ADMIN" },
+        { userId: "maker-1", role: "SALES_OPS_MAKER" },
         "Create next mapping version",
       ),
     ).resolves.toMatchObject({ version: 2, workflowStatus: "DRAFT" });
@@ -434,14 +633,14 @@ describe("subvention repository", () => {
     await expect(
       repository.saveSchemeDraft(
         draftScheme,
-        { userId: "maker-1", role: "MASTER_DATA_ADMIN" },
+        { userId: "maker-1", role: "SALES_OPS_MAKER" },
         "Change draft identity",
       ),
     ).rejects.toThrow("Scheme draft identity cannot be changed");
     await expect(
       repository.saveProgrammeMappingDraft(
         mapping,
-        { userId: "maker-1", role: "MASTER_DATA_ADMIN" },
+        { userId: "maker-1", role: "SALES_OPS_MAKER" },
         "Change draft identity",
       ),
     ).rejects.toThrow(
@@ -664,14 +863,14 @@ describe("subvention repository", () => {
     await expect(
       repository.saveProgrammeMappingDraft(
         rollback,
-        { userId: "maker-1", role: "MASTER_DATA_ADMIN" },
+        { userId: "maker-1", role: "SALES_OPS_MAKER" },
         "Attempt workflow rollback",
       ),
     ).rejects.toThrow("SUBMIT is not allowed from SUBMITTED");
     await expect(
       repository.approveProgrammeMapping(
         submitted.id,
-        { userId: "maker-1", role: "MASTER_DATA_ADMIN" },
+        { userId: "maker-1", role: "BUSINESS_HEAD_CHECKER" },
         "Self approve",
       ),
     ).rejects.toThrow("Maker cannot approve own work");
@@ -699,7 +898,7 @@ describe("subvention repository", () => {
     await expect(
       repository.saveProgrammeMappingDraft(
         approved,
-        { userId: "maker-1", role: "MASTER_DATA_ADMIN" },
+        { userId: "maker-1", role: "SALES_OPS_MAKER" },
         "Copy approved payload into a draft",
       ),
     ).rejects.toThrow("Approved payload cannot be saved as a draft");
@@ -868,7 +1067,7 @@ describe("subvention repository", () => {
     await expect(
       repository.submitScheme(
         "scheme-version-draft",
-        { userId: "maker-1", role: "MASTER_DATA_ADMIN" },
+        { userId: "maker-1", role: "SALES_OPS_MAKER" },
         "Ready for approval",
       ),
     ).rejects.toThrow("Generated AuditEvent ID audit-existing already exists");

@@ -1,5 +1,16 @@
 import { SchemeProgrammeWorkspace } from "@/features/subvention/schemes/SchemeProgrammeWorkspace";
+import type { RouteSearchParams } from "@/components/shared/RouteContractPage";
 
-export default function Page() {
-  return <SchemeProgrammeWorkspace initialView="programmes" />;
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: RouteSearchParams;
+}) {
+  const { status } = await searchParams;
+  return (
+    <SchemeProgrammeWorkspace
+      initialView="programmes"
+      initialStatus={Array.isArray(status) ? status[0] : status}
+    />
+  );
 }

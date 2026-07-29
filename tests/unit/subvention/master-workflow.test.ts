@@ -40,7 +40,7 @@ describe("master workflow", () => {
       transitionMaster(
         submitted,
         "APPROVE",
-        { userId: "maker-1", role: "MASTER_DATA_ADMIN" },
+        { userId: "maker-1", role: "BUSINESS_HEAD_CHECKER" },
         "Approved",
         "2026-07-28T10:00:00.000Z",
       ),
@@ -53,7 +53,7 @@ describe("master workflow", () => {
       transitionMaster(
         approved,
         "SUBMIT",
-        { userId: "maker-2", role: "MASTER_DATA_ADMIN" },
+        { userId: "maker-2", role: "SALES_OPS_MAKER" },
         "Resubmit",
         "2026-07-28T10:00:00.000Z",
       ),
@@ -66,7 +66,7 @@ describe("master workflow", () => {
     const submitted = transitionMaster(
       draft,
       "SUBMIT",
-      { userId: "maker-1", role: "MASTER_DATA_ADMIN" },
+      { userId: "maker-1", role: "SALES_OPS_MAKER" },
       "Ready for review",
       "2026-07-28T10:00:00.000Z",
     );
@@ -79,7 +79,7 @@ describe("master workflow", () => {
     const approved = transitionMaster(
       schemeFixture({ workflowStatus: "SUBMITTED" }),
       "APPROVE",
-      { userId: "checker-1", role: "MASTER_DATA_ADMIN" },
+      { userId: "checker-1", role: "BUSINESS_HEAD_CHECKER" },
       "Approved after review",
       "2026-07-28T10:00:00.000Z",
     );
@@ -96,7 +96,7 @@ describe("master workflow", () => {
       transitionMaster(
         schemeFixture(),
         "SUBMIT",
-        { userId: "maker-1", role: "MASTER_DATA_ADMIN" },
+        { userId: "maker-1", role: "SALES_OPS_MAKER" },
         "   ",
         "2026-07-28T10:00:00.000Z",
       ),
@@ -108,10 +108,52 @@ describe("master workflow", () => {
       transitionMaster(
         schemeFixture({ workflowStatus: "DRAFT" }),
         "APPROVE",
-        { userId: "checker-1", role: "MASTER_DATA_ADMIN" },
+        { userId: "checker-1", role: "BUSINESS_HEAD_CHECKER" },
         "Approved",
         "2026-07-28T10:00:00.000Z",
       ),
     ).toThrow("APPROVE is not allowed from DRAFT");
   });
+
+  it.each([
+    ["SUBMIT", "DRAFT", "MANAGEMENT_VIEWER"],
+    ["SUBMIT", "RETURNED", "AUDITOR"],
+    ["APPROVE", "SUBMITTED", "MASTER_DATA_ADMIN"],
+    ["RETURN", "SUBMITTED", "SALES_OPS_MAKER"],
+    ["REJECT", "SUBMITTED", "MANAGEMENT_VIEWER"],
+  ] as const)(
+    "rejects %s from %s for unauthorized role %s",
+    (action, workflowStatus, role) => {
+      expect(() =>
+        transitionMaster(
+          schemeFixture({ workflowStatus }),
+          action,
+          { userId: "unauthorized-1", role },
+          "Attempt unauthorized transition",
+          "2026-07-28T10:00:00.000Z",
+        ),
+      ).toThrow(`${role} is not authorized to ${action} master data`);
+    },
+  );
+
+  it.each(["APPROVE", "RETURN", "REJECT"] as const)(
+    "allows BUSINESS_HEAD_CHECKER to %s a submitted master",
+    (action) => {
+      expect(
+        transitionMaster(
+          schemeFixture({ workflowStatus: "SUBMITTED" }),
+          action,
+          { userId: "checker-1", role: "BUSINESS_HEAD_CHECKER" },
+          "Checker decision recorded",
+          "2026-07-28T10:00:00.000Z",
+        ).workflowStatus,
+      ).toBe(
+        {
+          APPROVE: "APPROVED",
+          RETURN: "RETURNED",
+          REJECT: "REJECTED",
+        }[action],
+      );
+    },
+  );
 });

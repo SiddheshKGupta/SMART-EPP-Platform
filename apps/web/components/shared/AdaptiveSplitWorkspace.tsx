@@ -61,6 +61,14 @@ export function AdaptiveSplitWorkspace({
   }, [isOpen]);
 
   useEffect(() => {
+    if (!isOpen || !selectedLabel) return;
+    const selectedRow = document.querySelector<HTMLElement>(
+      'tr[aria-selected="true"]',
+    );
+    if (selectedRow) returnFocusRef.current = selectedRow;
+  }, [isOpen, selectedLabel]);
+
+  useEffect(() => {
     if (!isOpen || isCompact) return;
     requestAnimationFrame(() => {
       document

@@ -27,12 +27,23 @@ Implemented the Scheme and Employer Programme master workspace on `feature/subve
 
 ## Quality gates
 
-- Focused Playwright: 4/4 passed (known-green clean hydrated run).
-- Unit tests: 118/118 passed.
+- Focused Playwright: 6/6 passed on a hydrated server.
+- Full Playwright: 10/10 passed.
+- Unit tests: 136/136 passed.
 - Lint: passed with zero warnings.
 - Strict typecheck: web and domain passed.
 - Production build: passed; all 15 app pages generated.
 - `git diff --check`: passed (line-ending notices only).
+
+## Independent review fix â€” round 1
+
+- Added domain and repository authorization: Master Data Admin and Sales Ops may maintain drafts, Sales Ops submits, and only Business Head Checker may approve, return, or reject.
+- Retained the separate-user maker-checker prohibition.
+- Added explicit successor effective dates to programme-mapping new-version creation.
+- Programme approval now closes an overlapping prior version to the day before the successor, preserves intentional gaps, rejects any remaining approved business-key overlap before mutation, and audits both changed records.
+- Updated desktop focus return when selection changes while the detail pane remains open.
+- Restored route-specific headings and query-driven status filters after the shared workspace replaced the Task 8 route contracts.
+- Cold-development compilation caused one initial 30-second E2E timeout; the isolated successor test then passed in 4.2 seconds and the complete browser suite passed after the server was ready.
 
 ## Visual review
 

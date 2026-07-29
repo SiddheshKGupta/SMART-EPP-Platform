@@ -22,6 +22,7 @@ import {
   type DomainIssue,
   type EmployerProgrammeMappingVersion,
   type MasterWorkflowStatus,
+  type ProgrammeMappingEffectiveWindow,
   type SchemeVersion,
 } from "@smart-epp/domain";
 import { AdaptiveSplitWorkspace } from "@/components/shared/AdaptiveSplitWorkspace";
@@ -157,9 +158,14 @@ function WorkflowDialog({
   entityName: "scheme" | "programme mapping";
   busy: boolean;
   onOpenChange(open: boolean): void;
-  onConfirm(remarks: string): Promise<void>;
+  onConfirm(
+    remarks: string,
+    effectiveWindow?: ProgrammeMappingEffectiveWindow,
+  ): Promise<void>;
 }) {
   const [remarks, setRemarks] = useState("");
+  const [effectiveFrom, setEffectiveFrom] = useState("");
+  const [effectiveTo, setEffectiveTo] = useState("");
   if (!action) return null;
 
   const copy = {
@@ -176,7 +182,9 @@ function WorkflowDialog({
         "Approval locks this version. A separate maker must have prepared it.",
       label: "Approval remarks",
       confirm:
-        entityName === "scheme" ? "Confirm approval" : "Approve mapping",
+        entityName === "scheme"
+          ? "Confirm approval"
+          : "Confirm mapping approval",
     },
     return: {
       title: `Return ${entityName}`,
@@ -193,11 +201,22 @@ function WorkflowDialog({
       confirm: "Create draft version",
     },
   }[action];
+  const requiresSuccessorWindow =
+    action === "newVersion" && entityName === "programme mapping";
+  const windowIsComplete =
+    !requiresSuccessorWindow || Boolean(effectiveFrom && effectiveTo);
 
   const submit = async () => {
-    if (!remarks.trim()) return;
-    await onConfirm(remarks);
+    if (!remarks.trim() || !windowIsComplete) return;
+    await onConfirm(
+      remarks,
+      requiresSuccessorWindow
+        ? { effectiveFrom, effectiveTo }
+        : undefined,
+    );
     setRemarks("");
+    setEffectiveFrom("");
+    setEffectiveTo("");
     onOpenChange(false);
   };
 
@@ -209,6 +228,30 @@ function WorkflowDialog({
           <DialogDescription>{copy.description}</DialogDescription>
         </DialogHeader>
         <div className="dialog-field">
+          {requiresSuccessorWindow ? (
+            <>
+              <Label htmlFor="successor-effective-from">
+                Successor effective from
+              </Label>
+              <Input
+                id="successor-effective-from"
+                type="date"
+                value={effectiveFrom}
+                onChange={(event) => setEffectiveFrom(event.target.value)}
+                aria-required="true"
+              />
+              <Label htmlFor="successor-effective-to">
+                Successor effective to
+              </Label>
+              <Input
+                id="successor-effective-to"
+                type="date"
+                value={effectiveTo}
+                onChange={(event) => setEffectiveTo(event.target.value)}
+                aria-required="true"
+              />
+            </>
+          ) : null}
           <Label htmlFor={`${action}-remarks`}>{copy.label}</Label>
           <Textarea
             id={`${action}-remarks`}
@@ -228,7 +271,10 @@ function WorkflowDialog({
           >
             Cancel
           </Button>
-          <Button disabled={!remarks.trim() || busy} onClick={submit}>
+          <Button
+            disabled={!remarks.trim() || !windowIsComplete || busy}
+            onClick={submit}
+          >
             {copy.confirm}
           </Button>
         </DialogFooter>
@@ -558,13 +604,19 @@ function DetailTabs({
 
 export function SchemeProgrammeWorkspace({
   initialView = "schemes",
+  initialStatus = "ALL",
 }: {
   initialView?: MasterView;
+  initialStatus?: string;
 }) {
   const store = useSubvention();
   const [view, setView] = useState<MasterView>(initialView);
   const [search, setSearch] = useState("");
-  const [status, setStatus] = useState("ALL");
+  const [status, setStatus] = useState(() =>
+    statuses.includes(initialStatus as MasterWorkflowStatus)
+      ? initialStatus!
+      : "ALL",
+  );
   const [oem, setOem] = useState("ALL");
   const [effectiveOn, setEffectiveOn] = useState("");
   const [selectedId, setSelectedId] = useState<string>();
@@ -666,6 +718,9 @@ export function SchemeProgrammeWorkspace({
     (conflict) => view === "programmes" && conflict.id === selectedId,
   );
   const selected = selectedScheme ?? selectedMapping ?? selectedConflict;
+  const canMaintainMaster =
+    store.activeActor.role === "SALES_OPS_MAKER" ||
+    store.activeActor.role === "MASTER_DATA_ADMIN";
   const entityName = selectedScheme ? "scheme" : "programme mapping";
   const selectedLabel = selectedScheme
     ? `${selectedScheme.code} version ${selectedScheme.version}`
@@ -680,7 +735,10 @@ export function SchemeProgrammeWorkspace({
     setDetailTab("summary");
   };
 
-  const runWorkflow = async (remarks: string) => {
+  const runWorkflow = async (
+    remarks: string,
+    effectiveWindow?: ProgrammeMappingEffectiveWindow,
+  ) => {
     if (selectedScheme) {
       if (workflowAction === "submit") {
         await store.submitScheme(selectedScheme.id, remarks);
@@ -703,9 +761,11 @@ export function SchemeProgrammeWorkspace({
       } else if (workflowAction === "return") {
         await store.returnProgrammeMapping(selectedMapping.id, remarks);
       } else if (workflowAction === "newVersion") {
+        if (!effectiveWindow) return;
         const id = await store.createNextProgrammeMappingVersion(
           selectedMapping.id,
           remarks,
+          effectiveWindow,
         );
         if (id) setSelectedId(id);
       }
@@ -835,15 +895,17 @@ export function SchemeProgrammeWorkspace({
             <LockKeyhole aria-hidden /> Approved version locked
           </span>
         ) : null}
-        {["DRAFT", "RETURNED"].includes(
+        {store.activeActor.role === "SALES_OPS_MAKER" &&
+        ["DRAFT", "RETURNED"].includes(
           (selectedScheme ?? selectedMapping)!.workflowStatus,
         ) ? (
           <Button onClick={() => setWorkflowAction("submit")}>
             Submit for approval
           </Button>
         ) : null}
-        {(selectedScheme ?? selectedMapping)!.workflowStatus ===
-        "SUBMITTED" ? (
+        {store.activeActor.role === "BUSINESS_HEAD_CHECKER" &&
+        (selectedScheme ?? selectedMapping)!.workflowStatus ===
+          "SUBMITTED" ? (
           <>
             <Button onClick={() => setWorkflowAction("approve")}>
               Approve {selectedScheme ? "scheme" : "mapping"}
@@ -862,8 +924,9 @@ export function SchemeProgrammeWorkspace({
             </Button>
           </>
         ) : null}
-        {(selectedScheme ?? selectedMapping)!.workflowStatus ===
-        "APPROVED" ? (
+        {canMaintainMaster &&
+        (selectedScheme ?? selectedMapping)!.workflowStatus ===
+          "APPROVED" ? (
           <Button
             variant="outline"
             onClick={() => setWorkflowAction("newVersion")}
@@ -874,6 +937,7 @@ export function SchemeProgrammeWorkspace({
         <Button
           variant="outline"
           disabled={
+            !canMaintainMaster ||
             (selectedScheme ?? selectedMapping)!.workflowStatus !== "DRAFT"
           }
           onClick={() => setDetailTab("configuration")}
@@ -1081,7 +1145,9 @@ export function SchemeProgrammeWorkspace({
       <header className="page-heading master-page-heading">
         <div>
           <span className="eyebrow">Subvention master controls</span>
-          <h1>Scheme and Programme Workspace</h1>
+          <h1>
+            {view === "schemes" ? "Scheme Versions" : "Programme Mappings"}
+          </h1>
           <p>
             Govern commercial rules and employer programme mappings with
             effective-dated maker-checker control.

@@ -1,5 +1,8 @@
 import {
+  addDaysIso,
+  assertMasterMutationAuthorized,
   evaluateEligibility,
+  intervalsOverlapInclusive,
   programmeMappingDraftSchema,
   validatePurchaseImport,
   transitionMaster,
@@ -12,6 +15,7 @@ import {
   type OemConfiguration,
   type PurchaseTransaction,
   type PurchaseTransactionInput,
+  type ProgrammeMappingEffectiveWindow,
   type QuarantinedPurchaseImportRow,
   type RepositoryDependencies,
   type SchemeVersion,
@@ -169,6 +173,7 @@ export class InMemorySubventionRepository
     actor: Actor,
     remarks: string,
   ): Promise<SchemeVersion> {
+    assertMasterMutationAuthorized(actor, "CREATE");
     const source = this.schemes.find((scheme) => scheme.id === id);
     if (!source) throw new Error(`Scheme version ${id} was not found`);
     if (source.workflowStatus !== "APPROVED") {
@@ -219,7 +224,9 @@ export class InMemorySubventionRepository
     id: string,
     actor: Actor,
     remarks: string,
+    effectiveWindow: ProgrammeMappingEffectiveWindow,
   ): Promise<EmployerProgrammeMappingVersion> {
+    assertMasterMutationAuthorized(actor, "CREATE");
     const source = this.programmeMappings.find((mapping) => mapping.id === id);
     if (!source) {
       throw new Error(`Programme mapping version ${id} was not found`);
@@ -230,6 +237,11 @@ export class InMemorySubventionRepository
       );
     }
     if (!remarks.trim()) throw new Error("Remarks are required");
+    if (effectiveWindow.effectiveFrom <= source.effectiveFrom) {
+      throw new Error(
+        "Successor effective from must be after prior effective from",
+      );
+    }
 
     const usedMappingIds = new Set(
       this.programmeMappings.map((mapping) => mapping.id),
@@ -254,6 +266,8 @@ export class InMemorySubventionRepository
       checkerUserId: undefined,
       approvedAt: undefined,
       createdAt,
+      effectiveFrom: effectiveWindow.effectiveFrom,
+      effectiveTo: effectiveWindow.effectiveTo,
     };
     programmeMappingDraftSchema.parse(draft);
     const auditEvent: AuditEvent = {
@@ -277,6 +291,7 @@ export class InMemorySubventionRepository
     actor: Actor,
     remarks: string,
   ): Promise<SchemeVersion> {
+    assertMasterMutationAuthorized(actor, "SAVE");
     const input = clone(scheme);
     const index = this.schemes.findIndex(
       (candidate) => candidate.id === input.id,
@@ -356,6 +371,7 @@ export class InMemorySubventionRepository
     actor: Actor,
     remarks: string,
   ): Promise<EmployerProgrammeMappingVersion> {
+    assertMasterMutationAuthorized(actor, "SAVE");
     const input = clone(mapping);
     const index = this.programmeMappings.findIndex(
       (candidate) => candidate.id === input.id,
@@ -696,6 +712,58 @@ export class InMemorySubventionRepository
       remarks,
       occurredAt,
     );
+    let closedPrior:
+      | EmployerProgrammeMappingVersion
+      | undefined;
+    if (action === "APPROVE") {
+      const prior = this.programmeMappings
+        .filter(
+          (mapping) =>
+            mapping.id !== current.id &&
+            mapping.mappingId === current.mappingId &&
+            mapping.workflowStatus === "APPROVED" &&
+            mapping.version < current.version,
+        )
+        .sort((left, right) => right.version - left.version)[0];
+      if (prior && updated.effectiveFrom <= prior.effectiveFrom) {
+        throw new Error(
+          "Successor effective from must be after prior effective from",
+        );
+      }
+      if (prior && updated.effectiveFrom <= prior.effectiveTo) {
+        closedPrior = {
+          ...clone(prior),
+          effectiveTo: addDaysIso(updated.effectiveFrom, -1),
+        };
+      }
+
+      const approvedCandidates = this.programmeMappings
+        .filter(
+          (mapping) =>
+            mapping.id !== updated.id &&
+            mapping.workflowStatus === "APPROVED",
+        )
+        .map((mapping) =>
+          closedPrior?.id === mapping.id ? closedPrior : mapping,
+        );
+      const conflict = approvedCandidates.find(
+        (mapping) =>
+          mapping.employerId === updated.employerId &&
+          mapping.programmeId === updated.programmeId &&
+          mapping.oemId === updated.oemId &&
+          intervalsOverlapInclusive(
+            mapping.effectiveFrom,
+            mapping.effectiveTo,
+            updated.effectiveFrom,
+            updated.effectiveTo,
+          ),
+      );
+      if (conflict) {
+        throw new Error(
+          `Programme mapping effective period overlaps approved mapping ${conflict.id}`,
+        );
+      }
+    }
     const auditIds = new Set(this.auditEvents.map((event) => event.id));
     const auditAction: AuditEvent["action"] = ({
       SUBMIT: "PROGRAMME_MAPPING_SUBMITTED",
@@ -712,8 +780,30 @@ export class InMemorySubventionRepository
       occurredAt,
       remarks,
     };
+    const closeAuditEvent: AuditEvent | undefined = closedPrior
+      ? {
+          id: this.nextUniqueId("audit", "AuditEvent", auditIds),
+          entityType: "EmployerProgrammeMappingVersion",
+          entityId: closedPrior.id,
+          action: "PROGRAMME_MAPPING_EFFECTIVE_PERIOD_CLOSED",
+          actor: clone(actor),
+          occurredAt,
+          remarks,
+          metadata: {
+            successorVersionId: updated.id,
+            effectiveTo: closedPrior.effectiveTo,
+          },
+        }
+      : undefined;
 
+    if (closedPrior) {
+      const priorIndex = this.programmeMappings.findIndex(
+        (mapping) => mapping.id === closedPrior.id,
+      );
+      this.programmeMappings[priorIndex] = closedPrior;
+    }
     this.programmeMappings[index] = updated;
+    if (closeAuditEvent) this.auditEvents.push(closeAuditEvent);
     this.auditEvents.push(auditEvent);
     return clone(updated);
   }
