@@ -3,12 +3,15 @@
 import {
   BadgeIndianRupee,
   ClipboardCheck,
+  Database,
   FileClock,
   FileInput,
   GitBranch,
+  LibraryBig,
   LayoutDashboard,
   Scale,
   ScrollText,
+  SlidersHorizontal,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -20,34 +23,43 @@ interface ModuleItem {
   icon: ComponentType<{ "aria-hidden"?: boolean; className?: string }>;
 }
 
-const subventionItems: ModuleItem[] = [
-  { label: "Control desk", href: "/subvention", icon: LayoutDashboard },
-  { label: "Scheme versions", href: "/subvention/schemes", icon: FileClock },
+interface ModuleGroup {
+  label: string;
+  items: ModuleItem[];
+}
+
+const subventionGroups: ModuleGroup[] = [
   {
-    label: "Programme mappings",
-    href: "/subvention/programme-mappings",
-    icon: GitBranch,
+    label: "Control centre",
+    items: [
+      { label: "Overview", href: "/subvention", icon: LayoutDashboard },
+      { label: "Operations workbench", href: "/subvention/operations", icon: ClipboardCheck },
+    ],
   },
   {
-    label: "Purchase repository",
-    href: "/subvention/transactions",
-    icon: FileInput,
+    label: "Daily process",
+    items: [
+      { label: "Upload documents", href: "/subvention/purchase-imports", icon: FileInput },
+      { label: "Transactions", href: "/subvention/transactions", icon: LibraryBig },
+      { label: "Exception review", href: "/subvention/eligibility", icon: SlidersHorizontal },
+      { label: "Claims & tracking", href: "/subvention/claims", icon: ScrollText },
+    ],
   },
   {
-    label: "Eligibility",
-    href: "/subvention/eligibility",
-    icon: ClipboardCheck,
-  },
-  { label: "Claims", href: "/subvention/claims", icon: ScrollText },
-  {
-    label: "Reconciliation",
-    href: "/subvention/reconciliation",
-    icon: Scale,
+    label: "Configuration",
+    items: [
+      { label: "Master data", href: "/subvention/masters", icon: Database },
+      { label: "Scheme versions", href: "/subvention/schemes", icon: FileClock },
+      { label: "Programme mappings", href: "/subvention/programme-mappings", icon: GitBranch },
+      { label: "Data model", href: "/subvention/administration/data-model", icon: GitBranch },
+    ],
   },
   {
-    label: "Recovery",
-    href: "/subvention/recovery",
-    icon: BadgeIndianRupee,
+    label: "Finance controls",
+    items: [
+      { label: "Reconciliation", href: "/subvention/reconciliation", icon: Scale },
+      { label: "Recovery", href: "/subvention/recovery", icon: BadgeIndianRupee },
+    ],
   },
 ];
 
@@ -63,30 +75,39 @@ export function ModuleNavigation() {
   return (
     <aside className="module-navigation">
       <div className="module-heading">
-        <span className="module-kicker">Operating vertical</span>
-        <strong>Subvention</strong>
+        <span className="module-product-mark" aria-hidden="true">SE</span>
+        <span>
+          <span className="module-kicker">Smart EPP</span>
+          <strong>Subvention</strong>
+        </span>
       </div>
       <nav aria-label="Subvention navigation" className="module-links">
-        {subventionItems.map((item) => {
-          const Icon = item.icon;
-          const active = isCurrent(pathname, item.href);
-          return (
-            <Link
-              key={item.href}
-              className="module-link"
-              data-active={active}
-              href={item.href}
-              aria-current={active ? "page" : undefined}
-            >
-              <Icon aria-hidden />
-              <span>{item.label}</span>
-            </Link>
-          );
-        })}
+        {subventionGroups.map((group) => (
+          <div className="module-link-group" key={group.label}>
+            <span className="module-group-label">{group.label}</span>
+            {group.items.map((item) => {
+              const Icon = item.icon;
+              const active = isCurrent(pathname, item.href);
+              return (
+                <Link
+                  key={item.href}
+                  className="module-link"
+                  data-active={active}
+                  href={item.href}
+                  aria-current={active ? "page" : undefined}
+                >
+                  <Icon aria-hidden />
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
+          </div>
+        ))}
       </nav>
-      <p className="module-footnote">
-        Rule snapshots remain attached to every processed record.
-      </p>
+      <div className="module-footnote">
+        <span>Controlled operations</span>
+        <p>Developed by <strong>V L &amp; CO</strong></p>
+      </div>
     </aside>
   );
 }

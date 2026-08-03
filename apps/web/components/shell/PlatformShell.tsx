@@ -28,7 +28,8 @@ function ActionAnnouncements() {
 function ShellFrame({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const hasMounted = useRef(false);
-  const hasModuleNavigation = pathname.startsWith("/subvention");
+  const isStandaloneSubvention = pathname.startsWith("/subvention");
+  const hasModuleNavigation = isStandaloneSubvention;
 
   useEffect(() => {
     if (!hasMounted.current) {
@@ -56,8 +57,9 @@ function ShellFrame({ children }: { children: ReactNode }) {
       <div
         className="platform-shell"
         data-has-module={hasModuleNavigation}
+        data-standalone-subvention={isStandaloneSubvention}
       >
-        <GlobalRail />
+        {isStandaloneSubvention ? null : <GlobalRail />}
         {hasModuleNavigation ? <ModuleNavigation /> : null}
         <div className="shell-stage">
           <CommandBar />
