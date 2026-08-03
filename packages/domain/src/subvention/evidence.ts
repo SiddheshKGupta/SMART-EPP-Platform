@@ -44,11 +44,13 @@ export type InvoiceValidationState =
   | "COMMITTED"
   | "EXCEPTION";
 
+export type InvoiceSupplyRoute = "NORMAL_SUPPLY" | "BILL_TO_SHIP_TO";
+
 export interface VendorInvoiceEvidence {
   id: string;
-  sourceFileName: string;
-  sourceChecksum: string;
-  templateVersionId: string;
+  readonly sourceFileName: string;
+  readonly sourceChecksum: string;
+  readonly templateVersionId: string;
   documentType: "TAX_INVOICE" | "PROTECTION_INVOICE" | "CREDIT_NOTE";
   vendorId: string;
   vendorLegalName: string;
@@ -60,16 +62,20 @@ export interface VendorInvoiceEvidence {
   programmeId: string;
   supplierGstin: string;
   billToGstin: string;
+  shipToGstin?: string;
+  supplyRoute?: InvoiceSupplyRoute;
   irn?: string;
   deliveryNoteNumber?: string;
   totalValuePaise: number;
   recognitionConfidence: number;
+  readonly recognitionStatus?: InvoiceValidationState;
+  /** @deprecated Use recognitionStatus. Retained while stored prototype data migrates. */
   validationState: InvoiceValidationState;
   requiresIrn: boolean;
   requiresEWayBill: boolean;
   lines: InvoiceLineEvidence[];
-  importedAt: string;
-  importedBy: string;
+  readonly importedAt: string;
+  readonly importedBy: string;
 }
 
 export type MovementDocumentLinkMode = "INVOICE_NUMBER" | "DELIVERY_NOTE";
@@ -81,6 +87,7 @@ export interface EWayBillEvidence {
   documentDate: string;
   supplierGstin: string;
   recipientGstin: string;
+  transactionType?: InvoiceSupplyRoute;
   hsnOrSac: string;
   valuePaise: number;
   irn?: string;
@@ -147,6 +154,38 @@ export function validateEvidenceLink(
   const rules: EvidenceRuleResult[] = [];
   const { purchaseOrder: po, invoice } = link;
   const line = invoice.lines.find((candidate) => candidate.id === link.invoiceLineId);
+  const recognitionStatus = invoice.recognitionStatus;
+
+  addRule(rules, recognitionStatus === "COMMITTED" ? {
+    code: "INVOICE_COMMITTED",
+    label: "Invoice recognition",
+    outcome: "PASS",
+    reason: "The recognised invoice is committed for transaction processing.",
+  } : {
+    code: "INVOICE_NOT_COMMITTED",
+    label: "Invoice recognition",
+    outcome: "FAIL",
+    reason: recognitionStatus
+      ? `The invoice recognition status is ${recognitionStatus}.`
+      : "The invoice has not been committed through the recognition workflow.",
+    recoveryAction: "Resolve recognition exceptions and commit the invoice before processing.",
+  });
+
+  const committedProvenancePresent = Boolean(
+    invoice.sourceChecksum.trim() && invoice.templateVersionId.trim(),
+  );
+  addRule(rules, committedProvenancePresent ? {
+    code: "INVOICE_PROVENANCE_PRESENT",
+    label: "Invoice source provenance",
+    outcome: "PASS",
+    reason: "Immutable source checksum and template version provenance are present.",
+  } : {
+    code: "INVOICE_PROVENANCE_MISSING",
+    label: "Invoice source provenance",
+    outcome: "FAIL",
+    reason: "The committed invoice lacks a source checksum or template version provenance.",
+    recoveryAction: "Reprocess the source document through a controlled, versioned template.",
+  });
 
   addRule(rules, po.approvalStatus === "APPROVED" ? {
     code: "PO_APPROVED",
@@ -274,17 +313,26 @@ export function validateEvidenceLink(
     recoveryAction: "Resolve the PO/invoice value mismatch or obtain an authorised exception.",
   });
 
-  const gstPresent = Boolean(invoice.supplierGstin.trim() && invoice.billToGstin.trim());
+  const supplyRoute = invoice.supplyRoute ?? "NORMAL_SUPPLY";
+  const gstPresent = Boolean(
+    invoice.supplierGstin.trim() &&
+    invoice.billToGstin.trim() &&
+    (supplyRoute !== "BILL_TO_SHIP_TO" || invoice.shipToGstin?.trim()),
+  );
   addRule(rules, gstPresent ? {
     code: "GST_EVIDENCE_PRESENT",
     label: "GST evidence",
     outcome: "PASS",
-    reason: "Supplier and bill-to GSTINs are present.",
+    reason: supplyRoute === "BILL_TO_SHIP_TO"
+      ? "Supplier, bill-to and ship-to GSTINs are present."
+      : "Supplier and bill-to GSTINs are present.",
   } : {
     code: "GST_EVIDENCE_MISSING",
     label: "GST evidence",
     outcome: "FAIL",
-    reason: "Supplier or bill-to GSTIN is missing.",
+    reason: supplyRoute === "BILL_TO_SHIP_TO"
+      ? "Supplier, bill-to or ship-to GSTIN is missing."
+      : "Supplier or bill-to GSTIN is missing.",
     recoveryAction: "Complete GST evidence before claim preparation.",
   });
 
@@ -343,19 +391,26 @@ export function validateEvidenceLink(
         reason: "The E-Way Bill and invoice values do not reconcile.",
         recoveryAction: "Resolve the movement-document value mismatch.",
       });
-      const gstMatches = normaliseReference(eWayBill.supplierGstin) === normaliseReference(invoice.supplierGstin) &&
-        normaliseReference(eWayBill.recipientGstin) === normaliseReference(invoice.billToGstin);
+      const movementTransactionType = eWayBill.transactionType ?? "NORMAL_SUPPLY";
+      const expectedRecipientGstin = supplyRoute === "BILL_TO_SHIP_TO"
+        ? invoice.shipToGstin
+        : invoice.billToGstin;
+      const gstMatches = movementTransactionType === supplyRoute &&
+        normaliseReference(eWayBill.supplierGstin) === normaliseReference(invoice.supplierGstin) &&
+        normaliseReference(eWayBill.recipientGstin) === normaliseReference(expectedRecipientGstin);
       addRule(rules, gstMatches ? {
         code: "EWAY_GSTIN_MATCH",
         label: "Movement GSTINs",
         outcome: "PASS",
-        reason: "Supplier and recipient GSTINs match the recognised invoice.",
+        reason: supplyRoute === "BILL_TO_SHIP_TO"
+          ? "Supplier and ship-to recipient GSTINs match the configured Bill-To/Ship-To supply."
+          : "Supplier and bill-to recipient GSTINs match the recognised invoice.",
       } : {
         code: "EWAY_GSTIN_MISMATCH",
         label: "Movement GSTINs",
         outcome: "FAIL",
-        reason: "Supplier or recipient GSTIN differs between the invoice and E-Way Bill.",
-        recoveryAction: "Link the correct E-Way Bill or resolve the GSTIN mismatch.",
+        reason: "Supplier, configured recipient or transaction type differs between the invoice and E-Way Bill.",
+        recoveryAction: "Link the correct E-Way Bill or resolve the supply-route/GSTIN mismatch.",
       });
       if (invoice.irn && eWayBill.irn) {
         addRule(rules, normaliseReference(invoice.irn) === normaliseReference(eWayBill.irn) ? {

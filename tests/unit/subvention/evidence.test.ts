@@ -45,6 +45,7 @@ function fixture(
       deliveryNoteNumber: "DN-10012",
       totalValuePaise: 10_000_000,
       recognitionConfidence: 0.99,
+      recognitionStatus: "COMMITTED",
       validationState: "COMMITTED",
       requiresIrn: true,
       requiresEWayBill: true,
@@ -94,6 +95,43 @@ describe("subvention transaction evidence", () => {
     expect(result.decision).toBe("PASS");
     expect(result.createsDeviceTransaction).toBe(true);
     expect(result.rules.every((rule) => rule.outcome === "PASS")).toBe(true);
+  });
+
+  it.each(["RECEIVED", "RECOGNISED", "EXCEPTION"] as const)(
+    "blocks an invoice whose recognition status is %s",
+    (recognitionStatus) => {
+      const base = fixture();
+      const result = validateEvidenceLink(fixture({
+        invoice: {
+          ...base.invoice,
+          recognitionStatus,
+        },
+      }));
+
+      expect(result.decision).toBe("BLOCKED");
+      expect(result.rules).toContainEqual(expect.objectContaining({
+        code: "INVOICE_NOT_COMMITTED",
+        outcome: "FAIL",
+      }));
+    },
+  );
+
+  it("blocks a committed invoice without immutable source provenance", () => {
+    const base = fixture();
+    const result = validateEvidenceLink(fixture({
+      invoice: {
+        ...base.invoice,
+        recognitionStatus: "COMMITTED",
+        sourceChecksum: "",
+        templateVersionId: "",
+      },
+    }));
+
+    expect(result.decision).toBe("BLOCKED");
+    expect(result.rules).toContainEqual(expect.objectContaining({
+      code: "INVOICE_PROVENANCE_MISSING",
+      outcome: "FAIL",
+    }));
   });
 
   it("blocks vendor, programme and value mismatches", () => {
@@ -148,6 +186,29 @@ describe("subvention transaction evidence", () => {
     expect(result.decision).toBe("PASS");
     expect(result.rules).toContainEqual(expect.objectContaining({
       code: "EWAY_DOCUMENT_MATCH",
+      outcome: "PASS",
+    }));
+  });
+
+  it("accepts the configured ship-to GSTIN for Bill-To/Ship-To movement", () => {
+    const base = fixture();
+    const result = validateEvidenceLink(fixture({
+      invoice: {
+        ...base.invoice,
+        recognitionStatus: "COMMITTED",
+        supplyRoute: "BILL_TO_SHIP_TO",
+        shipToGstin: "07AAACC0000B1Z1",
+      },
+      eWayBill: {
+        ...base.eWayBill!,
+        recipientGstin: "07AAACC0000B1Z1",
+        transactionType: "BILL_TO_SHIP_TO",
+      },
+    }));
+
+    expect(result.decision).toBe("PASS");
+    expect(result.rules).toContainEqual(expect.objectContaining({
+      code: "EWAY_GSTIN_MATCH",
       outcome: "PASS",
     }));
   });
