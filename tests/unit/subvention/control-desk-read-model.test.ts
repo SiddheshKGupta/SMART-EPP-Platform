@@ -49,8 +49,20 @@ describe("control desk read model", () => {
 
   it("uses an approved programme timeline override for deadline status", () => {
     const snapshot = createDemoSubventionSeed();
+    snapshot.eligibilityDecisions = snapshot.eligibilityDecisions.filter(
+      (decision) => decision.transactionId !== "transaction-eligible-01",
+    );
+    const transaction = snapshot.transactions.find(
+      (candidate) => candidate.id === "transaction-eligible-01",
+    )!;
     const mapping = snapshot.programmeMappings.find(
-      (candidate) => candidate.id === "mapping-alpha-apple",
+      (candidate) =>
+        candidate.workflowStatus === "APPROVED" &&
+        candidate.employerId === transaction.employerId &&
+        candidate.programmeId === transaction.programmeId &&
+        candidate.oemId === transaction.oemId &&
+        candidate.resellerId === transaction.resellerId &&
+        candidate.distributorId === transaction.distributorId,
     )!;
     mapping.overrides = {
       claimTimelineDays: 5,
@@ -118,7 +130,12 @@ describe("control desk read model", () => {
   });
 
   it("retains unevaluated rows as a true awaiting-evaluation population", () => {
-    const { model } = modelForSeed();
+    const snapshot = createDemoSubventionSeed();
+    snapshot.eligibilityDecisions = [];
+    const model = selectControlDeskReadModel(snapshot, {
+      actor: snapshot.actors[0]!,
+      evaluatedAt: DEMO_NOW,
+    });
     const awaiting = model.awaitingEvaluation.find(
       (row) => row.transaction.id === "transaction-eligible-01",
     );
