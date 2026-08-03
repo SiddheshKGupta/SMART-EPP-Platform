@@ -3,17 +3,25 @@ import {
   assertMasterMutationAuthorized,
   assertSubventionCommandAuthorized,
   evaluateEligibility,
+  issue,
+  listMasterRecords,
+  masterDependencies,
   programmeMappingScopesOverlap,
   programmeMappingDraftSchema,
   validatePurchaseImport,
   transitionMaster,
   validateSchemeOverlap,
+  validateMasterRecord,
   schemeDraftSchema,
   type Actor,
   type AuditEvent,
   type EligibilityDecision,
   type EmployerProgrammeMappingVersion,
   type ImportResult,
+  type MasterCatalogue,
+  type MasterCommand,
+  type MasterKind,
+  type MasterRecord,
   type OemConfiguration,
   type PurchaseTransaction,
   type PurchaseTransactionInput,
@@ -36,6 +44,7 @@ function clone<T>(value: T): T {
 export class InMemorySubventionRepository
   implements SubventionRepository
 {
+  private masters: MasterCatalogue;
   private oems: OemConfiguration[];
   private schemes: SchemeVersion[];
   private programmeMappings: EmployerProgrammeMappingVersion[];
@@ -58,6 +67,7 @@ export class InMemorySubventionRepository
     private readonly dependencies: RepositoryDependencies,
   ) {
     const copied = clone(seed);
+    this.masters = copied.masters;
     this.oems = copied.oems;
     this.schemes = copied.schemes;
     this.programmeMappings = copied.programmeMappings;
@@ -84,6 +94,7 @@ export class InMemorySubventionRepository
 
   async getSnapshot(): Promise<SubventionSnapshot> {
     return clone({
+      masters: this.masters,
       oems: this.oems,
       schemes: this.schemes,
       programmeMappings: this.programmeMappings,
@@ -102,6 +113,119 @@ export class InMemorySubventionRepository
       duplicateDeviceIdentifiers: this.duplicateDeviceIdentifiers,
       duplicateLeaseIds: this.duplicateLeaseIds,
     });
+  }
+
+  async listMasters(kind?: MasterKind): Promise<MasterRecord[]> {
+    return clone(listMasterRecords(this.masters, kind));
+  }
+
+  async saveMasterDraft(
+    master: MasterRecord,
+    command: MasterCommand,
+  ): Promise<MasterRecord> {
+    this.assertMasterCommand(command, "SAVE");
+    const input = clone(master);
+    const current = listMasterRecords(this.masters).find(
+      (candidate) => candidate.id === input.id,
+    );
+    if (current && current.kind !== input.kind) {
+      throw new Error("Master discriminator cannot be changed");
+    }
+    if (current?.status === "INACTIVE") {
+      throw new Error("Inactive master records cannot be edited");
+    }
+    if (input.status !== "ACTIVE") {
+      throw new Error("Master drafts must be active");
+    }
+    const occurredAt = this.dependencies.now();
+    const saved: MasterRecord = {
+      ...input,
+      createdAt: current?.createdAt ?? occurredAt,
+      updatedAt: occurredAt,
+    };
+    const issues = validateMasterRecord(saved, this.masters);
+    if (issues.length > 0) throw issues;
+
+    const auditIds = new Set(this.auditEvents.map((event) => event.id));
+    const auditEvent: AuditEvent = {
+      id: this.nextUniqueId("audit", "AuditEvent", auditIds),
+      entityType: "MasterRecord",
+      entityId: saved.id,
+      action: "MASTER_DRAFT_SAVED",
+      actor: clone(command.actor),
+      occurredAt,
+      remarks: command.reason,
+      beforeState: current ? clone(current) : null,
+      afterState: clone(saved),
+      provenance: {
+        source: command.source,
+        sourceEntityId: saved.id,
+      },
+    };
+
+    this.upsertMaster(saved);
+    this.auditEvents.push(auditEvent);
+    return clone(saved);
+  }
+
+  async deactivateMaster(
+    id: string,
+    command: MasterCommand,
+  ): Promise<MasterRecord> {
+    this.assertMasterCommand(command, "DEACTIVATE");
+    const current = listMasterRecords(this.masters).find(
+      (candidate) => candidate.id === id,
+    );
+    if (!current) throw new Error(`Master record ${id} was not found`);
+    if (current.status === "INACTIVE") {
+      throw new Error(`Master record ${id} is already inactive`);
+    }
+
+    const dependencies = masterDependencies(id, {
+      masters: this.masters,
+      schemes: this.schemes,
+      programmeMappings: this.programmeMappings,
+    });
+    if (dependencies.length > 0) {
+      throw [
+        issue({
+          code: "MASTER_HAS_ACTIVE_DEPENDENCIES",
+          severity: "ERROR",
+          entityType: "MasterRecord",
+          entityId: id,
+          message: `Master record ${id} has ${dependencies.length} active dependency or dependencies.`,
+          recoveryAction:
+            "Deactivate or replace dependent records before deactivating this master.",
+        }),
+      ];
+    }
+    const occurredAt = this.dependencies.now();
+    const deactivated: MasterRecord = {
+      ...current,
+      status: "INACTIVE",
+      updatedAt: occurredAt,
+    };
+    const auditIds = new Set(this.auditEvents.map((event) => event.id));
+    const auditEvent: AuditEvent = {
+      id: this.nextUniqueId("audit", "AuditEvent", auditIds),
+      entityType: "MasterRecord",
+      entityId: id,
+      action: "MASTER_DEACTIVATED",
+      actor: clone(command.actor),
+      occurredAt,
+      remarks: command.reason,
+      beforeState: clone(current),
+      afterState: clone(deactivated),
+      provenance: {
+        source: command.source,
+        sourceEntityId: id,
+      },
+      metadata: { dependencies: [] },
+    };
+
+    this.upsertMaster(deactivated);
+    this.auditEvents.push(auditEvent);
+    return clone(deactivated);
   }
 
   async listProgrammeMappings(): Promise<
@@ -1016,6 +1140,52 @@ export class InMemorySubventionRepository
     return duplicates;
   }
 
+  private assertMasterCommand(
+    command: MasterCommand,
+    action: "SAVE" | "DEACTIVATE",
+  ): void {
+    if (command.actor.role !== "MASTER_DATA_ADMIN") {
+      throw new Error(
+        `${command.actor.role} is not authorized to ${action} master data`,
+      );
+    }
+    const configured = this.actors.some(
+      (candidate) =>
+        candidate.userId === command.actor.userId &&
+        candidate.role === command.actor.role,
+    );
+    if (!configured) {
+      throw new Error(`Actor ${command.actor.userId} is not configured`);
+    }
+    if (!command.reason.trim()) throw new Error("Reason is required");
+  }
+
+  private upsertMaster(master: MasterRecord): void {
+    const replace = <T extends MasterRecord>(records: T[], value: T) => {
+      const index = records.findIndex((record) => record.id === value.id);
+      if (index === -1) records.push(value);
+      else records[index] = value;
+    };
+
+    switch (master.kind) {
+      case "OEM":
+        replace(this.masters.oems, master);
+        break;
+      case "DISTRIBUTOR":
+        replace(this.masters.distributors, master);
+        break;
+      case "RESELLER":
+        replace(this.masters.resellers, master);
+        break;
+      case "PRODUCT":
+        replace(this.masters.products, master);
+        break;
+      case "EMPLOYER":
+        replace(this.masters.employers, master);
+        break;
+    }
+  }
+
   private assertCommandActor(
     actor: Actor,
     action: SubventionCommandAction,
@@ -1047,6 +1217,22 @@ export class InMemorySubventionRepository
   }
 
   private assertSeedIdentitiesUnique(): void {
+    const masters = listMasterRecords(this.masters);
+    this.assertUniqueIdentity(
+      masters,
+      (master) => master.id,
+      (master) => master.id,
+      "MasterRecord ID",
+    );
+    this.assertUniqueIdentity(
+      masters,
+      (master) => JSON.stringify([
+        master.kind,
+        master.code.trim().toLocaleUpperCase("en-IN"),
+      ]),
+      (master) => `${master.kind}:${master.code}`,
+      "MasterRecord code",
+    );
     this.assertUniqueIdentity(
       this.oems,
       (oem) => oem.id,

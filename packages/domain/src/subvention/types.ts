@@ -9,6 +9,10 @@ export type MasterWorkflowStatus =
 
 export type CalculationBasis = "INVOICE_VALUE" | "BASE_VALUE" | "FLAT_AMOUNT";
 
+export type SettlementCounterpartyType = "OEM" | "DISTRIBUTOR" | "RESELLER";
+
+export type ReferenceMasterStatus = "ACTIVE" | "INACTIVE";
+
 export interface Actor {
   userId: string;
   role: string;
@@ -22,7 +26,7 @@ export interface SchemeVersion {
   name: string;
   oemId: string;
   distributorId?: string;
-  settlementCounterpartyType: "OEM" | "DISTRIBUTOR" | "RESELLER";
+  settlementCounterpartyType: SettlementCounterpartyType;
   calculationBasis: CalculationBasis;
   rateBps?: number;
   flatAmountPaise?: number;
@@ -181,7 +185,7 @@ export interface EligibilityRuleSnapshot {
   flatAmountPaise?: number;
   claimTimelineDays: number;
   eligibleProductIds: string[];
-  settlementCounterpartyType: "OEM" | "DISTRIBUTOR" | "RESELLER";
+  settlementCounterpartyType: SettlementCounterpartyType;
   precedenceSources: string[];
 }
 

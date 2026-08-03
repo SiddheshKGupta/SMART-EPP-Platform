@@ -1,5 +1,11 @@
 import type { OemRuleDefaults } from "./programme-mapping";
 import type {
+  MasterCatalogue,
+  MasterCommand,
+  MasterKind,
+  MasterRecord,
+} from "./master-data";
+import type {
   ImportResult,
   PurchaseImportMasterData,
   QuarantinedPurchaseImportRow,
@@ -14,6 +20,8 @@ import type {
 } from "./types";
 
 export type AuditAction =
+  | "MASTER_DRAFT_SAVED"
+  | "MASTER_DEACTIVATED"
   | "SCHEME_DRAFT_SAVED"
   | "SCHEME_SUBMITTED"
   | "SCHEME_APPROVED"
@@ -31,6 +39,7 @@ export type AuditAction =
 export interface AuditEvent {
   id: string;
   entityType:
+    | "MasterRecord"
     | "SchemeVersion"
     | "EmployerProgrammeMappingVersion"
     | "PurchaseTransaction"
@@ -46,6 +55,8 @@ export interface AuditEvent {
   provenance: {
     source:
       | "SUBVENTION_REPOSITORY_COMMAND"
+      | "MASTER_DATA_WORKBENCH"
+      | "CONTROLLED_IMPORT"
       | "PURCHASE_SOURCE_EVIDENCE"
       | "SEED_HISTORY";
     sourceEntityId: string;
@@ -64,6 +75,7 @@ export interface OemConfiguration {
 }
 
 export interface SubventionSeed {
+  masters: MasterCatalogue;
   oems: OemConfiguration[];
   schemes: SchemeVersion[];
   programmeMappings: EmployerProgrammeMappingVersion[];
@@ -86,6 +98,18 @@ export interface SubventionSnapshot extends SubventionSeed {}
 export interface RepositoryDependencies {
   now: () => string;
   nextId: (prefix: string) => string;
+}
+
+export interface MasterDataRepository {
+  listMasters(kind?: MasterKind): Promise<MasterRecord[]>;
+  saveMasterDraft(
+    master: MasterRecord,
+    command: MasterCommand,
+  ): Promise<MasterRecord>;
+  deactivateMaster(
+    id: string,
+    command: MasterCommand,
+  ): Promise<MasterRecord>;
 }
 
 export interface SchemeRepository {
@@ -207,7 +231,8 @@ export interface AuditRepository {
 }
 
 export interface SubventionRepository
-  extends SchemeRepository,
+  extends MasterDataRepository,
+    SchemeRepository,
     ProgrammeMappingRepository,
     PurchaseTransactionRepository,
     EligibilityDecisionRepository,

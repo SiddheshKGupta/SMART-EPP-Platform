@@ -6,6 +6,8 @@ import type {
   PurchaseTransaction,
   PurchaseTransactionInput,
   RepositoryDependencies,
+  MasterCatalogue,
+  ProductMasterRecord,
   SchemeVersion,
   SubventionSeed,
 } from "../../../packages/domain/src";
@@ -180,7 +182,51 @@ function auditEventFixture(
 }
 
 function seedFixture(overrides: Partial<SubventionSeed> = {}): SubventionSeed {
+  const masters: MasterCatalogue = {
+    oems: [
+      {
+        id: "oem-1",
+        kind: "OEM",
+        code: "OEM-1",
+        name: "Configured OEM",
+        status: "ACTIVE",
+        defaultClaimTimelineDays: 90,
+        defaultCalculationBasis: "INVOICE_VALUE",
+        defaultSettlementCounterpartyType: "DISTRIBUTOR",
+        createdAt: "2026-06-01T00:00:00.000Z",
+        updatedAt: "2026-06-01T00:00:00.000Z",
+      },
+    ],
+    distributors: [],
+    resellers: [],
+    products: [
+      {
+        id: "product-1",
+        kind: "PRODUCT",
+        code: "PRODUCT-1",
+        name: "Configured Product",
+        status: "ACTIVE",
+        oemId: "oem-1",
+        model: "Configured Product 1",
+        createdAt: "2026-06-01T00:00:00.000Z",
+        updatedAt: "2026-06-01T00:00:00.000Z",
+      },
+    ],
+    employers: [
+      {
+        id: "employer-1",
+        kind: "EMPLOYER",
+        code: "EMPLOYER-1",
+        name: "Configured Employer",
+        status: "ACTIVE",
+        programmeCode: "PROGRAMME-1",
+        createdAt: "2026-06-01T00:00:00.000Z",
+        updatedAt: "2026-06-01T00:00:00.000Z",
+      },
+    ],
+  };
   return {
+    masters,
     oems: [
       {
         id: "oem-1",
@@ -1739,5 +1785,142 @@ describe("subvention repository", () => {
         sourceEntityId: "scheme-version-draft",
       },
     });
+  });
+
+  it("creates and updates master drafts without changing versioned masters", async () => {
+    const repository = createRepositoryFixture();
+    const actor = { userId: "master-admin-1", role: "MASTER_DATA_ADMIN" };
+    const before = await repository.getSnapshot();
+    const product: ProductMasterRecord = {
+      id: "product-2",
+      kind: "PRODUCT",
+      code: "PRODUCT-2",
+      name: "Configured Product 2",
+      status: "ACTIVE",
+      oemId: "oem-1",
+      model: "Model 2",
+      createdAt: "caller-supplied",
+      updatedAt: "caller-supplied",
+    };
+
+    const created = await repository.saveMasterDraft(product, {
+      actor,
+      reason: "Add the approved catalogue item",
+      source: "MASTER_DATA_WORKBENCH",
+    });
+    product.name = "Caller mutation";
+    const updated = await repository.saveMasterDraft(
+      { ...created, name: "Configured Product 2 updated" },
+      {
+        actor,
+        reason: "Correct the controlled product label",
+        source: "MASTER_DATA_WORKBENCH",
+      },
+    );
+    const after = await repository.getSnapshot();
+
+    expect(created).toMatchObject({
+      createdAt: "2026-07-28T10:00:00.000Z",
+      updatedAt: "2026-07-28T10:00:00.000Z",
+    });
+    expect(updated.name).toBe("Configured Product 2 updated");
+    expect(await repository.listMasters("PRODUCT")).toHaveLength(2);
+    expect(after.schemes).toEqual(before.schemes);
+    expect(after.programmeMappings).toEqual(before.programmeMappings);
+    expect(
+      (await repository.listForEntity("MasterRecord", "product-2")).map(
+        (event) => event.action,
+      ),
+    ).toEqual(["MASTER_DRAFT_SAVED", "MASTER_DRAFT_SAVED"]);
+  });
+
+  it("blocks deactivation when an approved scheme references the product", async () => {
+    const repository = createRepositoryFixture();
+
+    await expect(
+      repository.deactivateMaster("product-1", {
+        actor: {
+          userId: "master-admin-1",
+          role: "MASTER_DATA_ADMIN",
+        },
+        reason: "Retire the product",
+        source: "MASTER_DATA_WORKBENCH",
+      }),
+    ).rejects.toEqual([
+      expect.objectContaining({
+        code: "MASTER_HAS_ACTIVE_DEPENDENCIES",
+        entityId: "product-1",
+      }),
+    ]);
+  });
+
+  it("deactivates an unreferenced master and records reason and provenance", async () => {
+    const repository = createRepositoryFixture();
+    const actor = { userId: "master-admin-1", role: "MASTER_DATA_ADMIN" };
+    const product = await repository.saveMasterDraft(
+      {
+        id: "product-unreferenced",
+        kind: "PRODUCT",
+        code: "PRODUCT-UNREFERENCED",
+        name: "Unreferenced Product",
+        status: "ACTIVE",
+        oemId: "oem-1",
+        model: "Unreferenced Model",
+        createdAt: "caller-supplied",
+        updatedAt: "caller-supplied",
+      },
+      {
+        actor,
+        reason: "Add a controlled product",
+        source: "CONTROLLED_IMPORT",
+      },
+    );
+
+    await expect(
+      repository.deactivateMaster(product.id, {
+        actor,
+        reason: "Product withdrawn by OEM",
+        source: "MASTER_DATA_WORKBENCH",
+      }),
+    ).resolves.toMatchObject({ status: "INACTIVE" });
+    expect(await repository.listMasters("PRODUCT")).toContainEqual(
+      expect.objectContaining({
+        id: product.id,
+        status: "INACTIVE",
+        updatedAt: "2026-07-28T10:00:00.000Z",
+      }),
+    );
+    expect(
+      (await repository.listForEntity("MasterRecord", product.id))[1],
+    ).toMatchObject({
+      action: "MASTER_DEACTIVATED",
+      remarks: "Product withdrawn by OEM",
+      actor,
+      beforeState: { status: "ACTIVE" },
+      afterState: { status: "INACTIVE" },
+      provenance: {
+        source: "MASTER_DATA_WORKBENCH",
+        sourceEntityId: product.id,
+      },
+    });
+  });
+
+  it.each([
+    ["MANAGEMENT_VIEWER", "management-1"],
+    ["AUDITOR", "auditor-1"],
+  ])("keeps %s read-only for master CRUD", async (role, userId) => {
+    const repository = createRepositoryFixture();
+    const current = (await repository.listMasters("PRODUCT"))[0]!;
+
+    await expect(
+      repository.saveMasterDraft(
+        { ...current, name: "Unauthorized update" },
+        {
+          actor: { userId, role },
+          reason: "Attempt unauthorized update",
+          source: "MASTER_DATA_WORKBENCH",
+        },
+      ),
+    ).rejects.toThrow(`${role} is not authorized to SAVE master data`);
   });
 });

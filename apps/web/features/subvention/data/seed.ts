@@ -2,6 +2,7 @@ import type {
   Actor,
   AuditEvent,
   EmployerProgrammeMappingVersion,
+  MasterCatalogue,
   OemConfiguration,
   PurchaseSourceEvidence,
   PurchaseTransaction,
@@ -39,6 +40,110 @@ const oems: OemConfiguration[] = [
     productIds: ["google-pixel-10", "google-pixel-10-pro"],
   },
 ];
+
+const masterTimestamp = "2025-12-01T10:00:00.000Z";
+const masters: MasterCatalogue = {
+  oems: oems.map((oem) => ({
+    id: oem.id,
+    kind: "OEM",
+    code: oem.id.replace("oem-", "").toLocaleUpperCase("en-IN"),
+    name: oem.name,
+    status: "ACTIVE",
+    defaultClaimTimelineDays: oem.defaults?.claimTimelineDays ?? 90,
+    defaultCalculationBasis:
+      oem.defaults?.calculationBasis ?? "INVOICE_VALUE",
+    defaultSettlementCounterpartyType:
+      oem.defaults?.settlementCounterpartyType ?? "DISTRIBUTOR",
+    defaultRateBps: oem.defaults?.rateBps,
+    defaultFlatAmountPaise: oem.defaults?.flatAmountPaise,
+    createdAt: masterTimestamp,
+    updatedAt: masterTimestamp,
+  })),
+  distributors: [
+    {
+      id: "distributor-ingram",
+      kind: "DISTRIBUTOR",
+      code: "INGRAM",
+      name: "Ingram Micro India Private Limited",
+      status: "ACTIVE",
+      oemId: "oem-apple",
+      createdAt: masterTimestamp,
+      updatedAt: masterTimestamp,
+    },
+    {
+      id: "distributor-redington",
+      kind: "DISTRIBUTOR",
+      code: "REDINGTON",
+      name: "Redington Limited",
+      status: "ACTIVE",
+      oemId: "oem-apple",
+      createdAt: masterTimestamp,
+      updatedAt: masterTimestamp,
+    },
+    {
+      id: "distributor-national",
+      kind: "DISTRIBUTOR",
+      code: "NATIONAL-DIST",
+      name: "National Distributor",
+      status: "ACTIVE",
+      oemId: "oem-samsung",
+      createdAt: masterTimestamp,
+      updatedAt: masterTimestamp,
+    },
+  ],
+  resellers: [
+    {
+      id: "reseller-radius",
+      kind: "RESELLER",
+      code: "RADIUS",
+      name: "Radius Systems Private Limited",
+      status: "ACTIVE",
+      oemId: "oem-apple",
+      distributorId: "distributor-ingram",
+      createdAt: masterTimestamp,
+      updatedAt: masterTimestamp,
+    },
+    {
+      id: "reseller-national",
+      kind: "RESELLER",
+      code: "NATIONAL-RESELLER",
+      name: "National Reseller",
+      status: "ACTIVE",
+      oemId: "oem-samsung",
+      distributorId: "distributor-national",
+      createdAt: masterTimestamp,
+      updatedAt: masterTimestamp,
+    },
+  ],
+  products: oems.flatMap((oem) =>
+    (oem.productIds ?? []).map((productId) => ({
+      id: productId,
+      kind: "PRODUCT" as const,
+      code: productId.toLocaleUpperCase("en-IN"),
+      name: productId
+        .split("-")
+        .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+        .join(" "),
+      status: "ACTIVE" as const,
+      oemId: oem.id,
+      model: productId,
+      createdAt: masterTimestamp,
+      updatedAt: masterTimestamp,
+    })),
+  ),
+  employers: ["alpha", "beta", "gamma", "delta", "epsilon"].map(
+    (employer) => ({
+      id: `employer-${employer}`,
+      kind: "EMPLOYER" as const,
+      code: `EMPLOYER-${employer.toLocaleUpperCase("en-IN")}`,
+      name: `Employer ${employer.charAt(0).toUpperCase()}${employer.slice(1)}`,
+      status: "ACTIVE" as const,
+      programmeCode: "SMART-EPP",
+      createdAt: masterTimestamp,
+      updatedAt: masterTimestamp,
+    }),
+  ),
+};
 
 function approvedScheme(input: {
   id: string;
@@ -688,6 +793,7 @@ const auditEvents: AuditEvent[] = [
 ];
 
 const demoSeed: SubventionSeed = {
+  masters,
   oems,
   schemes,
   programmeMappings,

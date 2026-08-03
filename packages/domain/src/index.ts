@@ -22,6 +22,7 @@ export * from "./subvention/dates";
 export * from "./subvention/eligibility";
 export * from "./subvention/issues";
 export * from "./subvention/master-workflow";
+export * from "./subvention/master-data";
 export * from "./subvention/money";
 export * from "./subvention/purchase-import";
 export * from "./subvention/programme-mapping";
