@@ -187,6 +187,16 @@ export function ManagementOverview({ records, businessDate }: ManagementOverview
                 <span className="text-right"><strong className="block"><Money paise={phase.amountPaise} /></strong><ArrowUpRight className="ml-auto mt-2 size-4 text-[var(--muted)]" aria-hidden /></span>
               </button>
             ))}
+            {model.phasePosition.length === 0 ? (
+              <div className="col-span-full grid min-h-36 place-items-center bg-white px-6 text-center">
+                <div>
+                  <strong className="text-sm font-semibold">No claim activity in this period</strong>
+                  <p className="mt-1 text-xs text-[var(--muted)]">
+                    Change the financial period or prepare a claim batch to populate this view.
+                  </p>
+                </div>
+              </div>
+            ) : null}
           </div>
         </section>
 
@@ -199,6 +209,16 @@ export function ManagementOverview({ records, businessDate }: ManagementOverview
                 <span className="shrink-0 text-sm font-semibold"><Money paise={employer.amountPaise} /></span>
               </button>
             ))}
+            {model.employerPosition.length === 0 ? (
+              <div className="grid min-h-36 place-items-center px-6 text-center">
+                <div>
+                  <strong className="text-sm font-semibold">No employer claims in this period</strong>
+                  <p className="mt-1 text-xs text-[var(--muted)]">
+                    Employer-level values appear after claims enter the selected period.
+                  </p>
+                </div>
+              </div>
+            ) : null}
           </div>
         </section>
       </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { Search } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import type { SemanticStatus } from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
@@ -42,9 +42,27 @@ function statusTone(outcome: OperationsOutcome): SemanticStatus {
   }
 }
 
-export function OperationsWorkbench() {
+export interface OperationsWorkbenchProps {
+  compact?: boolean;
+}
+
+const outcomePriority: Record<OperationsOutcome, number> = {
+  Blocked: 0,
+  "Needs Review": 1,
+  "Ready for Claim": 2,
+  Processing: 3,
+  "In Claim Batch": 4,
+  Submitted: 5,
+  Rejected: 6,
+  Approved: 7,
+  Invoiced: 8,
+  Collected: 9,
+};
+
+export function OperationsWorkbench({ compact = false }: OperationsWorkbenchProps) {
   const { activeActor, snapshot } = useSubvention();
   const [query, setQuery] = useState("");
+  const deferredQuery = useDeferredValue(query);
   const [outcome, setOutcome] = useState<OperationsOutcome | undefined>();
   const [selectedId, setSelectedId] = useState<string>();
   const model = useMemo(
@@ -60,14 +78,23 @@ export function OperationsWorkbench() {
     [activeActor, snapshot],
   );
   const rows = useMemo(
-    () => filterOperationsRows(model.rows, query, outcome),
-    [model.rows, outcome, query],
+    () => {
+      const filtered = filterOperationsRows(model.rows, deferredQuery, outcome);
+      if (!compact) return filtered;
+      return [...filtered]
+        .sort(
+          (left, right) =>
+            outcomePriority[left.systemResult] - outcomePriority[right.systemResult],
+        )
+        .slice(0, 6);
+    },
+    [compact, deferredQuery, model.rows, outcome],
   );
   const selected = model.rows.find((row) => row.transactionId === selectedId);
 
   return (
     <div className="operations-workbench">
-      <header className="page-heading">
+      {!compact ? <header className="page-heading">
         <div>
           <span className="eyebrow">Operations workbench</span>
           <h1>Review Transactions</h1>
@@ -80,18 +107,24 @@ export function OperationsWorkbench() {
           <span><strong>{model.counts["Needs Review"]}</strong> need review</span>
           <span><strong>{model.counts.Blocked}</strong> blocked</span>
         </div>
-      </header>
+      </header> : null}
 
       <section className="operations-queue" aria-labelledby="operations-queue-title">
         <div className="workspace-heading operations-queue-heading">
           <div>
-            <span className="eyebrow">Daily queue</span>
-            <h2 id="operations-queue-title">Transaction work queue</h2>
+            <span className="eyebrow">{compact ? "Priority queue" : "Daily queue"}</span>
+            <h2 id="operations-queue-title">
+              {compact ? "Items requiring attention" : "Transaction work queue"}
+            </h2>
           </div>
-          <span>{rows.length} transactions</span>
+          <span>
+            {compact
+              ? `${rows.length} of ${model.rows.length} transactions`
+              : `${rows.length} transactions`}
+          </span>
         </div>
 
-        <div className="operations-toolbar">
+        {!compact ? <div className="operations-toolbar">
           <label className="operations-search">
             <Search aria-hidden />
             <span className="sr-only">Search transactions</span>
@@ -116,7 +149,7 @@ export function OperationsWorkbench() {
               ))}
             </select>
           </label>
-        </div>
+        </div> : null}
 
         <div className="operations-table-scroll">
           <Table>
@@ -159,11 +192,17 @@ export function OperationsWorkbench() {
 
         {rows.length === 0 ? (
           <div className="operations-empty-state">
-            <h3>No transactions match this view</h3>
-            <p>Clear the search or system-result filter to return to the complete work queue.</p>
-            <Button variant="outline" onClick={() => { setQuery(""); setOutcome(undefined); }}>
-              Clear filters
-            </Button>
+            <h3>{compact ? "No transactions require attention" : "No transactions match this view"}</h3>
+            <p>
+              {compact
+                ? "All available transactions have cleared their current operational checks."
+                : "Clear the search or system-result filter to return to the complete work queue."}
+            </p>
+            {!compact ? (
+              <Button variant="outline" onClick={() => { setQuery(""); setOutcome(undefined); }}>
+                Clear filters
+              </Button>
+            ) : null}
           </div>
         ) : null}
       </section>

@@ -100,7 +100,7 @@ export default function Page() {
             </Link>
           </Button>
         </div>
-        <OperationsWorkbench />
+        <OperationsWorkbench compact />
       </section>
 
       <aside className="subvention-governance-note">

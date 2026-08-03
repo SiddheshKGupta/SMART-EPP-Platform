@@ -8,14 +8,20 @@ if not exist "node_modules" (
   if errorlevel 1 goto :error
 )
 
-echo Starting Smart EPP Subvention Control Centre...
-start "Smart EPP Prototype Server" /min cmd.exe /c "npm.cmd run dev --workspace apps/web"
+if not exist "apps\web\.next\BUILD_ID" (
+  echo Creating the optimized prototype build...
+  call npm.cmd run build
+  if errorlevel 1 goto :error
+)
+
+echo Starting optimized Smart EPP Subvention Control Centre...
+start "Smart EPP Prototype Server" /min cmd.exe /c "npm.cmd run start --workspace apps/web"
 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ^
   "$url='http://localhost:3000/subvention';" ^
-  "$limit=(Get-Date).AddSeconds(60);" ^
+  "$limit=(Get-Date).AddSeconds(90);" ^
   "do { try { $response=Invoke-WebRequest -UseBasicParsing -Uri $url -TimeoutSec 2; if($response.StatusCode -eq 200){ Start-Process $url; exit 0 } } catch {}; Start-Sleep -Milliseconds 500 } while((Get-Date) -lt $limit);" ^
-  "Write-Error 'Prototype did not become ready within 60 seconds.'; exit 1"
+  "Write-Error 'Prototype did not become ready within 90 seconds.'; exit 1"
 
 if errorlevel 1 goto :error
 echo Prototype opened at http://localhost:3000/subvention

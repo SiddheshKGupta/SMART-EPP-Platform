@@ -2,7 +2,7 @@
 
 ## One-click launch
 
-Double-click `START_SUBVENTION_PROTOTYPE.cmd`.
+Double-click `START_SUBVENTION_PROTOTYPE.cmd`. The launcher uses the optimized production build, not the slower development server.
 
 The launcher starts the local application and opens:
 
