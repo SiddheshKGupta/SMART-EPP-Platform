@@ -16,6 +16,7 @@ import type {
   EmployerProgrammeMappingVersion,
   ImportResult,
   MasterCommand,
+  MasterEffectiveWindow,
   MasterRecord,
   PurchaseTransactionInput,
   ProgrammeMappingEffectiveWindow,
@@ -48,6 +49,15 @@ export interface SubventionContextValue {
     master: MasterRecord,
     reason: string,
   ): Promise<SubventionCommandResult<MasterRecord>>;
+  createNextMasterVersion(
+    id: string,
+    reason: string,
+    effectiveWindow: MasterEffectiveWindow,
+  ): Promise<SubventionCommandResult<MasterRecord>>;
+  submitMaster(id: string, reason: string): Promise<SubventionCommandResult<MasterRecord>>;
+  approveMaster(id: string, reason: string): Promise<SubventionCommandResult<MasterRecord>>;
+  returnMaster(id: string, reason: string): Promise<SubventionCommandResult<MasterRecord>>;
+  rejectMaster(id: string, reason: string): Promise<SubventionCommandResult<MasterRecord>>;
   deactivateMaster(
     id: string,
     reason: string,
@@ -372,6 +382,34 @@ export function SubventionProvider({ children }: { children: ReactNode }) {
     [masterCommand, repository, runCommand],
   );
 
+  const createNextMasterVersion = useCallback(
+    (id: string, reason: string, effectiveWindow: MasterEffectiveWindow) =>
+      runCommand(() =>
+        repository.createNextMasterVersion(id, masterCommand(reason), effectiveWindow),
+      ),
+    [masterCommand, repository, runCommand],
+  );
+  const submitMaster = useCallback(
+    (id: string, reason: string) =>
+      runCommand(() => repository.submitMaster(id, masterCommand(reason))),
+    [masterCommand, repository, runCommand],
+  );
+  const approveMaster = useCallback(
+    (id: string, reason: string) =>
+      runCommand(() => repository.approveMaster(id, masterCommand(reason))),
+    [masterCommand, repository, runCommand],
+  );
+  const returnMaster = useCallback(
+    (id: string, reason: string) =>
+      runCommand(() => repository.returnMaster(id, masterCommand(reason))),
+    [masterCommand, repository, runCommand],
+  );
+  const rejectMaster = useCallback(
+    (id: string, reason: string) =>
+      runCommand(() => repository.rejectMaster(id, masterCommand(reason))),
+    [masterCommand, repository, runCommand],
+  );
+
   const deactivateMaster = useCallback(
     (id: string, reason: string) =>
       runCommand(() =>
@@ -387,6 +425,11 @@ export function SubventionProvider({ children }: { children: ReactNode }) {
         activeActor,
         setActiveActor,
         saveMasterDraft,
+        createNextMasterVersion,
+        submitMaster,
+        approveMaster,
+        returnMaster,
+        rejectMaster,
         deactivateMaster,
         submitScheme,
         approveScheme,

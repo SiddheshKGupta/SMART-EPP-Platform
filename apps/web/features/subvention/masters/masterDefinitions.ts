@@ -29,7 +29,7 @@ export interface MasterDefinition {
 
 const activeOptions = <T extends MasterRecord>(records: T[]) =>
   records
-    .filter((record) => record.status === "ACTIVE")
+    .filter((record) => record.workflowStatus === "APPROVED")
     .map((record) => ({ label: record.name, value: record.id }));
 
 export const MASTER_DEFINITIONS: MasterDefinition[] = [

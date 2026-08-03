@@ -9,6 +9,7 @@ import {
   issue,
   listMasterRecords,
   masterDependencies,
+  transitionMasterRecord,
   programmeMappingScopesOverlap,
   recordClaimResponse,
   recordClaimSubmission,
@@ -20,6 +21,7 @@ import {
   submitClaimBatch,
   validateSchemeOverlap,
   validateMasterRecord,
+  validateMasterVersionApproval,
   schemeDraftSchema,
   type Actor,
   type AuditEvent,
@@ -32,6 +34,7 @@ import {
   type MasterCatalogue,
   type MasterCommand,
   type MasterKind,
+  type MasterEffectiveWindow,
   type MasterRecord,
   type OemConfiguration,
   type PurchaseTransaction,
@@ -297,15 +300,32 @@ export class InMemorySubventionRepository
     if (current && current.kind !== input.kind) {
       throw new Error("Master discriminator cannot be changed");
     }
-    if (current?.status === "INACTIVE") {
-      throw new Error("Inactive master records cannot be edited");
+    if (
+      current &&
+      current.workflowStatus !== "DRAFT" &&
+      current.workflowStatus !== "RETURNED"
+    ) {
+      if (current.workflowStatus === "APPROVED") {
+        throw new Error("Approved master version is immutable");
+      }
+      throw new Error(`Master version cannot be edited from ${current.workflowStatus}`);
     }
-    if (input.status !== "ACTIVE") {
-      throw new Error("Master drafts must be active");
+    if (input.workflowStatus !== "DRAFT" && input.workflowStatus !== "RETURNED") {
+      throw new Error("Only draft or returned master versions can be saved");
+    }
+    if (current && (input.logicalId !== current.logicalId || input.version !== current.version)) {
+      throw new Error("Master version identity cannot be changed");
+    }
+    if (!current && (input.logicalId !== input.id || input.version !== 1)) {
+      throw new Error("New master records must start at logical version 1");
     }
     const occurredAt = this.dependencies.now();
     const saved: MasterRecord = {
       ...input,
+      workflowStatus: "DRAFT",
+      makerUserId: current?.makerUserId ?? command.actor.userId,
+      checkerUserId: undefined,
+      approvedAt: undefined,
       createdAt: current?.createdAt ?? occurredAt,
       updatedAt: occurredAt,
     };
@@ -334,6 +354,74 @@ export class InMemorySubventionRepository
     return clone(saved);
   }
 
+  async createNextMasterVersion(
+    id: string,
+    command: MasterCommand,
+    effectiveWindow: MasterEffectiveWindow,
+  ): Promise<MasterRecord> {
+    this.assertMasterCommand(command, "CREATE");
+    const source = this.findMaster(id);
+    if (source.workflowStatus !== "APPROVED") {
+      throw new Error("Successors can only derive from an approved master version");
+    }
+    if (
+      effectiveWindow.effectiveFrom <= source.effectiveTo ||
+      effectiveWindow.effectiveFrom > effectiveWindow.effectiveTo
+    ) {
+      throw new Error("Successor effective window must follow the approved source window");
+    }
+    const occurredAt = this.dependencies.now();
+    const versions = listMasterRecords(this.masters).filter(
+      (record) => record.logicalId === source.logicalId,
+    );
+    const draft: MasterRecord = {
+      ...clone(source),
+      id: this.nextUniqueId(
+        "master-version",
+        "MasterRecord",
+        new Set(listMasterRecords(this.masters).map((record) => record.id)),
+      ),
+      version: Math.max(...versions.map((record) => record.version)) + 1,
+      workflowStatus: "DRAFT",
+      effectiveFrom: effectiveWindow.effectiveFrom,
+      effectiveTo: effectiveWindow.effectiveTo,
+      makerUserId: command.actor.userId,
+      checkerUserId: undefined,
+      approvedAt: undefined,
+      supersedesVersionId: source.id,
+      createdAt: occurredAt,
+      updatedAt: occurredAt,
+    };
+    const issues = validateMasterRecord(draft, this.masters);
+    if (issues.length > 0) throw issues;
+    const auditEvent = this.buildMasterAudit(
+      draft,
+      "MASTER_SUCCESSOR_CREATED",
+      command,
+      null,
+      { derivedFromVersionId: source.id },
+    );
+    this.upsertMaster(draft);
+    this.auditEvents.push(auditEvent);
+    return clone(draft);
+  }
+
+  async submitMaster(id: string, command: MasterCommand): Promise<MasterRecord> {
+    return this.transitionReferenceMaster(id, "SUBMIT", command);
+  }
+
+  async approveMaster(id: string, command: MasterCommand): Promise<MasterRecord> {
+    return this.transitionReferenceMaster(id, "APPROVE", command);
+  }
+
+  async returnMaster(id: string, command: MasterCommand): Promise<MasterRecord> {
+    return this.transitionReferenceMaster(id, "RETURN", command);
+  }
+
+  async rejectMaster(id: string, command: MasterCommand): Promise<MasterRecord> {
+    return this.transitionReferenceMaster(id, "REJECT", command);
+  }
+
   async deactivateMaster(
     id: string,
     command: MasterCommand,
@@ -343,10 +431,6 @@ export class InMemorySubventionRepository
       (candidate) => candidate.id === id,
     );
     if (!current) throw new Error(`Master record ${id} was not found`);
-    if (current.status === "INACTIVE") {
-      throw new Error(`Master record ${id} is already inactive`);
-    }
-
     const dependencies = masterDependencies(id, {
       masters: this.masters,
       schemes: this.schemes,
@@ -365,30 +449,19 @@ export class InMemorySubventionRepository
         }),
       ];
     }
-    const occurredAt = this.dependencies.now();
-    const deactivated: MasterRecord = {
-      ...current,
-      status: "INACTIVE",
-      updatedAt: occurredAt,
-    };
-    const auditIds = new Set(this.auditEvents.map((event) => event.id));
-    const auditEvent: AuditEvent = {
-      id: this.nextUniqueId("audit", "AuditEvent", auditIds),
-      entityType: "MasterRecord",
-      entityId: id,
-      action: "MASTER_DEACTIVATED",
-      actor: clone(command.actor),
-      occurredAt,
-      remarks: command.reason,
-      beforeState: clone(current),
-      afterState: clone(deactivated),
-      provenance: {
-        source: command.source,
-        sourceEntityId: id,
-      },
-      metadata: { dependencies: [] },
-    };
-
+    const deactivated = transitionMasterRecord(
+      current,
+      "DEACTIVATE",
+      command.actor,
+      this.dependencies.now(),
+    );
+    const auditEvent = this.buildMasterAudit(
+      deactivated,
+      "MASTER_DEACTIVATED",
+      command,
+      current,
+      { dependencies: [] },
+    );
     this.upsertMaster(deactivated);
     this.auditEvents.push(auditEvent);
     return clone(deactivated);
@@ -1522,9 +1595,18 @@ export class InMemorySubventionRepository
 
   private assertMasterCommand(
     command: MasterCommand,
-    action: "SAVE" | "DEACTIVATE",
+    action:
+      | "SAVE"
+      | "CREATE"
+      | "SUBMIT"
+      | "APPROVE"
+      | "RETURN"
+      | "REJECT"
+      | "DEACTIVATE",
   ): void {
-    if (command.actor.role !== "MASTER_DATA_ADMIN") {
+    const makerAction = action === "SAVE" || action === "CREATE" || action === "SUBMIT";
+    const requiredRole = makerAction ? "MASTER_DATA_ADMIN" : "BUSINESS_HEAD_CHECKER";
+    if (command.actor.role !== requiredRole) {
       throw new Error(
         `${command.actor.role} is not authorized to ${action} master data`,
       );
@@ -1538,6 +1620,95 @@ export class InMemorySubventionRepository
       throw new Error(`Actor ${command.actor.userId} is not configured`);
     }
     if (!command.reason.trim()) throw new Error("Reason is required");
+  }
+
+  private findMaster(id: string): MasterRecord {
+    const record = listMasterRecords(this.masters).find(
+      (candidate) => candidate.id === id,
+    );
+    if (!record) throw new Error(`Master record ${id} was not found`);
+    return record;
+  }
+
+  private buildMasterAudit(
+    after: MasterRecord,
+    action: AuditEvent["action"],
+    command: MasterCommand,
+    before: MasterRecord | null,
+    metadata?: Record<string, unknown>,
+    usedIds = new Set(this.auditEvents.map((event) => event.id)),
+  ): AuditEvent {
+    return {
+      id: this.nextUniqueId(
+        "audit",
+        "AuditEvent",
+        usedIds,
+      ),
+      entityType: "MasterRecord",
+      entityId: after.id,
+      action,
+      actor: clone(command.actor),
+      occurredAt: after.updatedAt,
+      remarks: command.reason,
+      beforeState: before ? clone(before) : null,
+      afterState: clone(after),
+      provenance: {
+        source: command.source,
+        sourceEntityId: after.id,
+      },
+      metadata,
+    };
+  }
+
+  private transitionReferenceMaster(
+    id: string,
+    action: "SUBMIT" | "APPROVE" | "RETURN" | "REJECT",
+    command: MasterCommand,
+  ): MasterRecord {
+    this.assertMasterCommand(command, action);
+    const current = this.findMaster(id);
+    const updated = transitionMasterRecord(
+      clone(current),
+      action,
+      command.actor,
+      this.dependencies.now(),
+    );
+    if (action === "APPROVE") {
+      const issues = validateMasterVersionApproval(updated, this.masters);
+      if (issues.length > 0) throw issues;
+    }
+
+    const auditAction: AuditEvent["action"] = ({
+      SUBMIT: "MASTER_SUBMITTED",
+      APPROVE: "MASTER_APPROVED",
+      RETURN: "MASTER_RETURNED",
+      REJECT: "MASTER_REJECTED",
+    } as const)[action];
+    const usedAuditIds = new Set(this.auditEvents.map((event) => event.id));
+    const auditEvents = [
+      this.buildMasterAudit(updated, auditAction, command, current, undefined, usedAuditIds),
+    ];
+
+    if (action === "APPROVE" && updated.supersedesVersionId) {
+      const predecessor = this.findMaster(updated.supersedesVersionId);
+      const superseded: MasterRecord = {
+        ...predecessor,
+        workflowStatus: "SUPERSEDED",
+        updatedAt: updated.updatedAt,
+      };
+      auditEvents.push(this.buildMasterAudit(
+        superseded,
+        "MASTER_SUPERSEDED",
+        command,
+        predecessor,
+        { successorVersionId: updated.id },
+        usedAuditIds,
+      ));
+      this.upsertMaster(superseded);
+    }
+    this.upsertMaster(updated);
+    this.auditEvents.push(...auditEvents);
+    return clone(updated);
   }
 
   private upsertMaster(master: MasterRecord): void {
@@ -1607,11 +1778,11 @@ export class InMemorySubventionRepository
     this.assertUniqueIdentity(
       masters,
       (master) => JSON.stringify([
-        master.kind,
-        master.code.trim().toLocaleUpperCase("en-IN"),
+        master.logicalId,
+        master.version,
       ]),
-      (master) => `${master.kind}:${master.code}`,
-      "MasterRecord code",
+      (master) => `${master.logicalId}:${master.version}`,
+      "MasterRecord logical version",
     );
     this.assertUniqueIdentity(
       this.oems,

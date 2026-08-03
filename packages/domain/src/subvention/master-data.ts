@@ -3,7 +3,7 @@ import type {
   Actor,
   CalculationBasis,
   EmployerProgrammeMappingVersion,
-  ReferenceMasterStatus,
+  MasterWorkflowStatus,
   SchemeVersion,
   SettlementCounterpartyType,
 } from "./types";
@@ -17,10 +17,18 @@ export type MasterKind =
 
 export interface MasterRecordBase {
   id: string;
+  logicalId: string;
+  version: number;
   kind: MasterKind;
   code: string;
   name: string;
-  status: ReferenceMasterStatus;
+  workflowStatus: MasterWorkflowStatus;
+  effectiveFrom: string;
+  effectiveTo: string;
+  makerUserId: string;
+  checkerUserId?: string;
+  approvedAt?: string;
+  supersedesVersionId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -121,7 +129,9 @@ function hasActiveRecord(
   id: string,
 ): boolean {
   return records.some(
-    (record) => record.id === id && record.status === "ACTIVE",
+    (record) =>
+      (record.id === id || record.logicalId === id) &&
+      record.workflowStatus === "APPROVED",
   );
 }
 
@@ -147,7 +157,7 @@ export function validateMasterRecord(
   const sameKindRecords = listMasterRecords(catalogue, record.kind);
   const duplicateCode = sameKindRecords.some(
     (candidate) =>
-      candidate.id !== record.id &&
+      candidate.logicalId !== record.logicalId &&
       candidate.code.trim().toLocaleUpperCase("en-IN") ===
         record.code.trim().toLocaleUpperCase("en-IN"),
   );
@@ -188,6 +198,26 @@ export function validateMasterRecord(
         field: "name",
         message: "Master name is required.",
         recoveryAction: "Provide the controlled legal or catalogue name.",
+      }),
+    );
+  }
+  if (!record.logicalId.trim() || record.version < 1) {
+    issues.push(
+      masterIssue(record, {
+        code: "MASTER_VERSION_IDENTITY_INVALID",
+        field: "logicalId",
+        message: "Master logical identity and version must be valid.",
+        recoveryAction: "Provide a stable logical ID and a positive version.",
+      }),
+    );
+  }
+  if (record.effectiveFrom > record.effectiveTo) {
+    issues.push(
+      masterIssue(record, {
+        code: "MASTER_EFFECTIVE_WINDOW_INVALID",
+        field: "effectiveTo",
+        message: "Master effective from date must not be after effective to date.",
+        recoveryAction: "Correct the effective date window.",
       }),
     );
   }
@@ -268,6 +298,10 @@ export function masterDependencies(
   snapshot: MasterDependencySnapshot,
 ): MasterDependency[] {
   const dependencies: MasterDependency[] = [];
+  const target = listMasterRecords(snapshot.masters).find(
+    (record) => record.id === masterId,
+  );
+  const referencedIds = new Set([masterId, target?.logicalId].filter(Boolean));
   const add = (
     entityType: MasterDependency["entityType"],
     entityId: string,
@@ -275,12 +309,13 @@ export function masterDependencies(
   ) => dependencies.push({ entityType, entityId, label });
 
   listMasterRecords(snapshot.masters).forEach((record) => {
-    if (record.status !== "ACTIVE" || record.id === masterId) return;
+    if (record.workflowStatus !== "APPROVED" || record.id === masterId) return;
     const referencesMaster =
-      (record.kind === "DISTRIBUTOR" && record.oemId === masterId) ||
+      (record.kind === "DISTRIBUTOR" && referencedIds.has(record.oemId)) ||
       (record.kind === "RESELLER" &&
-        (record.oemId === masterId || record.distributorId === masterId)) ||
-      (record.kind === "PRODUCT" && record.oemId === masterId);
+        (referencedIds.has(record.oemId) ||
+          referencedIds.has(record.distributorId))) ||
+      (record.kind === "PRODUCT" && referencedIds.has(record.oemId));
     if (referencesMaster) add("MasterRecord", record.id, record.name);
   });
 
@@ -288,9 +323,10 @@ export function masterDependencies(
     .filter((scheme) => scheme.workflowStatus === "APPROVED")
     .forEach((scheme) => {
       if (
-        scheme.oemId === masterId ||
-        scheme.distributorId === masterId ||
-        scheme.eligibleProductIds.includes(masterId)
+        referencedIds.has(scheme.oemId) ||
+        (scheme.distributorId !== undefined &&
+          referencedIds.has(scheme.distributorId)) ||
+        scheme.eligibleProductIds.some((id) => referencedIds.has(id))
       ) {
         add("SchemeVersion", scheme.id, `${scheme.code} v${scheme.version}`);
       }
@@ -300,10 +336,11 @@ export function masterDependencies(
     .filter((mapping) => mapping.workflowStatus === "APPROVED")
     .forEach((mapping) => {
       if (
-        mapping.oemId === masterId ||
-        mapping.distributorId === masterId ||
-        mapping.resellerId === masterId ||
-        mapping.employerId === masterId
+        referencedIds.has(mapping.oemId) ||
+        (mapping.distributorId !== undefined &&
+          referencedIds.has(mapping.distributorId)) ||
+        (mapping.resellerId !== undefined && referencedIds.has(mapping.resellerId)) ||
+        referencedIds.has(mapping.employerId)
       ) {
         add(
           "EmployerProgrammeMappingVersion",
@@ -314,4 +351,104 @@ export function masterDependencies(
     });
 
   return dependencies;
+}
+
+export type MasterLifecycleAction =
+  | "SUBMIT"
+  | "APPROVE"
+  | "RETURN"
+  | "REJECT"
+  | "DEACTIVATE";
+
+const masterStatusForAction: Record<MasterLifecycleAction, MasterWorkflowStatus> = {
+  SUBMIT: "SUBMITTED",
+  APPROVE: "APPROVED",
+  RETURN: "RETURNED",
+  REJECT: "REJECTED",
+  DEACTIVATE: "INACTIVE",
+};
+
+const allowedMasterActions: Record<MasterWorkflowStatus, MasterLifecycleAction[]> = {
+  DRAFT: ["SUBMIT"],
+  RETURNED: ["SUBMIT"],
+  SUBMITTED: ["APPROVE", "RETURN", "REJECT"],
+  APPROVED: ["DEACTIVATE"],
+  REJECTED: [],
+  SUPERSEDED: [],
+  INACTIVE: [],
+};
+
+export function transitionMasterRecord<T extends MasterRecord>(
+  record: T,
+  action: MasterLifecycleAction,
+  actor: Actor,
+  occurredAt: string,
+): T {
+  if (!allowedMasterActions[record.workflowStatus].includes(action)) {
+    throw new Error(`${action} is not allowed from ${record.workflowStatus}`);
+  }
+  if (
+    (action === "APPROVE" || action === "DEACTIVATE") &&
+    actor.userId === record.makerUserId
+  ) {
+    throw new Error("Maker cannot approve own work");
+  }
+  return {
+    ...record,
+    workflowStatus: masterStatusForAction[action],
+    checkerUserId:
+      action === "APPROVE" || action === "DEACTIVATE"
+        ? actor.userId
+        : record.checkerUserId,
+    approvedAt: action === "APPROVE" ? occurredAt : record.approvedAt,
+    updatedAt: occurredAt,
+  };
+}
+
+export function validateMasterVersionApproval(
+  candidate: MasterRecord,
+  catalogue: MasterCatalogue,
+): DomainIssue[] {
+  const issues: DomainIssue[] = [];
+  const versions = listMasterRecords(catalogue, candidate.kind).filter(
+    (record) => record.logicalId === candidate.logicalId && record.id !== candidate.id,
+  );
+  const predecessor = candidate.supersedesVersionId
+    ? versions.find((record) => record.id === candidate.supersedesVersionId)
+    : undefined;
+
+  if (candidate.version > 1) {
+    if (
+      !predecessor ||
+      predecessor.version !== candidate.version - 1 ||
+      predecessor.workflowStatus !== "APPROVED"
+    ) {
+      issues.push(
+        masterIssue(candidate, {
+          code: "MASTER_PREDECESSOR_INVALID",
+          field: "supersedesVersionId",
+          message: "Successor must reference the approved immediate predecessor.",
+          recoveryAction: "Recreate the successor from the current approved version.",
+        }),
+      );
+    }
+  }
+
+  const overlap = versions.find(
+    (record) =>
+      record.workflowStatus === "APPROVED" &&
+      candidate.effectiveFrom <= record.effectiveTo &&
+      record.effectiveFrom <= candidate.effectiveTo,
+  );
+  if (overlap) {
+    issues.push(
+      masterIssue(candidate, {
+        code: "MASTER_VERSION_OVERLAP",
+        field: "effectiveFrom",
+        message: `Effective window overlaps approved version ${overlap.version}.`,
+        recoveryAction: "Use a non-overlapping effective date window.",
+      }),
+    );
+  }
+  return issues;
 }

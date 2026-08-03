@@ -2,17 +2,22 @@
 
 import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import type { MasterKind, MasterRecord } from "@smart-epp/domain";
+import type { MasterKind, MasterRecord, MasterWorkflowStatus } from "@smart-epp/domain";
 import {
+  Check,
   ChevronLeft,
   ChevronRight,
   Database,
   Eye,
   History,
+  GitBranch,
   Pencil,
   Plus,
   Search,
   ShieldAlert,
+  Send,
+  Undo2,
+  X,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -42,7 +47,7 @@ import { MasterHistoryInspector } from "./MasterHistoryInspector";
 import { MasterRecordForm } from "./MasterRecordForm";
 
 const PAGE_SIZE = 8;
-type InspectorMode = "VIEW" | "EDIT" | "HISTORY" | "CREATE";
+type InspectorMode = "VIEW" | "EDIT" | "HISTORY" | "CREATE" | "SUCCESSOR";
 
 function isMasterKind(value: string | null): value is MasterKind {
   return MASTER_DEFINITIONS.some((definition) => definition.kind === value);
@@ -57,16 +62,19 @@ function fieldLabel(key: string) {
 
 export function MasterDataWorkbench() {
   const searchParams = useSearchParams();
-  const { snapshot, activeActor, saveMasterDraft, deactivateMaster, issues, actionError, isRefreshing } = useSubvention();
+  const { snapshot, activeActor, saveMasterDraft, createNextMasterVersion, submitMaster, approveMaster, returnMaster, rejectMaster, deactivateMaster, issues, actionError, isRefreshing } = useSubvention();
   const requestedKind = searchParams.get("kind");
   const [kind, setKind] = useState<MasterKind>(isMasterKind(requestedKind) ? requestedKind : "OEM");
   const [query, setQuery] = useState("");
-  const [status, setStatus] = useState<"ALL" | "ACTIVE" | "INACTIVE">("ALL");
+  const [status, setStatus] = useState<"ALL" | MasterWorkflowStatus>("ALL");
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<MasterRecord>();
   const [mode, setMode] = useState<InspectorMode>("VIEW");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [localMessage, setLocalMessage] = useState<string>();
+  const [actionReason, setActionReason] = useState("Controlled master review");
+  const [successorFrom, setSuccessorFrom] = useState("");
+  const [successorTo, setSuccessorTo] = useState("");
 
   const definition = MASTER_DEFINITION_BY_KIND[kind];
   const records = useMemo(() => {
@@ -74,18 +82,22 @@ export function MasterDataWorkbench() {
     return snapshot.masters[
       ({ OEM: "oems", DISTRIBUTOR: "distributors", RESELLER: "resellers", PRODUCT: "products", EMPLOYER: "employers" } as const)[kind]
     ]
-      .filter((record) => status === "ALL" || record.status === status)
+      .filter((record) => status === "ALL" || record.workflowStatus === status)
       .filter((record) => !needle || `${record.code} ${record.name}`.toLocaleLowerCase("en-IN").includes(needle))
       .sort((a, b) => a.name.localeCompare(b.name, "en-IN"));
   }, [kind, query, snapshot.masters, status]);
   const totalPages = Math.max(1, Math.ceil(records.length / PAGE_SIZE));
   const visibleRecords = records.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const canMaintain = activeActor.role === "MASTER_DATA_ADMIN";
+  const canCheck = activeActor.role === "BUSINESS_HEAD_CHECKER";
 
   const open = (nextMode: InspectorMode, record?: MasterRecord) => {
     setSelected(record);
     setMode(nextMode);
     setLocalMessage(undefined);
+    setActionReason("Controlled master review");
+    setSuccessorFrom("");
+    setSuccessorTo("");
     setDrawerOpen(true);
   };
 
@@ -99,13 +111,35 @@ export function MasterDataWorkbench() {
   };
 
   const deactivate = async (record: MasterRecord) => {
-    const result = await deactivateMaster(record.id, "Deactivate unused master record");
+    const result = await deactivateMaster(record.id, actionReason);
     if (!result.ok) {
       setLocalMessage(result.issues[0]?.recoveryAction ?? result.error.message);
       return;
     }
     setSelected(result.value);
     setLocalMessage(`${result.value.code} deactivated.`);
+  };
+
+  const transition = async (
+    record: MasterRecord,
+    action: "SUBMIT" | "APPROVE" | "RETURN" | "REJECT",
+  ) => {
+    const command = { SUBMIT: submitMaster, APPROVE: approveMaster, RETURN: returnMaster, REJECT: rejectMaster }[action];
+    const result = await command(record.id, actionReason);
+    if (!result.ok) return;
+    setSelected(result.value);
+    setLocalMessage(`${result.value.code} ${action.toLocaleLowerCase("en-IN")} recorded.`);
+  };
+
+  const createSuccessor = async (record: MasterRecord) => {
+    const result = await createNextMasterVersion(record.id, actionReason, {
+      effectiveFrom: successorFrom,
+      effectiveTo: successorTo,
+    });
+    if (!result.ok) return;
+    setSelected(result.value);
+    setMode("EDIT");
+    setLocalMessage(`Version ${result.value.version} draft created from ${record.code}.`);
   };
 
   return (
@@ -150,8 +184,8 @@ export function MasterDataWorkbench() {
             <Button onClick={() => open("CREATE")} disabled={!canMaintain}><Plus />Add {definition.singular}</Button>
           </header>
 
-          {!canMaintain && (
-            <div className="flex items-center gap-2 border-b bg-amber-50 px-5 py-2.5 text-xs text-amber-900"><ShieldAlert className="size-4" />Read-only view. Switch to Master Data Administrator to maintain records.</div>
+          {!canMaintain && !canCheck && (
+            <div className="flex items-center gap-2 border-b bg-amber-50 px-5 py-2.5 text-xs text-amber-900"><ShieldAlert className="size-4" />Read-only view. This role cannot maintain or approve master versions.</div>
           )}
 
           <div className="grid gap-2 border-b bg-slate-50/60 px-4 py-3 sm:grid-cols-[minmax(240px,1fr)_160px_auto]">
@@ -161,7 +195,7 @@ export function MasterDataWorkbench() {
             </div>
             <Select value={status} onValueChange={(value) => { setStatus(value as typeof status); setPage(1); }}>
               <SelectTrigger aria-label="Filter by status" className="w-full bg-white"><SelectValue /></SelectTrigger>
-              <SelectContent><SelectItem value="ALL">All statuses</SelectItem><SelectItem value="ACTIVE">Active</SelectItem><SelectItem value="INACTIVE">Inactive</SelectItem></SelectContent>
+              <SelectContent><SelectItem value="ALL">All statuses</SelectItem>{["DRAFT", "SUBMITTED", "APPROVED", "RETURNED", "REJECTED", "SUPERSEDED", "INACTIVE"].map((value) => <SelectItem value={value} key={value}>{value.replaceAll("_", " ")}</SelectItem>)}</SelectContent>
             </Select>
             <div className="flex items-center justify-end text-xs text-slate-500"><span className="font-mono font-semibold text-slate-800">{records.length}</span>&nbsp;records</div>
           </div>
@@ -174,19 +208,19 @@ export function MasterDataWorkbench() {
               <tbody className="divide-y">
                 {visibleRecords.map((record) => (
                   <tr key={record.id} className="hover:bg-slate-50/70">
-                    <td className="px-4 py-3 font-mono font-semibold text-[#53284F]">{record.code}</td>
+                    <td className="px-4 py-3 font-mono font-semibold text-[#53284F]">{record.code} <span className="text-slate-400">v{record.version}</span></td>
                     <td className="px-4 py-3 font-medium text-slate-900">{record.name}</td>
                     {definition.tableFields.map((field) => {
                       const raw = masterFieldValue(record, field);
                       const value = field.endsWith("Id") ? masterLabel(snapshot.masters, raw) : raw;
                       return <td key={field} className="px-4 py-3 text-slate-600">{value}</td>;
                     })}
-                    <td className="px-4 py-3"><Badge variant={record.status === "ACTIVE" ? "secondary" : "outline"}>{record.status === "ACTIVE" ? "Active" : "Inactive"}</Badge></td>
+                    <td className="px-4 py-3"><Badge variant={record.workflowStatus === "APPROVED" ? "secondary" : "outline"}>{record.workflowStatus.replaceAll("_", " ")}</Badge></td>
                     <td className="px-4 py-2 text-right">
                       <div className="inline-flex gap-1">
                         <Button size="icon-sm" variant="ghost" aria-label={`View ${record.code}`} onClick={() => open("VIEW", record)}><Eye /></Button>
                         <Button size="icon-sm" variant="ghost" aria-label={`View history for ${record.code}`} onClick={() => open("HISTORY", record)}><History /></Button>
-                        {canMaintain && record.status === "ACTIVE" && <Button size="icon-sm" variant="ghost" aria-label={`Edit ${record.code}`} onClick={() => open("EDIT", record)}><Pencil /></Button>}
+                        {canMaintain && ["DRAFT", "RETURNED"].includes(record.workflowStatus) && <Button size="icon-sm" variant="ghost" aria-label={`Edit ${record.code}`} onClick={() => open("EDIT", record)}><Pencil /></Button>}
                       </div>
                     </td>
                   </tr>
@@ -208,25 +242,42 @@ export function MasterDataWorkbench() {
           <SheetHeader className="border-b pr-12">
             <div className="text-xs font-semibold uppercase tracking-[0.1em] text-[#53284F]">{mode === "CREATE" ? "New record" : definition.kind}</div>
             <SheetTitle>{mode === "CREATE" ? `Add ${definition.singular}` : selected?.name}</SheetTitle>
-            <SheetDescription>{mode === "HISTORY" ? "Version, provenance and command history." : mode === "VIEW" ? "Controlled master details and current dependencies." : "Changes are validated and recorded in the audit trail."}</SheetDescription>
+            <SheetDescription>{mode === "HISTORY" ? "Version, provenance and command history." : mode === "VIEW" ? "Controlled master details and current dependencies." : mode === "SUCCESSOR" ? "Create the next non-overlapping effective version." : "Changes are validated and recorded in the audit trail."}</SheetDescription>
           </SheetHeader>
 
           {localMessage && <div role="status" className="border-b bg-[#f5eef3] px-5 py-2.5 text-xs text-[#53284F]">{localMessage}</div>}
-          {(issues.length > 0 || actionError) && mode === "VIEW" && <div role="alert" className="border-b bg-red-50 px-5 py-2.5 text-xs text-red-900">{issues[0]?.message ?? actionError?.message}</div>}
+          {(issues.length > 0 || actionError) && (mode === "VIEW" || mode === "SUCCESSOR") && <div role="alert" className="border-b bg-red-50 px-5 py-2.5 text-xs text-red-900">{issues[0]?.message ?? actionError?.message}</div>}
 
           {(mode === "CREATE" || mode === "EDIT") && (
             <MasterRecordForm key={`${kind}-${selected?.id ?? "new"}-${mode}`} kind={kind} catalogue={snapshot.masters} record={mode === "EDIT" ? selected : undefined} issues={issues} pending={isRefreshing} onCancel={() => setDrawerOpen(false)} onSave={save} />
           )}
-          {mode === "HISTORY" && selected && <div className="min-h-0 flex-1 overflow-y-auto"><MasterHistoryInspector record={selected} events={snapshot.auditEvents} /></div>}
+          {mode === "SUCCESSOR" && selected && (
+            <form className="space-y-4 px-5 py-4" onSubmit={(event) => { event.preventDefault(); void createSuccessor(selected); }}>
+              <div className="border-l-2 border-[#53284F] bg-[#f5eef3] px-3 py-2 text-xs text-[#53284F]">Source: {selected.code} v{selected.version}, effective through {selected.effectiveTo}</div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5"><label className="text-xs font-medium" htmlFor="successor-from">Effective from</label><Input id="successor-from" type="date" value={successorFrom} onChange={(event) => setSuccessorFrom(event.target.value)} required /></div>
+                <div className="space-y-1.5"><label className="text-xs font-medium" htmlFor="successor-to">Effective to</label><Input id="successor-to" type="date" value={successorTo} onChange={(event) => setSuccessorTo(event.target.value)} required /></div>
+              </div>
+              <div className="space-y-1.5"><label className="text-xs font-medium" htmlFor="successor-reason">Change reason</label><Input id="successor-reason" value={actionReason} onChange={(event) => setActionReason(event.target.value)} required /></div>
+              <div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setMode("VIEW")}>Cancel</Button><Button type="submit" disabled={isRefreshing}><GitBranch />Create successor draft</Button></div>
+            </form>
+          )}
+          {mode === "HISTORY" && selected && <div className="min-h-0 flex-1 overflow-y-auto"><MasterHistoryInspector record={selected} versions={snapshot.masters[({ OEM: "oems", DISTRIBUTOR: "distributors", RESELLER: "resellers", PRODUCT: "products", EMPLOYER: "employers" } as const)[kind]]} events={snapshot.auditEvents} /></div>}
           {mode === "VIEW" && selected && (
             <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
               <dl className="grid grid-cols-2 gap-px overflow-hidden border bg-slate-200 text-xs">
-                {[["Code", selected.code], ["Name", selected.name], ["Status", selected.status], ...definition.fields.map((field) => [field.label, field.key.endsWith("Id") ? masterLabel(snapshot.masters, masterFieldValue(selected, field.key)) : masterFieldValue(selected, field.key)])].map(([label, value]) => <div className="bg-white p-3" key={label}><dt className="font-semibold uppercase tracking-[0.06em] text-slate-500">{label}</dt><dd className="mt-1 break-words text-slate-900">{value}</dd></div>)}
+                {[["Code", selected.code], ["Version", String(selected.version)], ["Name", selected.name], ["Workflow", selected.workflowStatus], ["Effective from", selected.effectiveFrom], ["Effective to", selected.effectiveTo], ...definition.fields.map((field) => [field.label, field.key.endsWith("Id") ? masterLabel(snapshot.masters, masterFieldValue(selected, field.key)) : masterFieldValue(selected, field.key)])].map(([label, value]) => <div className="bg-white p-3" key={label}><dt className="font-semibold uppercase tracking-[0.06em] text-slate-500">{label}</dt><dd className="mt-1 break-words text-slate-900">{value}</dd></div>)}
               </dl>
+              {(canMaintain || canCheck) && <div className="mt-4 space-y-1.5"><label className="text-xs font-medium" htmlFor="master-action-reason">Action reason</label><Input id="master-action-reason" value={actionReason} onChange={(event) => setActionReason(event.target.value)} /></div>}
               <div className="mt-5 flex flex-wrap gap-2">
                 <Button variant="outline" onClick={() => setMode("HISTORY")}><History />View history</Button>
-                {canMaintain && selected.status === "ACTIVE" && <Button variant="outline" onClick={() => setMode("EDIT")}><Pencil />Edit record</Button>}
-                {canMaintain && selected.status === "ACTIVE" && <Button variant="destructive" onClick={() => deactivate(selected)} disabled={isRefreshing}>Deactivate</Button>}
+                {canMaintain && ["DRAFT", "RETURNED"].includes(selected.workflowStatus) && <Button variant="outline" onClick={() => setMode("EDIT")}><Pencil />Edit draft</Button>}
+                {canMaintain && selected.workflowStatus === "DRAFT" && <Button onClick={() => void transition(selected, "SUBMIT")} disabled={isRefreshing}><Send />Submit</Button>}
+                {canMaintain && selected.workflowStatus === "APPROVED" && <Button variant="outline" onClick={() => setMode("SUCCESSOR")}><GitBranch />Create successor</Button>}
+                {canCheck && selected.workflowStatus === "SUBMITTED" && <Button onClick={() => void transition(selected, "APPROVE")} disabled={isRefreshing}><Check />Approve</Button>}
+                {canCheck && selected.workflowStatus === "SUBMITTED" && <Button variant="outline" onClick={() => void transition(selected, "RETURN")} disabled={isRefreshing}><Undo2 />Return</Button>}
+                {canCheck && selected.workflowStatus === "SUBMITTED" && <Button variant="destructive" onClick={() => void transition(selected, "REJECT")} disabled={isRefreshing}><X />Reject</Button>}
+                {canCheck && selected.workflowStatus === "APPROVED" && <Button variant="destructive" onClick={() => deactivate(selected)} disabled={isRefreshing}>Deactivate</Button>}
               </div>
               <p className="mt-3 text-xs leading-5 text-slate-500">Deactivation is blocked when an active master, approved scheme or employer programme depends on this record. The system will explain the dependency and keep this panel open.</p>
             </div>

@@ -181,15 +181,28 @@ function auditEventFixture(
   };
 }
 
+function approvedMasterFields(id: string) {
+  return {
+    logicalId: id,
+    version: 1,
+    workflowStatus: "APPROVED" as const,
+    effectiveFrom: "2026-01-01",
+    effectiveTo: "2026-12-31",
+    makerUserId: "master-admin-1",
+    checkerUserId: "checker-1",
+    approvedAt: "2025-12-20T00:00:00.000Z",
+  };
+}
+
 function seedFixture(overrides: Partial<SubventionSeed> = {}): SubventionSeed {
   const masters: MasterCatalogue = {
     oems: [
       {
         id: "oem-1",
+        ...approvedMasterFields("oem-1"),
         kind: "OEM",
         code: "OEM-1",
         name: "Configured OEM",
-        status: "ACTIVE",
         defaultClaimTimelineDays: 90,
         defaultCalculationBasis: "INVOICE_VALUE",
         defaultSettlementCounterpartyType: "DISTRIBUTOR",
@@ -202,10 +215,10 @@ function seedFixture(overrides: Partial<SubventionSeed> = {}): SubventionSeed {
     products: [
       {
         id: "product-1",
+        ...approvedMasterFields("product-1"),
         kind: "PRODUCT",
         code: "PRODUCT-1",
         name: "Configured Product",
-        status: "ACTIVE",
         oemId: "oem-1",
         model: "Configured Product 1",
         createdAt: "2026-06-01T00:00:00.000Z",
@@ -215,10 +228,10 @@ function seedFixture(overrides: Partial<SubventionSeed> = {}): SubventionSeed {
     employers: [
       {
         id: "employer-1",
+        ...approvedMasterFields("employer-1"),
         kind: "EMPLOYER",
         code: "EMPLOYER-1",
         name: "Configured Employer",
-        status: "ACTIVE",
         programmeCode: "PROGRAMME-1",
         createdAt: "2026-06-01T00:00:00.000Z",
         updatedAt: "2026-06-01T00:00:00.000Z",
@@ -1873,10 +1886,15 @@ describe("subvention repository", () => {
     const before = await repository.getSnapshot();
     const product: ProductMasterRecord = {
       id: "product-2",
+      logicalId: "product-2",
+      version: 1,
       kind: "PRODUCT",
       code: "PRODUCT-2",
       name: "Configured Product 2",
-      status: "ACTIVE",
+      workflowStatus: "DRAFT",
+      effectiveFrom: "2027-01-01",
+      effectiveTo: "2027-12-31",
+      makerUserId: actor.userId,
       oemId: "oem-1",
       model: "Model 2",
       createdAt: "caller-supplied",
@@ -1920,8 +1938,8 @@ describe("subvention repository", () => {
     await expect(
       repository.deactivateMaster("product-1", {
         actor: {
-          userId: "master-admin-1",
-          role: "MASTER_DATA_ADMIN",
+          userId: "checker-1",
+          role: "BUSINESS_HEAD_CHECKER",
         },
         reason: "Retire the product",
         source: "MASTER_DATA_WORKBENCH",
@@ -1937,13 +1955,19 @@ describe("subvention repository", () => {
   it("deactivates an unreferenced master and records reason and provenance", async () => {
     const repository = createRepositoryFixture();
     const actor = { userId: "master-admin-1", role: "MASTER_DATA_ADMIN" };
+    const checker = { userId: "checker-1", role: "BUSINESS_HEAD_CHECKER" };
     const product = await repository.saveMasterDraft(
       {
         id: "product-unreferenced",
+        logicalId: "product-unreferenced",
+        version: 1,
         kind: "PRODUCT",
         code: "PRODUCT-UNREFERENCED",
         name: "Unreferenced Product",
-        status: "ACTIVE",
+        workflowStatus: "DRAFT",
+        effectiveFrom: "2027-01-01",
+        effectiveTo: "2027-12-31",
+        makerUserId: actor.userId,
         oemId: "oem-1",
         model: "Unreferenced Model",
         createdAt: "caller-supplied",
@@ -1955,29 +1979,39 @@ describe("subvention repository", () => {
         source: "CONTROLLED_IMPORT",
       },
     );
+    await repository.submitMaster(product.id, {
+      actor,
+      reason: "Submit product retirement candidate",
+      source: "MASTER_DATA_WORKBENCH",
+    });
+    await repository.approveMaster(product.id, {
+      actor: checker,
+      reason: "Approve controlled product",
+      source: "MASTER_DATA_WORKBENCH",
+    });
 
     await expect(
       repository.deactivateMaster(product.id, {
-        actor,
+        actor: checker,
         reason: "Product withdrawn by OEM",
         source: "MASTER_DATA_WORKBENCH",
       }),
-    ).resolves.toMatchObject({ status: "INACTIVE" });
+    ).resolves.toMatchObject({ workflowStatus: "INACTIVE" });
     expect(await repository.listMasters("PRODUCT")).toContainEqual(
       expect.objectContaining({
         id: product.id,
-        status: "INACTIVE",
+        workflowStatus: "INACTIVE",
         updatedAt: "2026-07-28T10:00:00.000Z",
       }),
     );
     expect(
-      (await repository.listForEntity("MasterRecord", product.id))[1],
+      (await repository.listForEntity("MasterRecord", product.id))[3],
     ).toMatchObject({
       action: "MASTER_DEACTIVATED",
       remarks: "Product withdrawn by OEM",
-      actor,
-      beforeState: { status: "ACTIVE" },
-      afterState: { status: "INACTIVE" },
+      actor: checker,
+      beforeState: { workflowStatus: "APPROVED" },
+      afterState: { workflowStatus: "INACTIVE" },
       provenance: {
         source: "MASTER_DATA_WORKBENCH",
         sourceEntityId: product.id,

@@ -28,6 +28,12 @@ import type {
 
 export type AuditAction =
   | "MASTER_DRAFT_SAVED"
+  | "MASTER_SUCCESSOR_CREATED"
+  | "MASTER_SUBMITTED"
+  | "MASTER_APPROVED"
+  | "MASTER_RETURNED"
+  | "MASTER_REJECTED"
+  | "MASTER_SUPERSEDED"
   | "MASTER_DEACTIVATED"
   | "SCHEME_DRAFT_SAVED"
   | "SCHEME_SUBMITTED"
@@ -131,10 +137,24 @@ export interface MasterDataRepository {
     master: MasterRecord,
     command: MasterCommand,
   ): Promise<MasterRecord>;
+  createNextMasterVersion(
+    id: string,
+    command: MasterCommand,
+    effectiveWindow: MasterEffectiveWindow,
+  ): Promise<MasterRecord>;
+  submitMaster(id: string, command: MasterCommand): Promise<MasterRecord>;
+  approveMaster(id: string, command: MasterCommand): Promise<MasterRecord>;
+  returnMaster(id: string, command: MasterCommand): Promise<MasterRecord>;
+  rejectMaster(id: string, command: MasterCommand): Promise<MasterRecord>;
   deactivateMaster(
     id: string,
     command: MasterCommand,
   ): Promise<MasterRecord>;
+}
+
+export interface MasterEffectiveWindow {
+  effectiveFrom: string;
+  effectiveTo: string;
 }
 
 export interface SchemeRepository {

@@ -47,13 +47,25 @@ const oems: OemConfiguration[] = [
 ];
 
 const masterTimestamp = "2025-12-01T10:00:00.000Z";
+const approvedMasterVersion = (id: string) => ({
+  logicalId: id,
+  version: 1,
+  workflowStatus: "APPROVED" as const,
+  effectiveFrom: "2025-01-01",
+  effectiveTo: "2026-12-31",
+  makerUserId: "master-data-admin",
+  checkerUserId: "business-head-checker",
+  approvedAt: "2025-12-15T10:00:00.000Z",
+  createdAt: masterTimestamp,
+  updatedAt: masterTimestamp,
+});
 const masters: MasterCatalogue = {
   oems: oems.map((oem) => ({
     id: oem.id,
+    ...approvedMasterVersion(oem.id),
     kind: "OEM",
     code: oem.id.replace("oem-", "").toLocaleUpperCase("en-IN"),
     name: oem.name,
-    status: "ACTIVE",
     defaultClaimTimelineDays: oem.defaults?.claimTimelineDays ?? 90,
     defaultCalculationBasis:
       oem.defaults?.calculationBasis ?? "INVOICE_VALUE",
@@ -61,63 +73,51 @@ const masters: MasterCatalogue = {
       oem.defaults?.settlementCounterpartyType ?? "DISTRIBUTOR",
     defaultRateBps: oem.defaults?.rateBps,
     defaultFlatAmountPaise: oem.defaults?.flatAmountPaise,
-    createdAt: masterTimestamp,
-    updatedAt: masterTimestamp,
   })),
   distributors: [
     {
       id: "distributor-ingram",
+      ...approvedMasterVersion("distributor-ingram"),
       kind: "DISTRIBUTOR",
       code: "INGRAM",
       name: "Ingram Micro India Private Limited",
-      status: "ACTIVE",
       oemId: "oem-apple",
-      createdAt: masterTimestamp,
-      updatedAt: masterTimestamp,
     },
     {
       id: "distributor-redington",
+      ...approvedMasterVersion("distributor-redington"),
       kind: "DISTRIBUTOR",
       code: "REDINGTON",
       name: "Redington Limited",
-      status: "ACTIVE",
       oemId: "oem-apple",
-      createdAt: masterTimestamp,
-      updatedAt: masterTimestamp,
     },
     {
       id: "distributor-national",
+      ...approvedMasterVersion("distributor-national"),
       kind: "DISTRIBUTOR",
       code: "NATIONAL-DIST",
       name: "National Distributor",
-      status: "ACTIVE",
       oemId: "oem-samsung",
-      createdAt: masterTimestamp,
-      updatedAt: masterTimestamp,
     },
   ],
   resellers: [
     {
       id: "reseller-radius",
+      ...approvedMasterVersion("reseller-radius"),
       kind: "RESELLER",
       code: "RADIUS",
       name: "Radius Systems Private Limited",
-      status: "ACTIVE",
       oemId: "oem-apple",
       distributorId: "distributor-ingram",
-      createdAt: masterTimestamp,
-      updatedAt: masterTimestamp,
     },
     {
       id: "reseller-national",
+      ...approvedMasterVersion("reseller-national"),
       kind: "RESELLER",
       code: "NATIONAL-RESELLER",
       name: "National Reseller",
-      status: "ACTIVE",
       oemId: "oem-samsung",
       distributorId: "distributor-national",
-      createdAt: masterTimestamp,
-      updatedAt: masterTimestamp,
     },
     ...[
       ["reseller-fore-excel", "FORE-EXCEL", "Fore Excel Private Limited", "distributor-ingram"],
@@ -128,30 +128,26 @@ const masters: MasterCatalogue = {
       ["reseller-tortoise", "TORTOISE", "Tortoise System Private Limited", "distributor-ingram"],
     ].map(([id, code, name, distributorId]) => ({
       id: id!,
+      ...approvedMasterVersion(id!),
       kind: "RESELLER" as const,
       code: code!,
       name: name!,
-      status: "ACTIVE" as const,
       oemId: "oem-apple",
       distributorId: distributorId!,
-      createdAt: masterTimestamp,
-      updatedAt: masterTimestamp,
     })),
   ],
   products: oems.flatMap((oem) =>
     (oem.productIds ?? []).map((productId) => ({
       id: productId,
+      ...approvedMasterVersion(productId),
       kind: "PRODUCT" as const,
       code: productId.toLocaleUpperCase("en-IN"),
       name: productId
         .split("-")
         .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
         .join(" "),
-      status: "ACTIVE" as const,
       oemId: oem.id,
       model: productId,
-      createdAt: masterTimestamp,
-      updatedAt: masterTimestamp,
     })),
   ),
   employers: [
@@ -163,13 +159,11 @@ const masters: MasterCatalogue = {
   ].map(
     ([employer, legalName]) => ({
       id: `employer-${employer}`,
+      ...approvedMasterVersion(`employer-${employer}`),
       kind: "EMPLOYER" as const,
       code: `EMPLOYER-${employer.toLocaleUpperCase("en-IN")}`,
       name: legalName,
-      status: "ACTIVE" as const,
       programmeCode: "SMART-EPP",
-      createdAt: masterTimestamp,
-      updatedAt: masterTimestamp,
     }),
   ),
 };

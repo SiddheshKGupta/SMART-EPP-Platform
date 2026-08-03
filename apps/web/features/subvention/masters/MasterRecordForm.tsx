@@ -34,6 +34,8 @@ function initialValues(kind: MasterKind, record?: MasterRecord) {
   return Object.fromEntries([
     ["code", record?.code ?? ""],
     ["name", record?.name ?? ""],
+    ["effectiveFrom", record?.effectiveFrom ?? ""],
+    ["effectiveTo", record?.effectiveTo ?? ""],
     ...definition.fields.map((field) => [
       field.key,
       record ? masterFieldValue(record, field.key).replace("—", "") : "",
@@ -51,13 +53,22 @@ function toMasterRecord(
     id:
       existing?.id ??
       `${kind.toLocaleLowerCase("en-IN")}-${crypto.randomUUID()}`,
+    logicalId: existing?.logicalId ?? "",
+    version: existing?.version ?? 1,
     kind,
     code: values.code.trim(),
     name: values.name.trim(),
-    status: existing?.status ?? ("ACTIVE" as const),
+    workflowStatus: existing?.workflowStatus ?? ("DRAFT" as const),
+    effectiveFrom: values.effectiveFrom,
+    effectiveTo: values.effectiveTo,
+    makerUserId: existing?.makerUserId ?? "",
+    checkerUserId: existing?.checkerUserId,
+    approvedAt: existing?.approvedAt,
+    supersedesVersionId: existing?.supersedesVersionId,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   };
+  if (!existing) base.logicalId = base.id;
 
   if (kind === "OEM") {
     return {
@@ -150,6 +161,27 @@ export function MasterRecordForm({
         </fieldset>
 
         <fieldset className="grid gap-4 sm:grid-cols-2">
+          <legend className="col-span-full mb-1 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Effective window</legend>
+          {[
+            { key: "effectiveFrom", label: "Effective from" },
+            { key: "effectiveTo", label: "Effective to" },
+          ].map((field) => (
+            <div className="space-y-1.5" key={field.key}>
+              <Label htmlFor={`master-${field.key}`}>{field.label}</Label>
+              <Input
+                id={`master-${field.key}`}
+                type="date"
+                value={values[field.key]}
+                onChange={(event) => update(field.key, event.target.value)}
+                aria-invalid={issueByField.has(field.key)}
+                required
+              />
+              {issueByField.has(field.key) && <p className="text-xs text-red-700">{issueByField.get(field.key)!.message}</p>}
+            </div>
+          ))}
+        </fieldset>
+
+        <fieldset className="grid gap-4 sm:grid-cols-2">
           <legend className="col-span-full mb-1 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">Configuration</legend>
           {definition.fields.map((field) => (
             <div className="space-y-1.5" key={field.key}>
@@ -190,7 +222,7 @@ export function MasterRecordForm({
 
       <div className="flex justify-end gap-2 border-t bg-slate-50 px-5 py-3">
         <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
-        <Button type="submit" disabled={pending}>{pending ? "Saving…" : "Save changes"}</Button>
+        <Button type="submit" disabled={pending}>{pending ? "Saving…" : "Save draft"}</Button>
       </div>
     </form>
   );

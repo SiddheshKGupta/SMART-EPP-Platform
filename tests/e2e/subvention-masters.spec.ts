@@ -12,13 +12,15 @@ test("master admin creates a reseller and sees its audit history", async ({ page
   await page.getByRole("button", { name: "Add reseller" }).click();
   await page.getByLabel("Code").fill("RS-NEW");
   await page.getByLabel("Name").fill("New Channel Systems Private Limited");
+  await page.getByLabel("Effective from").fill("2027-01-01");
+  await page.getByLabel("Effective to").fill("2027-12-31");
   await page.getByLabel("OEM").click();
   await page.getByRole("option", { name: "Apple" }).click();
   await page.getByLabel("National distributor").click();
   await page
     .getByRole("option", { name: "Ingram Micro India Private Limited" })
     .click();
-  await page.getByRole("button", { name: "Save changes" }).click();
+  await page.getByRole("button", { name: "Save draft" }).click();
 
   await expect(page.getByText("RS-NEW saved and logged.")).toBeVisible();
   await page.getByRole("button", { name: "View history" }).click();
@@ -31,13 +33,15 @@ test("failed duplicate save keeps the form and entered values", async ({ page })
   await page.getByRole("button", { name: "Add reseller" }).click();
   await page.getByLabel("Code").fill("RADIUS");
   await page.getByLabel("Name").fill("Duplicate Radius");
+  await page.getByLabel("Effective from").fill("2027-01-01");
+  await page.getByLabel("Effective to").fill("2027-12-31");
   await page.getByLabel("OEM").click();
   await page.getByRole("option", { name: "Apple" }).click();
   await page.getByLabel("National distributor").click();
   await page
     .getByRole("option", { name: "Ingram Micro India Private Limited" })
     .click();
-  await page.getByRole("button", { name: "Save changes" }).click();
+  await page.getByRole("button", { name: "Save draft" }).click();
 
   await expect(page.getByText("This record needs correction")).toBeVisible();
   await expect(page.getByLabel("Code")).toHaveValue("RADIUS");
