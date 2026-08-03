@@ -361,17 +361,18 @@ describe("subvention eligibility", () => {
     ).toBe("SCHEME_OUTSIDE_VALIDITY");
   });
 
-  it("returns ineligible when the product is not covered", () => {
+  it("returns review with zero eligible value when product scope has no mapping", () => {
     const decision = evaluateEligibility(
       eligibilityInputFixture({
         transaction: purchaseFixture({ productId: "iphone-17" }),
       }),
     );
 
-    expect(decision.status).toBe("INELIGIBLE");
+    expect(decision.status).toBe("EXCEPTION_REVIEW");
     expect(
       decision.ruleResults.find((rule) => rule.outcome !== "PASS")?.code,
-    ).toBe("PRODUCT_NOT_ELIGIBLE");
+    ).toBe("PROGRAMME_MAPPING_MISSING");
+    expect(decision.expectedAmountPaise).toBe(0);
   });
 
   it("returns exception review when the filing timeline expired", () => {
@@ -383,6 +384,7 @@ describe("subvention eligibility", () => {
     expect(
       decision.ruleResults.find((rule) => rule.outcome !== "PASS")?.code,
     ).toBe("FILING_TIMELINE_EXPIRED");
+    expect(decision.expectedAmountPaise).toBe(0);
   });
 
   it.each([
@@ -515,7 +517,7 @@ describe("subvention eligibility", () => {
       expect(
         decision.ruleResults.find((rule) => rule.outcome !== "PASS")?.code,
       ).toBe("EVALUATION_DATE_INVALID");
-      expect(decision.expectedAmountPaise).toBe(288_750);
+      expect(decision.expectedAmountPaise).toBe(0);
       expect(decision.filingDeadline).toBe("2026-10-13");
       expect(decision.ruleSnapshot?.schemeVersionId).toBe("scheme-version-1");
     },

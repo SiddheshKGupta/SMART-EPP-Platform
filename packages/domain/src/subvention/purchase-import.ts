@@ -5,6 +5,7 @@ import type {
   EmployerProgrammeMappingVersion,
   PurchaseTransaction,
   PurchaseTransactionInput,
+  SchemeVersion,
 } from "./types";
 
 export interface QuarantinedPurchaseImportRow {
@@ -34,6 +35,7 @@ export interface PurchaseImportContext {
   idForQuarantineRow: (rowNumber: number) => string;
   masterData: PurchaseImportMasterData;
   programmeMappings: EmployerProgrammeMappingVersion[];
+  schemes: SchemeVersion[];
   existingClaimedDeviceIdentifiers: ReadonlySet<string>;
   existingClaimedLeaseIds: ReadonlySet<string>;
   alternativePartnerDeviceIdentifiers: ReadonlySet<string>;
@@ -64,6 +66,7 @@ function importControlIssues(
       importedAt: context.importedAt,
     },
     context.programmeMappings,
+    context.schemes,
   );
 
   return [

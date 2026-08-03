@@ -37,6 +37,7 @@ export interface SchemeVersion {
   checkerUserId?: string;
   approvedAt?: string;
   createdAt: string;
+  supersedesVersionId?: string;
 }
 
 export type SchemeDraftInput = Omit<
@@ -78,6 +79,7 @@ export interface EmployerProgrammeMappingVersion {
   checkerUserId?: string;
   approvedAt?: string;
   createdAt: string;
+  supersedesVersionId?: string;
 }
 
 export type ProgrammeMappingDraftInput = Omit<

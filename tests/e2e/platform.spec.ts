@@ -47,6 +47,42 @@ test("subvention", async ({ page }) => {
   ).toBeVisible();
 });
 
+test("approval KPIs drill into exactly the submitted master type counted", async ({
+  page,
+}) => {
+  await page.goto("/subvention");
+
+  const schemes = page.getByRole("link", {
+    name: /Scheme approvals waiting 0/,
+  });
+  const mappings = page.getByRole("link", {
+    name: /Programme mapping approvals waiting 1/,
+  });
+  await expect(schemes).toBeVisible();
+  await expect(mappings).toBeVisible();
+
+  await mappings.click();
+  await expect(page).toHaveURL(
+    /subvention\/programme-mappings\?status=SUBMITTED/,
+  );
+  await expect(
+    page.getByRole("row", {
+      name: /employer-epsilon.*programme-samsung.*Submitted/i,
+    }),
+  ).toBeVisible();
+});
+
+test("moves focus to the destination heading after client navigation", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("link", { name: "Subvention" }).click();
+
+  await expect(
+    page.getByRole("heading", { name: "Subvention Control Desk" }),
+  ).toBeFocused();
+});
+
 test("every exposed route contract renders its heading and active filter", async ({
   page,
 }) => {

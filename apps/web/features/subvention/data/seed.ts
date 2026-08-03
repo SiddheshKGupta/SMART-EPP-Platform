@@ -531,11 +531,22 @@ function historicalAuditEvent(input: {
   actor: Actor;
   occurredAt: string;
   remarks: string;
+  beforeState?: unknown | null;
+  afterState?: unknown | null;
+  provenance?: AuditEvent["provenance"];
   metadata?: Record<string, unknown>;
 }): AuditEvent {
   auditSequence += 1;
   return {
     id: `audit-seed-${String(auditSequence).padStart(3, "0")}`,
+    beforeState: input.beforeState ?? null,
+    afterState: input.afterState ?? null,
+    provenance:
+      input.provenance ??
+      {
+        source: "SEED_HISTORY",
+        sourceEntityId: input.entityId,
+      },
     ...input,
   };
 }
@@ -551,6 +562,18 @@ const auditEvents: AuditEvent[] = [
         actor: actors[2]!,
         occurredAt: "2025-12-10T10:00:00.000Z",
         remarks: "Scheme configuration submitted for approval",
+        beforeState: {
+          ...scheme,
+          workflowStatus: "DRAFT",
+          checkerUserId: undefined,
+          approvedAt: undefined,
+        },
+        afterState: {
+          ...scheme,
+          workflowStatus: "SUBMITTED",
+          checkerUserId: undefined,
+          approvedAt: undefined,
+        },
       }),
       historicalAuditEvent({
         entityType: "SchemeVersion",
@@ -559,6 +582,13 @@ const auditEvents: AuditEvent[] = [
         actor: actors[1]!,
         occurredAt: scheme.approvedAt!,
         remarks: "Scheme configuration reviewed and approved",
+        beforeState: {
+          ...scheme,
+          workflowStatus: "SUBMITTED",
+          checkerUserId: undefined,
+          approvedAt: undefined,
+        },
+        afterState: scheme,
       }),
     ]),
   ...programmeMappings.flatMap((programmeMapping) => [
@@ -569,6 +599,18 @@ const auditEvents: AuditEvent[] = [
       actor: actors[2]!,
       occurredAt: "2026-06-15T10:00:00.000Z",
       remarks: "Programme mapping submitted for approval",
+      beforeState: {
+        ...programmeMapping,
+        workflowStatus: "DRAFT",
+        checkerUserId: undefined,
+        approvedAt: undefined,
+      },
+      afterState: {
+        ...programmeMapping,
+        workflowStatus: "SUBMITTED",
+        checkerUserId: undefined,
+        approvedAt: undefined,
+      },
     }),
     ...(programmeMapping.workflowStatus === "APPROVED"
       ? [
@@ -579,6 +621,13 @@ const auditEvents: AuditEvent[] = [
             actor: actors[1]!,
             occurredAt: programmeMapping.approvedAt!,
             remarks: "Programme mapping reviewed and approved",
+            beforeState: {
+              ...programmeMapping,
+              workflowStatus: "SUBMITTED",
+              checkerUserId: undefined,
+              approvedAt: undefined,
+            },
+            afterState: programmeMapping,
           }),
         ]
       : []),
@@ -591,6 +640,15 @@ const auditEvents: AuditEvent[] = [
       actor: actors[0]!,
       occurredAt: purchase.importedAt,
       remarks: "Purchase transaction imported",
+      beforeState: null,
+      afterState: purchase,
+      provenance: {
+        source: "PURCHASE_SOURCE_EVIDENCE",
+        sourceEntityId: purchase.id,
+        sourceChecksum: purchase.sourceEvidence.sourceChecksum,
+        sourceSheetName: purchase.sourceEvidence.sourceSheetName,
+        sourceRowNumber: purchase.sourceEvidence.sourceRowNumber,
+      },
     }),
   ),
   historicalAuditEvent({
@@ -600,6 +658,18 @@ const auditEvents: AuditEvent[] = [
     actor: actors[0]!,
     occurredAt: "2026-07-20T12:00:00.000Z",
     remarks: "Duplicate import row quarantined",
+    beforeState: null,
+    afterState: quarantinedImports[0],
+    provenance: {
+      source: "PURCHASE_SOURCE_EVIDENCE",
+      sourceEntityId: "seed-import-row-1",
+      sourceChecksum:
+        duplicateImportInput.sourceEvidence.sourceChecksum,
+      sourceSheetName:
+        duplicateImportInput.sourceEvidence.sourceSheetName,
+      sourceRowNumber:
+        duplicateImportInput.sourceEvidence.sourceRowNumber,
+    },
     metadata: {
       importId: "seed-import-1",
       rowNumber: 1,

@@ -23,6 +23,7 @@ import {
   type EmployerProgrammeMappingVersion,
   type MasterWorkflowStatus,
   type ProgrammeMappingEffectiveWindow,
+  type SchemeEffectiveWindow,
   type SchemeVersion,
 } from "@smart-epp/domain";
 import { AdaptiveSplitWorkspace } from "@/components/shared/AdaptiveSplitWorkspace";
@@ -31,7 +32,6 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -160,8 +160,8 @@ function WorkflowDialog({
   onOpenChange(open: boolean): void;
   onConfirm(
     remarks: string,
-    effectiveWindow?: ProgrammeMappingEffectiveWindow,
-  ): Promise<void>;
+    effectiveWindow?: ProgrammeMappingEffectiveWindow | SchemeEffectiveWindow,
+  ): Promise<boolean>;
 }) {
   const [remarks, setRemarks] = useState("");
   const [effectiveFrom, setEffectiveFrom] = useState("");
@@ -201,19 +201,19 @@ function WorkflowDialog({
       confirm: "Create draft version",
     },
   }[action];
-  const requiresSuccessorWindow =
-    action === "newVersion" && entityName === "programme mapping";
+  const requiresSuccessorWindow = action === "newVersion";
   const windowIsComplete =
     !requiresSuccessorWindow || Boolean(effectiveFrom && effectiveTo);
 
   const submit = async () => {
     if (!remarks.trim() || !windowIsComplete) return;
-    await onConfirm(
+    const succeeded = await onConfirm(
       remarks,
       requiresSuccessorWindow
         ? { effectiveFrom, effectiveTo }
         : undefined,
     );
+    if (!succeeded) return;
     setRemarks("");
     setEffectiveFrom("");
     setEffectiveTo("");
@@ -294,7 +294,7 @@ function RejectDialog({
   entityName: "scheme" | "programme mapping";
   busy: boolean;
   onOpenChange(open: boolean): void;
-  onConfirm(remarks: string): Promise<void>;
+  onConfirm(remarks: string): Promise<boolean>;
 }) {
   const [remarks, setRemarks] = useState("");
 
@@ -319,16 +319,18 @@ function RejectDialog({
         </div>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction
+          <Button
             variant="destructive"
             disabled={!remarks.trim() || busy}
-            onClick={() => {
-              void onConfirm(remarks);
+            onClick={async () => {
+              const succeeded = await onConfirm(remarks);
+              if (!succeeded) return;
               setRemarks("");
+              onOpenChange(false);
             }}
           >
             Confirm rejection
-          </AlertDialogAction>
+          </Button>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
@@ -631,6 +633,7 @@ export function SchemeProgrammeWorkspace({
         const resolution = resolveProgrammeMapping(
           transaction,
           store.snapshot.programmeMappings,
+          store.snapshot.schemes,
         );
         if (resolution.status === "RESOLVED") return [];
         const key = [
@@ -652,53 +655,74 @@ export function SchemeProgrammeWorkspace({
         ];
       },
     );
-  }, [store.snapshot.programmeMappings, store.snapshot.transactions]);
-  const employerScope =
-    initialEmployerId &&
-    (store.snapshot.programmeMappings.some(
-      (mapping) => mapping.employerId === initialEmployerId,
-    ) ||
-      mappingConflicts.some(
-        (conflict) => conflict.employerId === initialEmployerId,
-      ))
-      ? initialEmployerId
-      : undefined;
-  const programmeScope =
-    initialProgrammeId &&
-    (store.snapshot.programmeMappings.some(
-      (mapping) => mapping.programmeId === initialProgrammeId,
-    ) ||
-      mappingConflicts.some(
-        (conflict) => conflict.programmeId === initialProgrammeId,
-      ))
-      ? initialProgrammeId
-      : undefined;
+  }, [
+    store.snapshot.programmeMappings,
+    store.snapshot.schemes,
+    store.snapshot.transactions,
+  ]);
+  const normalizedInitialStatus = statuses.includes(
+    initialStatus as MasterWorkflowStatus,
+  )
+    ? (initialStatus as MasterWorkflowStatus)
+    : "ALL";
+  const statusMatches = (
+    record: EmployerProgrammeMappingVersion | MappingConflict,
+  ) =>
+    normalizedInitialStatus === "ALL" ||
+    ("workflowStatus" in record
+      ? record.workflowStatus === normalizedInitialStatus
+      : normalizedInitialStatus === "REJECTED");
+  const requestedScopeIsComplete = Boolean(
+    initialEmployerId && initialProgrammeId,
+  );
+  const requestedScopeExists =
+    requestedScopeIsComplete &&
+    [
+      ...store.snapshot.programmeMappings,
+      ...mappingConflicts,
+    ].some(
+      (record) =>
+        record.employerId === initialEmployerId &&
+        record.programmeId === initialProgrammeId &&
+        statusMatches(record),
+    );
+  const employerScope = requestedScopeExists
+    ? initialEmployerId
+    : undefined;
+  const programmeScope = requestedScopeExists
+    ? initialProgrammeId
+    : undefined;
+  const requestedMapping = store.snapshot.programmeMappings.find(
+    (mapping) =>
+      mapping.id === initialMappingId &&
+      statusMatches(mapping) &&
+      (!initialEmployerId || mapping.employerId === initialEmployerId) &&
+      (!initialProgrammeId || mapping.programmeId === initialProgrammeId) &&
+      (!(initialEmployerId || initialProgrammeId) || requestedScopeExists),
+  );
   const initialSelectedId =
     initialView === "schemes"
       ? store.snapshot.schemes.find((scheme) => scheme.id === initialSchemeId)
           ?.id
-      : store.snapshot.programmeMappings.find(
-            (mapping) => mapping.id === initialMappingId,
-          )?.id ??
-        (employerScope && programmeScope
+      : initialMappingId
+        ? requestedMapping?.id
+        : employerScope && programmeScope
           ? mappingConflicts.find(
               (conflict) =>
                 conflict.employerId === employerScope &&
-                conflict.programmeId === programmeScope,
+                conflict.programmeId === programmeScope &&
+                statusMatches(conflict),
             )?.id ??
             store.snapshot.programmeMappings.find(
               (mapping) =>
                 mapping.employerId === employerScope &&
-                mapping.programmeId === programmeScope,
+                mapping.programmeId === programmeScope &&
+                statusMatches(mapping),
             )?.id
-          : undefined);
+          : undefined;
   const [view, setView] = useState<MasterView>(initialView);
   const [search, setSearch] = useState("");
-  const [status, setStatus] = useState(() =>
-    statuses.includes(initialStatus as MasterWorkflowStatus)
-      ? initialStatus!
-      : "ALL",
-  );
+  const [status, setStatus] = useState<string>(normalizedInitialStatus);
   const [oem, setOem] = useState("ALL");
   const [effectiveOn, setEffectiveOn] = useState("");
   const [selectedId, setSelectedId] = useState<string | undefined>(
@@ -804,47 +828,61 @@ export function SchemeProgrammeWorkspace({
 
   const runWorkflow = async (
     remarks: string,
-    effectiveWindow?: ProgrammeMappingEffectiveWindow,
-  ) => {
+    effectiveWindow?: ProgrammeMappingEffectiveWindow | SchemeEffectiveWindow,
+  ): Promise<boolean> => {
     if (selectedScheme) {
       if (workflowAction === "submit") {
-        await store.submitScheme(selectedScheme.id, remarks);
+        return (await store.submitScheme(selectedScheme.id, remarks)).ok;
       } else if (workflowAction === "approve") {
-        await store.approveScheme(selectedScheme.id, remarks);
+        return (await store.approveScheme(selectedScheme.id, remarks)).ok;
       } else if (workflowAction === "return") {
-        await store.returnScheme(selectedScheme.id, remarks);
+        return (await store.returnScheme(selectedScheme.id, remarks)).ok;
       } else if (workflowAction === "newVersion") {
-        const id = await store.createNextSchemeVersion(
+        if (!effectiveWindow) return false;
+        const result = await store.createNextSchemeVersion(
           selectedScheme.id,
           remarks,
+          effectiveWindow,
         );
-        if (id) setSelectedId(id);
+        if (result.ok) setSelectedId(result.value);
+        return result.ok;
       }
     } else if (selectedMapping) {
       if (workflowAction === "submit") {
-        await store.submitProgrammeMapping(selectedMapping.id, remarks);
+        return (
+          await store.submitProgrammeMapping(selectedMapping.id, remarks)
+        ).ok;
       } else if (workflowAction === "approve") {
-        await store.approveProgrammeMapping(selectedMapping.id, remarks);
+        return (
+          await store.approveProgrammeMapping(selectedMapping.id, remarks)
+        ).ok;
       } else if (workflowAction === "return") {
-        await store.returnProgrammeMapping(selectedMapping.id, remarks);
+        return (
+          await store.returnProgrammeMapping(selectedMapping.id, remarks)
+        ).ok;
       } else if (workflowAction === "newVersion") {
-        if (!effectiveWindow) return;
-        const id = await store.createNextProgrammeMappingVersion(
+        if (!effectiveWindow) return false;
+        const result = await store.createNextProgrammeMappingVersion(
           selectedMapping.id,
           remarks,
           effectiveWindow,
         );
-        if (id) setSelectedId(id);
+        if (result.ok) setSelectedId(result.value);
+        return result.ok;
       }
     }
+    return false;
   };
 
-  const reject = async (remarks: string) => {
+  const reject = async (remarks: string): Promise<boolean> => {
     if (selectedScheme) {
-      await store.rejectScheme(selectedScheme.id, remarks);
+      return (await store.rejectScheme(selectedScheme.id, remarks)).ok;
     } else if (selectedMapping) {
-      await store.rejectProgrammeMapping(selectedMapping.id, remarks);
+      return (
+        await store.rejectProgrammeMapping(selectedMapping.id, remarks)
+      ).ok;
     }
+    return false;
   };
 
   const masterList = (
@@ -1005,7 +1043,9 @@ export function SchemeProgrammeWorkspace({
           variant="outline"
           disabled={
             !canMaintainMaster ||
-            (selectedScheme ?? selectedMapping)!.workflowStatus !== "DRAFT"
+            !["DRAFT", "RETURNED"].includes(
+              (selectedScheme ?? selectedMapping)!.workflowStatus,
+            )
           }
           onClick={() => setDetailTab("configuration")}
         >

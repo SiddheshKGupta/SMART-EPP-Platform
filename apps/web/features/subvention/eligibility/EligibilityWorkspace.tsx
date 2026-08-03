@@ -332,10 +332,11 @@ export function EligibilityWorkspace({
     const selectedRows = rows.filter((row) =>
       checkedIds.has(row.transaction.id),
     );
-    const decisions = await store.evaluateTransactions(
+    const result = await store.evaluateTransactions(
       selectedRows.map((row) => row.transaction.id),
     );
-    if (!decisions) return;
+    if (!result.ok) return;
+    const decisions = result.value;
     const outcomes: BulkResult["outcomes"] = {};
     decisions.forEach((decision) => {
       const outcome = outcomes[decision.status] ?? {
@@ -383,7 +384,11 @@ export function EligibilityWorkspace({
         <span>{checkedIds.size} selected</span>
         <Button
           size="sm"
-          disabled={checkedIds.size === 0 || store.isRefreshing}
+          disabled={
+            checkedIds.size === 0 ||
+            store.isRefreshing ||
+            store.activeActor.role !== "SALES_OPS_MAKER"
+          }
           onClick={() => void evaluateBulk()}
         >
           <CheckSquare2 aria-hidden />
@@ -532,7 +537,10 @@ export function EligibilityWorkspace({
           Each evaluation appends a versioned rule snapshot.
         </span>
         <Button
-          disabled={store.isRefreshing}
+          disabled={
+            store.isRefreshing ||
+            store.activeActor.role !== "SALES_OPS_MAKER"
+          }
           onClick={() => void evaluateSelected()}
         >
           Evaluate eligibility

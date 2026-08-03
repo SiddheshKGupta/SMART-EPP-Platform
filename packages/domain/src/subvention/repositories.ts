@@ -22,7 +22,6 @@ export type AuditAction =
   | "PROGRAMME_MAPPING_DRAFT_SAVED"
   | "PROGRAMME_MAPPING_SUBMITTED"
   | "PROGRAMME_MAPPING_APPROVED"
-  | "PROGRAMME_MAPPING_EFFECTIVE_PERIOD_CLOSED"
   | "PROGRAMME_MAPPING_RETURNED"
   | "PROGRAMME_MAPPING_REJECTED"
   | "PURCHASE_IMPORTED"
@@ -42,6 +41,18 @@ export interface AuditEvent {
   actor: Actor;
   occurredAt: string;
   remarks: string;
+  beforeState: unknown | null;
+  afterState: unknown | null;
+  provenance: {
+    source:
+      | "SUBVENTION_REPOSITORY_COMMAND"
+      | "PURCHASE_SOURCE_EVIDENCE"
+      | "SEED_HISTORY";
+    sourceEntityId: string;
+    sourceChecksum?: string;
+    sourceSheetName?: string;
+    sourceRowNumber?: number;
+  };
   metadata?: Record<string, unknown>;
 }
 
@@ -109,6 +120,7 @@ export interface SchemeRepository {
     id: string,
     actor: Actor,
     remarks: string,
+    effectiveWindow: SchemeEffectiveWindow,
   ): Promise<SchemeVersion>;
 }
 
@@ -151,6 +163,11 @@ export interface ProgrammeMappingRepository {
 }
 
 export interface ProgrammeMappingEffectiveWindow {
+  effectiveFrom: string;
+  effectiveTo: string;
+}
+
+export interface SchemeEffectiveWindow {
   effectiveFrom: string;
   effectiveTo: string;
 }

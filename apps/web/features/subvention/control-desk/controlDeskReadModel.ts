@@ -17,11 +17,13 @@ export type DeadlineState =
 export interface ControlDeskTransactionReadModel {
   transaction: PurchaseTransaction;
   decision: EligibilityDecision;
+  decisionKind: "PERSISTED" | "PREVIEW";
   deadlineState: DeadlineState;
 }
 
 export interface ControlDeskReadModel {
   transactions: ControlDeskTransactionReadModel[];
+  awaitingEvaluation: ControlDeskTransactionReadModel[];
   deadlineExceptions: ControlDeskTransactionReadModel[];
   blockedTransactions: ControlDeskTransactionReadModel[];
   approvalQueue: Array<{
@@ -122,6 +124,7 @@ export function selectControlDeskReadModel(
       return {
         transaction,
         decision,
+        decisionKind: persisted ? ("PERSISTED" as const) : ("PREVIEW" as const),
         deadlineState: deadlineStateFor(
           decision.filingDeadline,
           evaluationDate,
@@ -129,15 +132,22 @@ export function selectControlDeskReadModel(
       };
     });
 
+  const awaitingEvaluation = transactions.filter(
+    (row) => row.decisionKind === "PREVIEW",
+  );
+
   return {
     transactions,
+    awaitingEvaluation,
     deadlineExceptions: transactions.filter(
       (row) =>
         row.deadlineState === "OVERDUE" ||
         row.deadlineState === "DUE_WITHIN_7_DAYS",
     ),
     blockedTransactions: transactions.filter(
-      (row) => row.decision.status !== "ELIGIBLE",
+      (row) =>
+        row.decisionKind === "PERSISTED" &&
+        row.decision.status !== "ELIGIBLE",
     ),
     approvalQueue: [
       ...snapshot.schemes

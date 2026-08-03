@@ -1,4 +1,7 @@
-import { dateIsWithinInclusive } from "./dates";
+import {
+  dateIsWithinInclusive,
+  intervalsOverlapInclusive,
+} from "./dates";
 import { issue, type DomainIssue } from "./issues";
 import type {
   CalculationBasis,
@@ -28,16 +31,71 @@ function optionalConstraintOverlaps(
   return left === undefined || right === undefined || left === right;
 }
 
+function mappingProductScope(
+  mapping: EmployerProgrammeMappingVersion,
+  schemes: SchemeVersion[],
+): string[] | undefined {
+  if (mapping.overrides?.eligibleProductIds) {
+    return mapping.overrides.eligibleProductIds;
+  }
+  return schemes.find((scheme) => scheme.id === mapping.schemeVersionId)
+    ?.eligibleProductIds;
+}
+
+function productScopesOverlap(
+  left: string[] | undefined,
+  right: string[] | undefined,
+): boolean {
+  if (!left || !right) return true;
+  const rightProducts = new Set(right);
+  return left.some((productId) => rightProducts.has(productId));
+}
+
 export function programmeMappingScopesOverlap(
   left: EmployerProgrammeMappingVersion,
   right: EmployerProgrammeMappingVersion,
+  schemes: SchemeVersion[] = [],
 ): boolean {
   return (
     left.employerId === right.employerId &&
     left.programmeId === right.programmeId &&
     left.oemId === right.oemId &&
     optionalConstraintOverlaps(left.resellerId, right.resellerId) &&
-    optionalConstraintOverlaps(left.distributorId, right.distributorId)
+    optionalConstraintOverlaps(left.distributorId, right.distributorId) &&
+    productScopesOverlap(
+      mappingProductScope(left, schemes),
+      mappingProductScope(right, schemes),
+    ) &&
+    intervalsOverlapInclusive(
+      left.effectiveFrom,
+      left.effectiveTo,
+      right.effectiveFrom,
+      right.effectiveTo,
+    )
+  );
+}
+
+export function programmeMappingMatchesTransaction(
+  mapping: EmployerProgrammeMappingVersion,
+  transaction: PurchaseTransaction,
+  schemes: SchemeVersion[] = [],
+): boolean {
+  const products = mappingProductScope(mapping, schemes);
+  return (
+    mapping.workflowStatus === "APPROVED" &&
+    mapping.employerId === transaction.employerId &&
+    mapping.programmeId === transaction.programmeId &&
+    mapping.oemId === transaction.oemId &&
+    (mapping.resellerId === undefined ||
+      mapping.resellerId === transaction.resellerId) &&
+    (mapping.distributorId === undefined ||
+      mapping.distributorId === transaction.distributorId) &&
+    (products === undefined || products.includes(transaction.productId)) &&
+    dateIsWithinInclusive(
+      transaction.invoiceDate,
+      mapping.effectiveFrom,
+      mapping.effectiveTo,
+    )
   );
 }
 
@@ -65,21 +123,18 @@ function mappingIssue(
 export function resolveProgrammeMapping(
   transaction: PurchaseTransaction,
   mappings: EmployerProgrammeMappingVersion[],
+  schemes: SchemeVersion[] = [],
 ): MappingResolution {
-  const matches = mappings.filter(
-    (mapping) =>
-      mapping.workflowStatus === "APPROVED" &&
-      mapping.employerId === transaction.employerId &&
-      mapping.programmeId === transaction.programmeId &&
-      mapping.oemId === transaction.oemId &&
-      (mapping.resellerId === undefined ||
-        mapping.resellerId === transaction.resellerId) &&
-      (mapping.distributorId === undefined ||
-        mapping.distributorId === transaction.distributorId) &&
-      dateIsWithinInclusive(
-        transaction.invoiceDate,
-        mapping.effectiveFrom,
-        mapping.effectiveTo,
+  const matchingCandidates = mappings.filter((mapping) =>
+    programmeMappingMatchesTransaction(mapping, transaction, schemes),
+  );
+  const matches = matchingCandidates.filter(
+    (candidate) =>
+      !mappings.some(
+        (successor) =>
+          successor.workflowStatus === "APPROVED" &&
+          successor.supersedesVersionId === candidate.id &&
+          transaction.invoiceDate >= successor.effectiveFrom,
       ),
   );
 
@@ -98,6 +153,44 @@ export function resolveProgrammeMapping(
       ),
     ],
   };
+}
+
+export function assertProgrammeMappingApprovalValid(
+  mapping: EmployerProgrammeMappingVersion,
+  schemes: SchemeVersion[],
+): SchemeVersion {
+  const scheme = schemes.find(
+    (candidate) => candidate.id === mapping.schemeVersionId,
+  );
+  if (!scheme) throw new Error("Mapped scheme version was not found");
+  if (scheme.workflowStatus !== "APPROVED") {
+    throw new Error("Mapped scheme version must be approved");
+  }
+  if (scheme.oemId !== mapping.oemId) {
+    throw new Error("Mapped scheme OEM does not match the programme mapping");
+  }
+  const overrideProducts = mapping.overrides?.eligibleProductIds;
+  if (
+    overrideProducts?.some(
+      (productId) => !scheme.eligibleProductIds.includes(productId),
+    )
+  ) {
+    throw new Error(
+      "Programme mapping product scope is not supported by the mapped scheme",
+    );
+  }
+  if (
+    scheme.distributorId &&
+    mapping.distributorId !== scheme.distributorId
+  ) {
+    throw new Error(
+      "Programme mapping distributor is not supported by the mapped scheme",
+    );
+  }
+  if (mapping.overrides && !mapping.overrides.approvalReference.trim()) {
+    throw new Error("Programme override requires an approval reference");
+  }
+  return scheme;
 }
 
 function requireValue<T>(value: T | undefined, field: string): T {

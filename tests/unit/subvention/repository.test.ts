@@ -189,7 +189,7 @@ function seedFixture(overrides: Partial<SubventionSeed> = {}): SubventionSeed {
       },
     ],
     schemes: [
-      schemeFixture(),
+      schemeFixture({ priority: 20 }),
       schemeFixture({
         id: "scheme-version-approved",
         version: 2,
@@ -206,6 +206,9 @@ function seedFixture(overrides: Partial<SubventionSeed> = {}): SubventionSeed {
     actors: [
       { userId: "maker-1", role: "SALES_OPS_MAKER" },
       { userId: "checker-1", role: "BUSINESS_HEAD_CHECKER" },
+      { userId: "master-admin-1", role: "MASTER_DATA_ADMIN" },
+      { userId: "management-1", role: "MANAGEMENT_VIEWER" },
+      { userId: "auditor-1", role: "AUDITOR" },
     ],
     purchaseImportMasterData: {
       employerIds: new Set(["employer-1"]),
@@ -269,7 +272,7 @@ describe("subvention repository", () => {
         { userId: "maker-1", role: "BUSINESS_HEAD_CHECKER" },
         "Self approve",
       ),
-    ).rejects.toThrow("Maker cannot approve own work");
+    ).rejects.toThrow("Actor maker-1 is not configured");
     await repository.approveScheme(
       "scheme-version-draft",
       { userId: "checker-1", role: "BUSINESS_HEAD_CHECKER" },
@@ -336,6 +339,10 @@ describe("subvention repository", () => {
       "scheme-version-approved",
       maker,
       "Start the next controlled version",
+      {
+        effectiveFrom: "2027-01-01",
+        effectiveTo: "2027-06-30",
+      },
     );
     const mapping = await repository.createNextProgrammeMappingVersion(
       "mapping-version-1",
@@ -416,6 +423,10 @@ describe("subvention repository", () => {
       "scheme-version-approved",
       actor,
       "Prepare the controlled successor",
+      {
+        effectiveFrom: "2027-01-01",
+        effectiveTo: "2027-06-30",
+      },
     );
     expect(next.makerUserId).toBe(actor.userId);
 
@@ -432,7 +443,7 @@ describe("subvention repository", () => {
     });
   });
 
-  it("atomically closes the prior mapping window when approving its successor", async () => {
+  it("preserves the approved predecessor when approving an explicit successor", async () => {
     const prior = mappingFixture();
     const successor = mappingFixture({
       id: "mapping-version-2",
@@ -458,23 +469,20 @@ describe("subvention repository", () => {
       await repository.getProgrammeMapping(prior.id),
     ).toMatchObject({
       workflowStatus: "APPROVED",
-      effectiveTo: "2026-09-30",
+      effectiveTo: "2026-12-31",
     });
     expect(
       await repository.getProgrammeMapping(successor.id),
     ).toMatchObject({
       workflowStatus: "APPROVED",
       effectiveFrom: "2026-10-01",
+      supersedesVersionId: prior.id,
     });
     expect(
       (await repository.listAuditEvents()).map(
         ({ entityId, action }) => ({ entityId, action }),
       ),
     ).toEqual([
-      {
-        entityId: prior.id,
-        action: "PROGRAMME_MAPPING_EFFECTIVE_PERIOD_CLOSED",
-      },
       {
         entityId: successor.id,
         action: "PROGRAMME_MAPPING_APPROVED",
@@ -1039,7 +1047,7 @@ describe("subvention repository", () => {
         { userId: "maker-1", role: "BUSINESS_HEAD_CHECKER" },
         "Self approve",
       ),
-    ).rejects.toThrow("Maker cannot approve own work");
+    ).rejects.toThrow("Actor maker-1 is not configured");
     const approved = await repository.approveProgrammeMapping(
       submitted.id,
       { userId: "checker-1", role: "BUSINESS_HEAD_CHECKER" },
@@ -1404,5 +1412,189 @@ describe("subvention repository", () => {
         expect(submission?.occurredAt < approval!.occurredAt).toBe(true);
         expect(approval?.occurredAt).toBe(scheme.approvedAt);
       });
+  });
+
+  it("requires an explicit non-overlapping window for a scheme successor", async () => {
+    const repository = createRepositoryFixture();
+    const successor = await repository.createNextSchemeVersion(
+      "scheme-version-approved",
+      { userId: "maker-1", role: "SALES_OPS_MAKER" },
+      "Create the next controlled window",
+      {
+        effectiveFrom: "2027-01-01",
+        effectiveTo: "2027-06-30",
+      },
+    );
+
+    expect(successor).toMatchObject({
+      effectiveFrom: "2027-01-01",
+      effectiveTo: "2027-06-30",
+      supersedesVersionId: "scheme-version-approved",
+    });
+  });
+
+  it("rejects scheme approval when an equal-priority product window overlaps", async () => {
+    const overlapping = schemeFixture({
+      id: "scheme-overlap",
+      version: 3,
+      workflowStatus: "SUBMITTED",
+      checkerUserId: undefined,
+      approvedAt: undefined,
+    });
+    const repository = createRepositoryFixture(
+      seedFixture({
+        schemes: [
+          schemeFixture({
+            id: "scheme-version-approved",
+            version: 2,
+            workflowStatus: "APPROVED",
+          }),
+          overlapping,
+        ],
+      }),
+    );
+
+    await expect(
+      repository.approveScheme(
+        overlapping.id,
+        { userId: "checker-1", role: "BUSINESS_HEAD_CHECKER" },
+        "Attempt overlapping approval",
+      ),
+    ).rejects.toEqual([
+      expect.objectContaining({ code: "SCHEME_OVERLAP" }),
+    ]);
+  });
+
+  it("validates mapped scheme integrity before mapping approval", async () => {
+    const submitted = mappingFixture({
+      id: "mapping-submitted-invalid-scheme",
+      workflowStatus: "SUBMITTED",
+      checkerUserId: undefined,
+      approvedAt: undefined,
+      schemeVersionId: "scheme-version-missing",
+    });
+    const repository = createRepositoryFixture(
+      seedFixture({ programmeMappings: [submitted] }),
+    );
+
+    await expect(
+      repository.approveProgrammeMapping(
+        submitted.id,
+        { userId: "checker-1", role: "BUSINESS_HEAD_CHECKER" },
+        "Attempt invalid mapping approval",
+      ),
+    ).rejects.toThrow("Mapped scheme version was not found");
+  });
+
+  it("rejects whitespace override authority before mapping approval", async () => {
+    const submitted = mappingFixture({
+      id: "mapping-submitted-blank-authority",
+      workflowStatus: "SUBMITTED",
+      checkerUserId: undefined,
+      approvedAt: undefined,
+      overrides: {
+        rateBps: 300,
+        approvalReference: "   ",
+      },
+    });
+    const repository = createRepositoryFixture(
+      seedFixture({ programmeMappings: [submitted] }),
+    );
+
+    await expect(
+      repository.approveProgrammeMapping(
+        submitted.id,
+        { userId: "checker-1", role: "BUSINESS_HEAD_CHECKER" },
+        "Attempt blank authority approval",
+      ),
+    ).rejects.toThrow("Programme override requires an approval reference");
+  });
+
+  it("allows a returned master to be edited as a draft and resubmitted", async () => {
+    const returnedScheme = schemeFixture({ workflowStatus: "RETURNED" });
+    const returnedMapping = mappingFixture({ workflowStatus: "RETURNED" });
+    const repository = createRepositoryFixture(
+      seedFixture({
+        schemes: [returnedScheme],
+        programmeMappings: [returnedMapping],
+      }),
+    );
+    const maker = { userId: "maker-1", role: "SALES_OPS_MAKER" };
+
+    const savedScheme = await repository.saveSchemeDraft(
+      { ...returnedScheme, name: "Corrected scheme", workflowStatus: "DRAFT" },
+      maker,
+      "Apply checker corrections",
+    );
+    const savedMapping = await repository.saveProgrammeMappingDraft(
+      {
+        ...returnedMapping,
+        effectiveTo: "2027-01-31",
+        workflowStatus: "DRAFT",
+      },
+      maker,
+      "Apply mapping corrections",
+    );
+
+    expect(savedScheme.workflowStatus).toBe("DRAFT");
+    expect(savedMapping.workflowStatus).toBe("DRAFT");
+    await expect(
+      repository.submitScheme(savedScheme.id, maker, "Resubmit correction"),
+    ).resolves.toMatchObject({ workflowStatus: "SUBMITTED" });
+    await expect(
+      repository.submitProgrammeMapping(
+        savedMapping.id,
+        maker,
+        "Resubmit correction",
+      ),
+    ).resolves.toMatchObject({ workflowStatus: "SUBMITTED" });
+  });
+
+  it.each([
+    ["MANAGEMENT_VIEWER", "management-1"],
+    ["AUDITOR", "auditor-1"],
+  ])("keeps %s read-only for import and evaluation", async (role, userId) => {
+    const repository = createRepositoryFixture();
+    const actor = { userId, role };
+
+    await expect(
+      repository.importTransactions([purchaseInputFixture()], actor),
+    ).rejects.toThrow(`${role} is not authorized to IMPORT_PURCHASE`);
+    await expect(
+      repository.evaluateTransaction("purchase-1", actor),
+    ).rejects.toThrow(`${role} is not authorized to EVALUATE_ELIGIBILITY`);
+  });
+
+  it("rejects a command actor outside the configured identity set", async () => {
+    const repository = createRepositoryFixture();
+
+    await expect(
+      repository.evaluateTransaction("purchase-1", {
+        userId: "forged-maker",
+        role: "SALES_OPS_MAKER",
+      }),
+    ).rejects.toThrow("Actor forged-maker is not configured");
+  });
+
+  it("records immutable before, after, and provenance on material events", async () => {
+    const repository = createRepositoryFixture();
+    await repository.submitScheme(
+      "scheme-version-draft",
+      { userId: "maker-1", role: "SALES_OPS_MAKER" },
+      "Ready for review",
+    );
+
+    const [event] = await repository.listForEntity(
+      "SchemeVersion",
+      "scheme-version-draft",
+    );
+    expect(event).toMatchObject({
+      beforeState: { workflowStatus: "DRAFT" },
+      afterState: { workflowStatus: "SUBMITTED" },
+      provenance: {
+        source: "SUBVENTION_REPOSITORY_COMMAND",
+        sourceEntityId: "scheme-version-draft",
+      },
+    });
   });
 });

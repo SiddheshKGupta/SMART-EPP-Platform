@@ -22,7 +22,9 @@ describe("control desk read model", () => {
     expect(
       rows
         .get("transaction-product-ineligible-01")
-        ?.decision.ruleResults.some((rule) => rule.code === "PRODUCT_NOT_ELIGIBLE"),
+        ?.decision.ruleResults.some(
+          (rule) => rule.code === "PROGRAMME_MAPPING_MISSING",
+        ),
     ).toBe(true);
     expect(
       rows
@@ -105,6 +107,23 @@ describe("control desk read model", () => {
     )!;
 
     expect(row.decision).toEqual(persisted);
+    expect(row.decisionKind).toBe("PERSISTED");
+    expect(
+      model.awaitingEvaluation.some(
+        (candidate) =>
+          candidate.transaction.id === "transaction-eligible-01",
+      ),
+    ).toBe(false);
     expect(snapshot).toEqual(before);
+  });
+
+  it("retains unevaluated rows as a true awaiting-evaluation population", () => {
+    const { model } = modelForSeed();
+    const awaiting = model.awaitingEvaluation.find(
+      (row) => row.transaction.id === "transaction-eligible-01",
+    );
+
+    expect(awaiting?.decisionKind).toBe("PREVIEW");
+    expect(model.awaitingEvaluation).toHaveLength(model.transactions.length);
   });
 });

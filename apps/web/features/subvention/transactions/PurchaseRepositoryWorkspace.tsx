@@ -415,7 +415,7 @@ export function PurchaseRepositoryWorkspace() {
     setImportOpen(true);
     setImporting(true);
     const result = await store.importTransactions(syntheticImportRows(base));
-    setImportResult(result);
+    setImportResult(result.ok ? result.value : undefined);
     setImporting(false);
   };
 
@@ -794,7 +794,10 @@ export function PurchaseRepositoryWorkspace() {
             eligibility, deadline and expected subvention.
           </p>
         </div>
-        <Button onClick={() => void runSyntheticImport()}>
+        <Button
+          disabled={store.activeActor.role !== "SALES_OPS_MAKER"}
+          onClick={() => void runSyntheticImport()}
+        >
           <Upload aria-hidden />
           Import transactions
         </Button>

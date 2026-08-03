@@ -167,6 +167,42 @@ describe("employer programme mapping resolution", () => {
     expect(result.status).toBe("MISSING");
   });
 
+  it("does not resolve a mapping outside its effective product scope", () => {
+    const result = resolveProgrammeMapping(
+      purchaseFixture({ productId: "iphone-17" }),
+      [mappingFixture()],
+      [schemeFixture()],
+    );
+
+    expect(result.status).toBe("MISSING");
+  });
+
+  it("selects an explicit successor without mutating the predecessor window", () => {
+    const result = resolveProgrammeMapping(
+      purchaseFixture({ invoiceDate: "2026-08-15" }),
+      [
+        mappingFixture({
+          id: "map-v1",
+          version: 1,
+          effectiveTo: "2026-09-30",
+        }),
+        mappingFixture({
+          id: "map-v2",
+          version: 2,
+          effectiveFrom: "2026-08-01",
+          effectiveTo: "2026-12-31",
+          supersedesVersionId: "map-v1",
+        }),
+      ],
+      [schemeFixture()],
+    );
+
+    expect(result).toMatchObject({
+      status: "RESOLVED",
+      mapping: { id: "map-v2" },
+    });
+  });
+
   it("selects the configured distributor path when mappings share employer scope", () => {
     const result = resolveProgrammeMapping(
       purchaseFixture({ distributorId: "distributor-redington" }),

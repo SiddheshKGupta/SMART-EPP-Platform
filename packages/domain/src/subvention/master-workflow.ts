@@ -9,6 +9,30 @@ export interface VersionedMaster {
 
 export type MasterAction = "SUBMIT" | "APPROVE" | "RETURN" | "REJECT";
 export type MasterMutationAction = "CREATE" | "SAVE" | MasterAction;
+export type SubventionCommandAction =
+  | MasterMutationAction
+  | "IMPORT_PURCHASE"
+  | "EVALUATE_ELIGIBILITY";
+
+const commandRoles: Record<SubventionCommandAction, readonly string[]> = {
+  CREATE: ["SALES_OPS_MAKER", "MASTER_DATA_ADMIN"],
+  SAVE: ["SALES_OPS_MAKER", "MASTER_DATA_ADMIN"],
+  SUBMIT: ["SALES_OPS_MAKER"],
+  APPROVE: ["BUSINESS_HEAD_CHECKER"],
+  RETURN: ["BUSINESS_HEAD_CHECKER"],
+  REJECT: ["BUSINESS_HEAD_CHECKER"],
+  IMPORT_PURCHASE: ["SALES_OPS_MAKER"],
+  EVALUATE_ELIGIBILITY: ["SALES_OPS_MAKER"],
+};
+
+export function assertSubventionCommandAuthorized(
+  actor: Actor,
+  action: SubventionCommandAction,
+): void {
+  if (!commandRoles[action].includes(actor.role)) {
+    throw new Error(`${actor.role} is not authorized to ${action}`);
+  }
+}
 
 const allowed = {
   DRAFT: ["SUBMIT"],
@@ -31,14 +55,9 @@ export function assertMasterMutationAuthorized(
   actor: Actor,
   action: MasterMutationAction,
 ): void {
-  const authorized =
-    action === "CREATE" || action === "SAVE"
-      ? actor.role === "SALES_OPS_MAKER" ||
-        actor.role === "MASTER_DATA_ADMIN"
-      : action === "SUBMIT"
-        ? actor.role === "SALES_OPS_MAKER"
-        : actor.role === "BUSINESS_HEAD_CHECKER";
-  if (!authorized) {
+  try {
+    assertSubventionCommandAuthorized(actor, action);
+  } catch {
     throw new Error(
       `${actor.role} is not authorized to ${action} master data`,
     );

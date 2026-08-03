@@ -52,6 +52,71 @@ test("management and audit roles cannot mutate scheme masters", async ({
   ).toHaveCount(0);
 });
 
+test("returned masters become editable drafts before resubmission", async ({
+  page,
+}) => {
+  await page.goto("/subvention/schemes");
+  await page
+    .getByRole("row", { name: /APL-CORP-Q3-26.*Draft/i })
+    .click();
+  await page.getByRole("button", { name: "Submit for approval" }).click();
+  await page.getByLabel("Submission remarks").fill("Ready for review");
+  await page.getByRole("button", { name: "Submit scheme" }).click();
+  await page.getByRole("button", { name: "Active role" }).click();
+  await page
+    .getByRole("option", { name: "Business Head Checker" })
+    .click();
+  await page.getByRole("button", { name: "Return" }).click();
+  await page.getByLabel("Return remarks").fill("Correct product scope");
+  await page.getByRole("button", { name: "Return scheme" }).click();
+  await page.getByRole("button", { name: "Active role" }).click();
+  await page.getByRole("option", { name: "Sales Ops Maker" }).click();
+
+  await expect(page.getByRole("button", { name: "Edit scheme" })).toBeEnabled();
+});
+
+test("failed successor command keeps its dialog and remarks intact", async ({
+  page,
+}) => {
+  await page.goto("/subvention/schemes");
+  await page
+    .getByRole("row", { name: /APL-H2-26.*Approved/i })
+    .click();
+  await page.getByRole("button", { name: "New version" }).click();
+  await page.getByLabel("Successor effective from").fill("2026-12-01");
+  await page.getByLabel("Successor effective to").fill("2027-03-31");
+  await page.getByLabel("Version remarks").fill("Invalid overlapping window");
+  await page.getByRole("button", { name: "Create draft version" }).click();
+
+  await expect(
+    page.getByRole("dialog", { name: /Create a new scheme version/ }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Version remarks")).toHaveValue(
+    "Invalid overlapping window",
+  );
+  await expect(
+    page.getByText(/Successor scheme effective from must be after/i),
+  ).toBeVisible();
+});
+
+test("read-only roles cannot invoke purchase import or eligibility evaluation", async ({
+  page,
+}) => {
+  await page.goto("/subvention/transactions");
+  await page.getByRole("button", { name: "Active role" }).click();
+  await page.getByRole("option", { name: "Management Viewer" }).click();
+  await expect(
+    page.getByRole("button", { name: "Import transactions" }),
+  ).toBeDisabled();
+
+  await page.goto(
+    "/subvention/eligibility?transaction=transaction-eligible-01",
+  );
+  await expect(
+    page.getByRole("button", { name: "Evaluate eligibility" }),
+  ).toBeDisabled();
+});
+
 test("programme mappings expose conflict recovery and unevaluated impact", async ({
   page,
 }) => {
@@ -110,7 +175,7 @@ test("focus return follows the selected row while desktop detail stays open", as
   await expect(second).toBeFocused();
 });
 
-test("programme successor uses an explicit window and closes prior validity", async ({
+test("programme successor uses an explicit window and preserves prior validity", async ({
   page,
 }) => {
   await page.goto("/subvention/programme-mappings");
@@ -142,7 +207,7 @@ test("programme successor uses an explicit window and closes prior validity", as
   await expect(page.getByText("Approved", { exact: true })).toBeVisible();
   await page.getByRole("tab", { name: "Versions", exact: true }).click();
   await expect(
-    page.getByRole("row", { name: /v1.*2026-07-01.*2026-09-30.*Approved/i }),
+    page.getByRole("row", { name: /v1.*2026-07-01.*2026-12-31.*Approved/i }),
   ).toBeVisible();
   await expect(
     page.getByRole("row", { name: /v2.*2026-10-01.*2027-03-31.*Approved/i }),
@@ -175,6 +240,21 @@ test("programme mapping deep link restores its selected mapping", async ({
       name: /employer-alpha.*programme-apple.*distributor-ingram.*Approved/i,
     }),
   ).toHaveAttribute("aria-selected", "true");
+});
+
+test("rejects incoherent mapping scope and selected-record tuples", async ({
+  page,
+}) => {
+  await page.goto(
+    "/subvention/programme-mappings?status=APPROVED&mapping=mapping-alpha-apple&employer=employer-beta&programme=programme-google",
+  );
+
+  await expect(
+    page.getByRole("heading", { name: "programme-apple", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Close detail" }),
+  ).toHaveCount(0);
 });
 
 test("programme conflict deep link restores employer and programme scope", async ({

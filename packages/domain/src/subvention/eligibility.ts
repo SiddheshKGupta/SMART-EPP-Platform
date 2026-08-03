@@ -249,6 +249,7 @@ export function evaluateEligibility(
   const mappingResolution = resolveProgrammeMapping(
     transaction,
     input.mappings,
+    input.schemes,
   );
   if (mappingResolution.status !== "RESOLVED") {
     const ambiguous = mappingResolution.status === "AMBIGUOUS";
@@ -481,12 +482,13 @@ export function evaluateEligibility(
     filingTimelineResult,
   ];
 
+  const status = statusFor(ruleResults);
   return {
     id: input.decisionId,
     transactionId: transaction.id,
     version: input.version,
-    status: statusFor(ruleResults),
-    expectedAmountPaise,
+    status,
+    expectedAmountPaise: status === "ELIGIBLE" ? expectedAmountPaise : 0,
     filingDeadline,
     evaluatedAt: input.evaluatedAt,
     evaluatedBy: input.actor.userId,

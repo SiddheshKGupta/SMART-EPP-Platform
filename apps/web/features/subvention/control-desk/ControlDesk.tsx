@@ -42,9 +42,22 @@ export function ControlDesk() {
           icon: Clock3,
         },
         {
-          id: "approvals",
-          title: "Master approvals waiting",
-          count: readModel.approvalQueue.length,
+          id: "scheme-approvals",
+          title: "Scheme approvals waiting",
+          count: readModel.approvalQueue.filter(
+            (item) => item.entityType === "SCHEME",
+          ).length,
+          impactPaise: 0,
+          status: "ATTENTION" as const,
+          href: "/subvention/schemes?status=SUBMITTED",
+          icon: GitPullRequest,
+        },
+        {
+          id: "mapping-approvals",
+          title: "Programme mapping approvals waiting",
+          count: readModel.approvalQueue.filter(
+            (item) => item.entityType === "PROGRAMME_MAPPING",
+          ).length,
           impactPaise: 0,
           status: "ATTENTION" as const,
           href: "/subvention/programme-mappings?status=SUBMITTED",
@@ -60,6 +73,20 @@ export function ControlDesk() {
           ),
           status: "CRITICAL" as const,
           href: "/subvention/purchase-imports?status=QUARANTINED",
+          icon: DatabaseZap,
+        },
+        {
+          id: "awaiting-evaluation",
+          title: "Awaiting eligibility evaluation",
+          count: readModel.awaitingEvaluation.length,
+          impactPaise: readModel.awaitingEvaluation.reduce(
+            (total, row) =>
+              total +
+              (row.transaction.sourceEvidence.expectedSubventionPaise ?? 0),
+            0,
+          ),
+          status: "INFO" as const,
+          href: "/subvention/eligibility?status=AWAITING",
           icon: DatabaseZap,
         },
         {

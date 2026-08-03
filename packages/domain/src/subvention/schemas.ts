@@ -139,7 +139,7 @@ export const programmeMappingDraftSchema = z
         flatAmountPaise: positiveIntegerSchema.optional(),
         claimTimelineDays: positiveIntegerSchema.optional(),
         eligibleProductIds: z.array(z.string().min(1)).optional(),
-        approvalReference: z.string().min(1),
+        approvalReference: z.string().trim().min(1),
       })
       .superRefine(refineCalculationRule)
       .optional(),

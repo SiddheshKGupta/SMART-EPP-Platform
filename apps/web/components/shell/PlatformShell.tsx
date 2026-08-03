@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useSubvention } from "@/features/subvention/store/SubventionProvider";
 import { SubventionProvider } from "@/features/subvention/store/SubventionProvider";
@@ -27,7 +27,26 @@ function ActionAnnouncements() {
 
 function ShellFrame({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const hasMounted = useRef(false);
   const hasModuleNavigation = pathname.startsWith("/subvention");
+
+  useEffect(() => {
+    if (!hasMounted.current) {
+      hasMounted.current = true;
+      return;
+    }
+
+    const animationFrame = window.requestAnimationFrame(() => {
+      const main = document.getElementById("main-content");
+      const destinationHeading = main?.querySelector<HTMLElement>("h1");
+      const focusTarget = destinationHeading ?? main;
+      if (!focusTarget) return;
+      focusTarget.tabIndex = -1;
+      focusTarget.focus();
+    });
+
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, [pathname]);
 
   return (
     <>

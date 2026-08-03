@@ -1,12 +1,13 @@
 import {
-  addDaysIso,
+  assertProgrammeMappingApprovalValid,
   assertMasterMutationAuthorized,
+  assertSubventionCommandAuthorized,
   evaluateEligibility,
-  intervalsOverlapInclusive,
   programmeMappingScopesOverlap,
   programmeMappingDraftSchema,
   validatePurchaseImport,
   transitionMaster,
+  validateSchemeOverlap,
   schemeDraftSchema,
   type Actor,
   type AuditEvent,
@@ -21,6 +22,8 @@ import {
   type QuarantinedPurchaseImportRow,
   type RepositoryDependencies,
   type SchemeVersion,
+  type SchemeEffectiveWindow,
+  type SubventionCommandAction,
   type SubventionRepository,
   type SubventionSeed,
   type SubventionSnapshot,
@@ -187,7 +190,9 @@ export class InMemorySubventionRepository
     id: string,
     actor: Actor,
     remarks: string,
+    effectiveWindow: SchemeEffectiveWindow,
   ): Promise<SchemeVersion> {
+    this.assertCommandActor(actor, "CREATE");
     assertMasterMutationAuthorized(actor, "CREATE");
     const source = this.schemes.find((scheme) => scheme.id === id);
     if (!source) throw new Error(`Scheme version ${id} was not found`);
@@ -195,6 +200,11 @@ export class InMemorySubventionRepository
       throw new Error("New versions can only derive from an approved scheme");
     }
     if (!remarks.trim()) throw new Error("Remarks are required");
+    if (effectiveWindow.effectiveFrom <= source.effectiveTo) {
+      throw new Error(
+        "Successor scheme effective from must be after the approved source window",
+      );
+    }
 
     const usedSchemeIds = new Set(this.schemes.map((scheme) => scheme.id));
     const usedAuditIds = new Set(this.auditEvents.map((event) => event.id));
@@ -217,6 +227,9 @@ export class InMemorySubventionRepository
       checkerUserId: undefined,
       approvedAt: undefined,
       createdAt,
+      effectiveFrom: effectiveWindow.effectiveFrom,
+      effectiveTo: effectiveWindow.effectiveTo,
+      supersedesVersionId: source.id,
     };
     schemeDraftSchema.parse(draft);
     const auditEvent: AuditEvent = {
@@ -227,6 +240,12 @@ export class InMemorySubventionRepository
       actor: clone(actor),
       occurredAt: createdAt,
       remarks,
+      beforeState: null,
+      afterState: clone(draft),
+      provenance: {
+        source: "SUBVENTION_REPOSITORY_COMMAND",
+        sourceEntityId: source.id,
+      },
       metadata: { derivedFromVersionId: source.id },
     };
 
@@ -241,6 +260,7 @@ export class InMemorySubventionRepository
     remarks: string,
     effectiveWindow: ProgrammeMappingEffectiveWindow,
   ): Promise<EmployerProgrammeMappingVersion> {
+    this.assertCommandActor(actor, "CREATE");
     assertMasterMutationAuthorized(actor, "CREATE");
     const source = this.programmeMappings.find((mapping) => mapping.id === id);
     if (!source) {
@@ -283,6 +303,7 @@ export class InMemorySubventionRepository
       createdAt,
       effectiveFrom: effectiveWindow.effectiveFrom,
       effectiveTo: effectiveWindow.effectiveTo,
+      supersedesVersionId: source.id,
     };
     programmeMappingDraftSchema.parse(draft);
     const auditEvent: AuditEvent = {
@@ -293,6 +314,12 @@ export class InMemorySubventionRepository
       actor: clone(actor),
       occurredAt: createdAt,
       remarks,
+      beforeState: null,
+      afterState: clone(draft),
+      provenance: {
+        source: "SUBVENTION_REPOSITORY_COMMAND",
+        sourceEntityId: source.id,
+      },
       metadata: { derivedFromVersionId: source.id },
     };
 
@@ -306,6 +333,7 @@ export class InMemorySubventionRepository
     actor: Actor,
     remarks: string,
   ): Promise<SchemeVersion> {
+    this.assertCommandActor(actor, "SAVE");
     assertMasterMutationAuthorized(actor, "SAVE");
     const input = clone(scheme);
     const index = this.schemes.findIndex(
@@ -321,7 +349,11 @@ export class InMemorySubventionRepository
     ) {
       throw new Error("Scheme draft identity cannot be changed");
     }
-    if (current && current.workflowStatus !== "DRAFT") {
+    if (
+      current &&
+      current.workflowStatus !== "DRAFT" &&
+      current.workflowStatus !== "RETURNED"
+    ) {
       transitionMaster(
         clone(current),
         "SUBMIT",
@@ -335,8 +367,9 @@ export class InMemorySubventionRepository
       throw new Error("Only draft scheme versions can be saved");
     }
     if (
-      input.checkerUserId !== undefined ||
-      input.approvedAt !== undefined
+      current?.workflowStatus !== "RETURNED" &&
+      (input.checkerUserId !== undefined ||
+        input.approvedAt !== undefined)
     ) {
       throw new Error("Approved payload cannot be saved as a draft");
     }
@@ -360,6 +393,14 @@ export class InMemorySubventionRepository
     const saved: SchemeVersion = {
       ...input,
       makerUserId: actor.userId,
+      checkerUserId:
+        current?.workflowStatus === "RETURNED"
+          ? undefined
+          : input.checkerUserId,
+      approvedAt:
+        current?.workflowStatus === "RETURNED"
+          ? undefined
+          : input.approvedAt,
     };
     const auditIds = new Set(this.auditEvents.map((event) => event.id));
     const auditEvent: AuditEvent = {
@@ -370,6 +411,12 @@ export class InMemorySubventionRepository
       actor: clone(actor),
       occurredAt,
       remarks,
+      beforeState: current ? clone(current) : null,
+      afterState: clone(saved),
+      provenance: {
+        source: "SUBVENTION_REPOSITORY_COMMAND",
+        sourceEntityId: saved.id,
+      },
     };
 
     if (index === -1) {
@@ -386,6 +433,7 @@ export class InMemorySubventionRepository
     actor: Actor,
     remarks: string,
   ): Promise<EmployerProgrammeMappingVersion> {
+    this.assertCommandActor(actor, "SAVE");
     assertMasterMutationAuthorized(actor, "SAVE");
     const input = clone(mapping);
     const index = this.programmeMappings.findIndex(
@@ -401,7 +449,11 @@ export class InMemorySubventionRepository
     ) {
       throw new Error("Programme mapping draft identity cannot be changed");
     }
-    if (current && current.workflowStatus !== "DRAFT") {
+    if (
+      current &&
+      current.workflowStatus !== "DRAFT" &&
+      current.workflowStatus !== "RETURNED"
+    ) {
       transitionMaster(
         clone(current),
         "SUBMIT",
@@ -415,8 +467,9 @@ export class InMemorySubventionRepository
       throw new Error("Only draft programme mapping versions can be saved");
     }
     if (
-      input.checkerUserId !== undefined ||
-      input.approvedAt !== undefined
+      current?.workflowStatus !== "RETURNED" &&
+      (input.checkerUserId !== undefined ||
+        input.approvedAt !== undefined)
     ) {
       throw new Error("Approved payload cannot be saved as a draft");
     }
@@ -440,6 +493,14 @@ export class InMemorySubventionRepository
     const saved: EmployerProgrammeMappingVersion = {
       ...input,
       makerUserId: actor.userId,
+      checkerUserId:
+        current?.workflowStatus === "RETURNED"
+          ? undefined
+          : input.checkerUserId,
+      approvedAt:
+        current?.workflowStatus === "RETURNED"
+          ? undefined
+          : input.approvedAt,
     };
     const auditIds = new Set(this.auditEvents.map((event) => event.id));
     const auditEvent: AuditEvent = {
@@ -450,6 +511,12 @@ export class InMemorySubventionRepository
       actor: clone(actor),
       occurredAt,
       remarks,
+      beforeState: current ? clone(current) : null,
+      afterState: clone(saved),
+      provenance: {
+        source: "SUBVENTION_REPOSITORY_COMMAND",
+        sourceEntityId: saved.id,
+      },
     };
 
     if (index === -1) {
@@ -481,6 +548,7 @@ export class InMemorySubventionRepository
     rows: PurchaseTransactionInput[],
     actor: Actor,
   ): Promise<ImportResult> {
+    this.assertCommandActor(actor, "IMPORT_PURCHASE");
     const occurredAt = this.dependencies.now();
     const usedImportIds = new Set(
       this.quarantinedImports.map((row) => row.importId),
@@ -520,6 +588,7 @@ export class InMemorySubventionRepository
           ),
         masterData: clone(this.purchaseImportMasterData),
         programmeMappings: clone(this.programmeMappings),
+        schemes: clone(this.schemes),
         existingClaimedDeviceIdentifiers: new Set(
           this.existingClaimedDeviceIdentifiers,
         ),
@@ -541,6 +610,15 @@ export class InMemorySubventionRepository
       actor: clone(actor),
       occurredAt,
       remarks: `Imported purchase transaction ${transaction.id}`,
+      beforeState: null,
+      afterState: clone(transaction),
+      provenance: {
+        source: "PURCHASE_SOURCE_EVIDENCE",
+        sourceEntityId: transaction.id,
+        sourceChecksum: transaction.sourceEvidence.sourceChecksum,
+        sourceSheetName: transaction.sourceEvidence.sourceSheetName,
+        sourceRowNumber: transaction.sourceEvidence.sourceRowNumber,
+      },
       metadata: {
         importId,
         sourceChecksum: transaction.sourceEvidence.sourceChecksum,
@@ -556,6 +634,15 @@ export class InMemorySubventionRepository
         actor: clone(actor),
         occurredAt,
         remarks: `Quarantined purchase import row ${row.rowNumber}`,
+        beforeState: null,
+        afterState: clone(row),
+        provenance: {
+          source: "PURCHASE_SOURCE_EVIDENCE",
+          sourceEntityId: row.id,
+          sourceChecksum: row.sourceChecksum,
+          sourceSheetName: row.sourceSheetName,
+          sourceRowNumber: row.sourceRowNumber,
+        },
         metadata: {
           importId: row.importId,
           rowNumber: row.rowNumber,
@@ -607,7 +694,10 @@ export class InMemorySubventionRepository
   ): Promise<EligibilityDecision> {
     const actorCopy = clone(actor);
     const evaluation = this.enqueueEvaluation(
-      () => this.evaluateTransactionsNow([transactionId], actorCopy)[0]!,
+      () => {
+        this.assertCommandActor(actorCopy, "EVALUATE_ELIGIBILITY");
+        return this.evaluateTransactionsNow([transactionId], actorCopy)[0]!;
+      },
     );
     return evaluation;
   }
@@ -619,7 +709,10 @@ export class InMemorySubventionRepository
     const idsCopy = clone(transactionIds);
     const actorCopy = clone(actor);
     return this.enqueueEvaluation(
-      () => this.evaluateTransactionsNow(idsCopy, actorCopy),
+      () => {
+        this.assertCommandActor(actorCopy, "EVALUATE_ELIGIBILITY");
+        return this.evaluateTransactionsNow(idsCopy, actorCopy);
+      },
     );
   }
 
@@ -712,6 +805,15 @@ export class InMemorySubventionRepository
         actor: clone(actor),
         occurredAt,
         remarks: `Evaluated transaction ${transaction.id}`,
+        beforeState: previousDecision ? clone(previousDecision) : null,
+        afterState: clone(decision),
+        provenance: {
+          source: "SUBVENTION_REPOSITORY_COMMAND",
+          sourceEntityId: transaction.id,
+          sourceChecksum: transaction.sourceEvidence.sourceChecksum,
+          sourceSheetName: transaction.sourceEvidence.sourceSheetName,
+          sourceRowNumber: transaction.sourceEvidence.sourceRowNumber,
+        },
         metadata: {
           transactionId: transaction.id,
           decisionVersion: decision.version,
@@ -746,6 +848,7 @@ export class InMemorySubventionRepository
     actor: Actor,
     remarks: string,
   ): Promise<SchemeVersion> {
+    this.assertCommandActor(actor, action);
     const index = this.schemes.findIndex((scheme) => scheme.id === id);
     const current = this.schemes[index];
     if (!current) {
@@ -760,6 +863,10 @@ export class InMemorySubventionRepository
       remarks,
       occurredAt,
     );
+    if (action === "APPROVE") {
+      const issues = validateSchemeOverlap(updated, this.schemes);
+      if (issues.length > 0) throw issues;
+    }
     const auditIds = new Set(this.auditEvents.map((event) => event.id));
     const auditAction: AuditEvent["action"] = ({
       SUBMIT: "SCHEME_SUBMITTED",
@@ -775,6 +882,12 @@ export class InMemorySubventionRepository
       actor: clone(actor),
       occurredAt,
       remarks,
+      beforeState: clone(current),
+      afterState: clone(updated),
+      provenance: {
+        source: "SUBVENTION_REPOSITORY_COMMAND",
+        sourceEntityId: updated.id,
+      },
     };
 
     this.schemes[index] = updated;
@@ -788,6 +901,7 @@ export class InMemorySubventionRepository
     actor: Actor,
     remarks: string,
   ): Promise<EmployerProgrammeMappingVersion> {
+    this.assertCommandActor(actor, action);
     const index = this.programmeMappings.findIndex(
       (mapping) => mapping.id === id,
     );
@@ -797,17 +911,15 @@ export class InMemorySubventionRepository
     }
 
     const occurredAt = this.dependencies.now();
-    const updated = transitionMaster(
+    let updated = transitionMaster(
       clone(current),
       action,
       clone(actor),
       remarks,
       occurredAt,
     );
-    let closedPrior:
-      | EmployerProgrammeMappingVersion
-      | undefined;
     if (action === "APPROVE") {
+      assertProgrammeMappingApprovalValid(updated, this.schemes);
       const prior = this.programmeMappings
         .filter(
           (mapping) =>
@@ -817,36 +929,27 @@ export class InMemorySubventionRepository
             mapping.version < current.version,
         )
         .sort((left, right) => right.version - left.version)[0];
+      if (prior && !updated.supersedesVersionId) {
+        updated = {
+          ...updated,
+          supersedesVersionId: prior.id,
+        };
+      }
       if (prior && updated.effectiveFrom <= prior.effectiveFrom) {
         throw new Error(
           "Successor effective from must be after prior effective from",
         );
       }
-      if (prior && updated.effectiveFrom <= prior.effectiveTo) {
-        closedPrior = {
-          ...clone(prior),
-          effectiveTo: addDaysIso(updated.effectiveFrom, -1),
-        };
-      }
-
       const approvedCandidates = this.programmeMappings
         .filter(
           (mapping) =>
             mapping.id !== updated.id &&
+            mapping.id !== updated.supersedesVersionId &&
             mapping.workflowStatus === "APPROVED",
-        )
-        .map((mapping) =>
-          closedPrior?.id === mapping.id ? closedPrior : mapping,
         );
       const conflict = approvedCandidates.find(
         (mapping) =>
-          programmeMappingScopesOverlap(mapping, updated) &&
-          intervalsOverlapInclusive(
-            mapping.effectiveFrom,
-            mapping.effectiveTo,
-            updated.effectiveFrom,
-            updated.effectiveTo,
-          ),
+          programmeMappingScopesOverlap(mapping, updated, this.schemes),
       );
       if (conflict) {
         throw new Error(
@@ -869,31 +972,17 @@ export class InMemorySubventionRepository
       actor: clone(actor),
       occurredAt,
       remarks,
+      beforeState: clone(current),
+      afterState: clone(updated),
+      provenance: {
+        source: "SUBVENTION_REPOSITORY_COMMAND",
+        sourceEntityId: updated.id,
+      },
+      metadata: updated.supersedesVersionId
+        ? { supersedesVersionId: updated.supersedesVersionId }
+        : undefined,
     };
-    const closeAuditEvent: AuditEvent | undefined = closedPrior
-      ? {
-          id: this.nextUniqueId("audit", "AuditEvent", auditIds),
-          entityType: "EmployerProgrammeMappingVersion",
-          entityId: closedPrior.id,
-          action: "PROGRAMME_MAPPING_EFFECTIVE_PERIOD_CLOSED",
-          actor: clone(actor),
-          occurredAt,
-          remarks,
-          metadata: {
-            successorVersionId: updated.id,
-            effectiveTo: closedPrior.effectiveTo,
-          },
-        }
-      : undefined;
-
-    if (closedPrior) {
-      const priorIndex = this.programmeMappings.findIndex(
-        (mapping) => mapping.id === closedPrior.id,
-      );
-      this.programmeMappings[priorIndex] = closedPrior;
-    }
     this.programmeMappings[index] = updated;
-    if (closeAuditEvent) this.auditEvents.push(closeAuditEvent);
     this.auditEvents.push(auditEvent);
     return clone(updated);
   }
@@ -909,6 +998,36 @@ export class InMemorySubventionRepository
       if (count > 1) duplicates.add(value);
     });
     return duplicates;
+  }
+
+  private assertCommandActor(
+    actor: Actor,
+    action: SubventionCommandAction,
+  ): void {
+    try {
+      assertSubventionCommandAuthorized(actor, action);
+    } catch {
+      if (
+        action === "CREATE" ||
+        action === "SAVE" ||
+        action === "SUBMIT" ||
+        action === "APPROVE" ||
+        action === "RETURN" ||
+        action === "REJECT"
+      ) {
+        throw new Error(
+          `${actor.role} is not authorized to ${action} master data`,
+        );
+      }
+      throw new Error(`${actor.role} is not authorized to ${action}`);
+    }
+    const configured = this.actors.some(
+      (candidate) =>
+        candidate.userId === actor.userId && candidate.role === actor.role,
+    );
+    if (!configured) {
+      throw new Error(`Actor ${actor.userId} is not configured`);
+    }
   }
 
   private assertSeedIdentitiesUnique(): void {
