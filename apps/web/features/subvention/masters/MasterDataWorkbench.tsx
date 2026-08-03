@@ -62,7 +62,7 @@ function fieldLabel(key: string) {
 
 export function MasterDataWorkbench() {
   const searchParams = useSearchParams();
-  const { snapshot, activeActor, saveMasterDraft, createNextMasterVersion, submitMaster, approveMaster, returnMaster, rejectMaster, deactivateMaster, issues, actionError, isRefreshing } = useSubvention();
+  const { snapshot, activeActor, setActiveActor, saveMasterDraft, createNextMasterVersion, submitMaster, approveMaster, returnMaster, rejectMaster, deactivateMaster, issues, actionError, isRefreshing } = useSubvention();
   const requestedKind = searchParams.get("kind");
   const [kind, setKind] = useState<MasterKind>(isMasterKind(requestedKind) ? requestedKind : "OEM");
   const [query, setQuery] = useState("");
@@ -185,7 +185,7 @@ export function MasterDataWorkbench() {
           </header>
 
           {!canMaintain && !canCheck && (
-            <div className="flex items-center gap-2 border-b bg-amber-50 px-5 py-2.5 text-xs text-amber-900"><ShieldAlert className="size-4" />Read-only view. This role cannot maintain or approve master versions.</div>
+            <div className="flex flex-wrap items-center gap-2 border-b bg-amber-50 px-5 py-2.5 text-xs text-amber-900"><ShieldAlert className="size-4" /><span className="flex-1">Read-only view. Switch to Master Data Admin to add records or create editable versions.</span><Button size="sm" variant="outline" onClick={() => { const actor = snapshot.actors.find((item) => item.role === "MASTER_DATA_ADMIN"); if (actor) setActiveActor(actor); }}>Switch to Master Data Admin</Button></div>
           )}
 
           <div className="grid gap-2 border-b bg-slate-50/60 px-4 py-3 sm:grid-cols-[minmax(240px,1fr)_160px_auto]">
@@ -221,6 +221,7 @@ export function MasterDataWorkbench() {
                         <Button size="icon-sm" variant="ghost" aria-label={`View ${record.code}`} onClick={() => open("VIEW", record)}><Eye /></Button>
                         <Button size="icon-sm" variant="ghost" aria-label={`View history for ${record.code}`} onClick={() => open("HISTORY", record)}><History /></Button>
                         {canMaintain && ["DRAFT", "RETURNED"].includes(record.workflowStatus) && <Button size="icon-sm" variant="ghost" aria-label={`Edit ${record.code}`} onClick={() => open("EDIT", record)}><Pencil /></Button>}
+                        {canMaintain && record.workflowStatus === "APPROVED" && <Button size="icon-sm" variant="ghost" aria-label={`Create editable version for ${record.code}`} onClick={() => open("SUCCESSOR", record)}><GitBranch /></Button>}
                       </div>
                     </td>
                   </tr>

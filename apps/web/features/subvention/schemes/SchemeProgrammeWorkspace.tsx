@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   GitBranch,
   LockKeyhole,
+  Plus,
   RotateCcw,
   Search,
   ShieldAlert,
@@ -73,6 +74,10 @@ import {
 } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useSubvention } from "@/features/subvention/store/SubventionProvider";
+import {
+  ProgrammeOverrideDialog,
+  SchemeDraftDialog,
+} from "./CommercialRuleEditor";
 
 type MasterView = "schemes" | "programmes";
 type DetailTab =
@@ -480,12 +485,16 @@ function ProgrammeList({
   mappings,
   conflicts,
   oemName,
+  employerName,
+  counterpartyName,
   selectedId,
   onSelect,
 }: {
   mappings: EmployerProgrammeMappingVersion[];
   conflicts: MappingConflict[];
   oemName(id: string): string;
+  employerName(id: string): string;
+  counterpartyName(id: string): string;
   selectedId?: string;
   onSelect(id: string): void;
 }) {
@@ -528,7 +537,7 @@ function ProgrammeList({
             }
           >
             <TableCell className="sticky-master-code">
-              {conflict.employerId}
+              {employerName(conflict.employerId)}
             </TableCell>
             <TableCell className="sticky-master-name">
               {conflict.programmeId}
@@ -558,7 +567,7 @@ function ProgrammeList({
             }
           >
             <TableCell className="sticky-master-code master-code">
-              {mapping.employerId}
+              {employerName(mapping.employerId)}
             </TableCell>
             <TableCell className="sticky-master-name">
               {mapping.programmeId}
@@ -568,6 +577,7 @@ function ProgrammeList({
             <TableCell>
               {[mapping.distributorId, mapping.resellerId]
                 .filter(Boolean)
+                .map((id) => counterpartyName(id!))
                 .join(" / ") || "Not constrained"}
             </TableCell>
             <TableCell>
@@ -731,9 +741,16 @@ export function SchemeProgrammeWorkspace({
   const [detailTab, setDetailTab] = useState<DetailTab>("summary");
   const [workflowAction, setWorkflowAction] = useState<WorkflowAction>();
   const [rejectOpen, setRejectOpen] = useState(false);
+  const [schemeEditorOpen, setSchemeEditorOpen] = useState(false);
+  const [mappingEditorOpen, setMappingEditorOpen] = useState(false);
 
   const oemName = (id: string) =>
     store.snapshot.oems.find((item) => item.id === id)?.name ?? id;
+  const employerName = (id: string) =>
+    store.snapshot.masters.employers.find((item) => item.id === id)?.name ?? id;
+  const counterpartyName = (id: string) =>
+    [...store.snapshot.masters.distributors, ...store.snapshot.masters.resellers]
+      .find((item) => item.id === id)?.name ?? id;
 
   const filteredSchemes = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -844,7 +861,10 @@ export function SchemeProgrammeWorkspace({
           remarks,
           effectiveWindow,
         );
-        if (result.ok) setSelectedId(result.value);
+        if (result.ok) {
+          setSelectedId(result.value);
+          setSchemeEditorOpen(true);
+        }
         return result.ok;
       }
     } else if (selectedMapping) {
@@ -867,7 +887,10 @@ export function SchemeProgrammeWorkspace({
           remarks,
           effectiveWindow,
         );
-        if (result.ok) setSelectedId(result.value);
+        if (result.ok) {
+          setSelectedId(result.value);
+          setMappingEditorOpen(true);
+        }
         return result.ok;
       }
     }
@@ -923,6 +946,8 @@ export function SchemeProgrammeWorkspace({
           mappings={filteredMappings}
           conflicts={filteredConflicts}
           oemName={oemName}
+          employerName={employerName}
+          counterpartyName={counterpartyName}
           selectedId={selectedId}
           onSelect={selectRow}
         />
@@ -984,7 +1009,7 @@ export function SchemeProgrammeWorkspace({
           <p>
             {selectedScheme
               ? selectedScheme.name
-              : `${selectedMapping!.employerId} · ${oemName(selectedMapping!.oemId)}`}
+              : `${employerName(selectedMapping!.employerId)} · ${oemName(selectedMapping!.oemId)}`}
           </p>
         </div>
         <StatusBadge
@@ -1047,7 +1072,7 @@ export function SchemeProgrammeWorkspace({
               (selectedScheme ?? selectedMapping)!.workflowStatus,
             )
           }
-          onClick={() => setDetailTab("configuration")}
+          onClick={() => selectedScheme ? setSchemeEditorOpen(true) : setMappingEditorOpen(true)}
         >
           Edit {selectedScheme ? "scheme" : "mapping"}
         </Button>
@@ -1086,7 +1111,7 @@ export function SchemeProgrammeWorkspace({
                 : [
                     { label: "Logical ID", value: selectedMapping!.mappingId },
                     { label: "Version", value: `v${selectedMapping!.version}` },
-                    { label: "Employer", value: selectedMapping!.employerId },
+                    { label: "Employer", value: employerName(selectedMapping!.employerId) },
                     { label: "OEM", value: oemName(selectedMapping!.oemId) },
                     {
                       label: "Effective from",
@@ -1144,12 +1169,28 @@ export function SchemeProgrammeWorkspace({
                     },
                     {
                       label: "Reseller",
-                      value: selectedMapping!.resellerId ?? "Not constrained",
+                      value: selectedMapping!.resellerId
+                        ? counterpartyName(selectedMapping!.resellerId)
+                        : "Not constrained",
                     },
                     {
                       label: "Distributor",
                       value:
-                        selectedMapping!.distributorId ?? "Not constrained",
+                        selectedMapping!.distributorId
+                          ? counterpartyName(selectedMapping!.distributorId)
+                          : "Not constrained",
+                    },
+                    {
+                      label: "Calculation basis override",
+                      value: selectedMapping!.overrides?.calculationBasis
+                        ? sentenceCase(selectedMapping!.overrides!.calculationBasis!)
+                        : "Inherit scheme default",
+                    },
+                    {
+                      label: "Rate override",
+                      value: selectedMapping!.overrides?.rateBps === undefined
+                        ? "Inherit scheme default"
+                        : `${(selectedMapping!.overrides!.rateBps! / 100).toFixed(2)}%`,
                     },
                     {
                       label: "Override authority",
@@ -1260,9 +1301,16 @@ export function SchemeProgrammeWorkspace({
             effective-dated maker-checker control.
           </p>
         </div>
-        <span className="control-posture">
-          <LockKeyhole aria-hidden /> Controlled master data
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          {view === "schemes" && canMaintainMaster ? (
+            <Button onClick={() => { setSelectedId(undefined); setSchemeEditorOpen(true); }}>
+              <Plus aria-hidden /> Add scheme
+            </Button>
+          ) : null}
+          <span className="control-posture">
+            <LockKeyhole aria-hidden /> Controlled master data
+          </span>
+        </div>
       </header>
       <Tabs
         className="master-view-tabs"
@@ -1305,6 +1353,20 @@ export function SchemeProgrammeWorkspace({
         onOpenChange={setRejectOpen}
         onConfirm={reject}
       />
+      {schemeEditorOpen ? <SchemeDraftDialog
+        key={selectedScheme?.id ?? "new-scheme"}
+        open={schemeEditorOpen}
+        scheme={selectedScheme && ["DRAFT", "RETURNED"].includes(selectedScheme.workflowStatus) ? selectedScheme : undefined}
+        onOpenChange={setSchemeEditorOpen}
+        onSaved={(saved) => setSelectedId(saved.id)}
+      /> : null}
+      {mappingEditorOpen ? <ProgrammeOverrideDialog
+        key={selectedMapping?.id ?? "programme-override"}
+        open={mappingEditorOpen}
+        mapping={selectedMapping && ["DRAFT", "RETURNED"].includes(selectedMapping.workflowStatus) ? selectedMapping : undefined}
+        onOpenChange={setMappingEditorOpen}
+        onSaved={(saved) => setSelectedId(saved.id)}
+      /> : null}
     </div>
   );
 }

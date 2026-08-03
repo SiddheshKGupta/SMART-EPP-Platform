@@ -71,6 +71,10 @@ export interface SubventionContextValue {
     id: string,
     remarks: string,
   ): Promise<SubventionCommandResult<SchemeVersion>>;
+  saveSchemeDraft(
+    scheme: SchemeVersion,
+    remarks: string,
+  ): Promise<SubventionCommandResult<SchemeVersion>>;
   approveScheme(
     id: string,
     remarks: string,
@@ -90,6 +94,10 @@ export interface SubventionContextValue {
   ): Promise<SubventionCommandResult<string>>;
   submitProgrammeMapping(
     id: string,
+    remarks: string,
+  ): Promise<SubventionCommandResult<EmployerProgrammeMappingVersion>>;
+  saveProgrammeMappingDraft(
+    mapping: EmployerProgrammeMappingVersion,
     remarks: string,
   ): Promise<SubventionCommandResult<EmployerProgrammeMappingVersion>>;
   approveProgrammeMapping(
@@ -223,6 +231,12 @@ export function SubventionProvider({ children }: { children: ReactNode }) {
     [activeActor, repository, runCommand],
   );
 
+  const saveSchemeDraft = useCallback(
+    (scheme: SchemeVersion, remarks: string) =>
+      runCommand(() => repository.saveSchemeDraft(scheme, activeActor, remarks)),
+    [activeActor, repository, runCommand],
+  );
+
   const approveScheme = useCallback(
     (id: string, remarks: string) =>
       runCommand(() => repository.approveScheme(id, activeActor, remarks)),
@@ -266,6 +280,14 @@ export function SubventionProvider({ children }: { children: ReactNode }) {
     (id: string, remarks: string) =>
       runCommand(() =>
         repository.submitProgrammeMapping(id, activeActor, remarks),
+      ),
+    [activeActor, repository, runCommand],
+  );
+
+  const saveProgrammeMappingDraft = useCallback(
+    (mapping: EmployerProgrammeMappingVersion, remarks: string) =>
+      runCommand(() =>
+        repository.saveProgrammeMappingDraft(mapping, activeActor, remarks),
       ),
     [activeActor, repository, runCommand],
   );
@@ -441,11 +463,13 @@ export function SubventionProvider({ children }: { children: ReactNode }) {
       rejectMaster,
       deactivateMaster,
       submitScheme,
+      saveSchemeDraft,
       approveScheme,
       returnScheme,
       rejectScheme,
       createNextSchemeVersion,
       submitProgrammeMapping,
+      saveProgrammeMappingDraft,
       approveProgrammeMapping,
       returnProgrammeMapping,
       rejectProgrammeMapping,
@@ -498,6 +522,8 @@ export function SubventionProvider({ children }: { children: ReactNode }) {
       returnProgrammeMapping,
       returnScheme,
       saveMasterDraft,
+      saveProgrammeMappingDraft,
+      saveSchemeDraft,
       setActiveActor,
       snapshot,
       submitClaimBatch,

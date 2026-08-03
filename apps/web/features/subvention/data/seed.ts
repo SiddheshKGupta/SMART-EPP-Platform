@@ -222,7 +222,7 @@ const schemes: SchemeVersion[] = [
     effectiveTo: "2026-06-30",
     claimTimelineDays: 60,
     rateBps: 300,
-    calculationBasis: "BASE_VALUE",
+    calculationBasis: "INVOICE_VALUE",
   }),
   approvedScheme({
     id: "scheme-apple-h2-2026",
@@ -323,6 +323,7 @@ function mapping(input: {
   resellerId?: string;
   distributorId?: string;
   workflowStatus?: "APPROVED" | "SUBMITTED";
+  overrides?: EmployerProgrammeMappingVersion["overrides"];
 }): EmployerProgrammeMappingVersion {
   const workflowStatus = input.workflowStatus ?? "APPROVED";
   return {
@@ -338,6 +339,7 @@ function mapping(input: {
     launchDate: "2026-07-01",
     effectiveFrom: "2026-07-01",
     effectiveTo: "2026-12-31",
+    overrides: input.overrides,
     workflowStatus,
     makerUserId: "master-data-admin",
     checkerUserId:
@@ -446,6 +448,10 @@ const programmeMappings: EmployerProgrammeMappingVersion[] = [
     programmeId: "programme-apple",
     oemId: "oem-apple",
     schemeVersionId: "scheme-apple-h2-2026",
+    overrides: {
+      calculationBasis: "BASE_VALUE",
+      approvalReference: "MARUTI-APPLE-BASE-VALUE-CLAUSE",
+    },
   }),
   mapping({
     id: "mapping-epsilon-samsung-submitted",
