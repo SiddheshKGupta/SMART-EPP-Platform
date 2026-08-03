@@ -7,6 +7,7 @@ import {
   type ManagementPeriodFilter,
   type SubventionFinancialRecord,
 } from "../../../../../packages/domain/src/subvention/management";
+import type { ClaimBatchStatus, SubventionSnapshot } from "@smart-epp/domain";
 
 export interface ManagementSearchParams {
   get(name: string): string | null;
@@ -52,6 +53,58 @@ export function createManagementReadModel(
   businessDate: string,
 ): ManagementOverview {
   return selectManagementOverview(records, filter, { businessDate });
+}
+
+const phaseByBatchStatus: Record<ClaimBatchStatus, SubventionFinancialRecord["phase"]> = {
+  DRAFT: "DRAFT",
+  SUBMITTED_FOR_APPROVAL: "SUBMITTED_FOR_APPROVAL",
+  APPROVED_LOCKED: "APPROVED_AND_LOCKED",
+  COUNTERPARTY_SUBMITTED: "SUBMITTED_TO_COUNTERPARTY",
+  PARTIALLY_RESPONDED: "RESPONDED",
+  RESPONDED: "RESPONDED",
+  INVOICED: "INVOICED",
+  PARTIALLY_COLLECTED: "INVOICED",
+  COLLECTED: "COLLECTED",
+  ACCOUNTED: "ACCOUNTING_RECONCILED",
+  CLOSED: "CLOSED",
+};
+
+export function financialRecordsFromSnapshot(
+  snapshot: Pick<SubventionSnapshot, "claimBatches" | "masters">,
+): SubventionFinancialRecord[] {
+  const employerNames = new Map(snapshot.masters.employers.map((row) => [row.id, row.name]));
+  const counterparties = new Map([
+    ...snapshot.masters.distributors.map((row) => [row.id, row.name] as const),
+    ...snapshot.masters.resellers.map((row) => [row.id, row.name] as const),
+    ...snapshot.masters.oems.map((row) => [row.id, row.name] as const),
+  ]);
+
+  return snapshot.claimBatches.map((batch) => {
+    const employerIds = [...new Set(batch.lines.map((line) => line.employerId))];
+    const employerId = employerIds.length === 1 ? employerIds[0]! : employerIds.sort().join("+");
+    const employerName = employerIds.length === 1
+      ? employerNames.get(employerId) ?? employerId
+      : employerIds.map((id) => employerNames.get(id) ?? id).join(" · ");
+    const approvedValuePaise = batch.lines.reduce((sum, line) => sum + (line.approvedAmountPaise ?? 0), 0);
+    return {
+      claimId: batch.id,
+      periodDate: batch.createdAt.slice(0, 10),
+      phase: phaseByBatchStatus[batch.status],
+      employerId,
+      employerName,
+      counterpartyId: batch.settlementCounterpartyId,
+      counterpartyName: counterparties.get(batch.settlementCounterpartyId) ?? batch.settlementCounterpartyId,
+      claimValuePaise: batch.expectedAmountPaise,
+      approvedValuePaise,
+      receiptAllocations: batch.collectedAmountPaise && batch.collectedAmountPaise > 0 ? [{
+        receiptId: batch.collectionReference ?? `${batch.id}:recorded-collection`,
+        receiptDate: batch.stageEnteredAt.slice(0, 10),
+        amountPaise: batch.collectedAmountPaise,
+        status: "POSTED" as const,
+      }] : [],
+      sourceKind: "PERSISTED" as const,
+    };
+  });
 }
 
 export const DEMO_MANAGEMENT_RECORDS: SubventionFinancialRecord[] = [

@@ -67,4 +67,38 @@ describe("controlled claim lifecycle", () => {
     const accounted = transitionClaimFinancials(collected, { accountedAmountPaise: 3_500, occurredAt });
     expect(closeClaimBatch(accounted, occurredAt).status).toBe("CLOSED");
   });
+
+  it("rejects non-positive financial events and incomplete approved-value reconciliation", () => {
+    const sent = recordClaimSubmission(approveClaimBatch(submitClaimBatch(draft(["tx-1"]), maker, occurredAt), checker, occurredAt), "OEM-REF-1", occurredAt);
+    const responded = recordClaimResponse(sent, [{ lineId: sent.lines[0]!.id, status: "APPROVED", approvedAmountPaise: 3_500 }], occurredAt);
+    expect(() => transitionClaimFinancials(responded, { invoicedAmountPaise: 0, occurredAt })).toThrow("CLAIM_FINANCIAL_AMOUNT_MUST_BE_POSITIVE");
+    const invoiced = transitionClaimFinancials(responded, { invoicedAmountPaise: 3_000, occurredAt });
+    const collected = transitionClaimFinancials(invoiced, { collectedAmountPaise: 3_000, occurredAt });
+    const accounted = transitionClaimFinancials(collected, { accountedAmountPaise: 3_000, occurredAt });
+    expect(() => closeClaimBatch(accounted, occurredAt)).toThrow("CLAIM_CLOSE_RECONCILIATION_REQUIRED");
+  });
+
+  it("permits closure when a typed approved write-off explains the invoice variance", () => {
+    const sent = recordClaimSubmission(approveClaimBatch(submitClaimBatch(draft(["tx-1"]), maker, occurredAt), checker, occurredAt), "OEM-REF-1", occurredAt);
+    const responded = recordClaimResponse(sent, [{ lineId: sent.lines[0]!.id, status: "APPROVED", approvedAmountPaise: 3_500 }], occurredAt);
+    const adjusted = { ...responded, reconciliationAdjustments: [{ id: "adj-1", type: "WRITE_OFF" as const, direction: "REDUCE_INVOICE_REQUIREMENT" as const, amountPaise: 500, reason: "Approved short settlement", approvedBy: checker.userId, approvedAt: occurredAt }] };
+    const invoiced = transitionClaimFinancials(adjusted, { invoicedAmountPaise: 3_000, occurredAt });
+    const collected = transitionClaimFinancials(invoiced, { collectedAmountPaise: 3_000, occurredAt });
+    const accounted = transitionClaimFinancials(collected, { accountedAmountPaise: 3_000, occurredAt });
+    expect(closeClaimBatch(accounted, occurredAt).status).toBe("CLOSED");
+  });
+
+  it("captures response variance, reason and representation history", () => {
+    const sent = recordClaimSubmission(approveClaimBatch(submitClaimBatch(draft(["tx-1"]), maker, occurredAt), checker, occurredAt), "OEM-REF-1", occurredAt);
+    const responded = recordClaimResponse(sent, [{
+      lineId: sent.lines[0]!.id,
+      status: "PARTIALLY_APPROVED",
+      approvedAmountPaise: 2_500,
+      reason: "Price cap applied",
+      responseReference: "OEM-RESP-42",
+      representation: { id: "repr-1", submittedAt: occurredAt, reference: "REP-42", reason: "Invoice supports full value", outcome: "PENDING" },
+    }], occurredAt);
+    expect(responded.lines[0]).toMatchObject({ responseVariancePaise: 1_000, responseReason: "Price cap applied", responseReference: "OEM-RESP-42" });
+    expect(responded.lines[0]?.representationHistory).toHaveLength(1);
+  });
 });

@@ -43,6 +43,29 @@ export interface ClaimBatchLine {
   ruleSnapshot: ClaimRuleSnapshot;
   approvedAmountPaise?: number;
   responseStatus?: "APPROVED" | "PARTIALLY_APPROVED" | "REJECTED" | "PENDING";
+  responseVariancePaise?: number;
+  responseReason?: string;
+  responseReference?: string;
+  representationHistory?: ClaimRepresentation[];
+}
+
+export interface ClaimRepresentation {
+  id: string;
+  submittedAt: string;
+  reference: string;
+  reason: string;
+  outcome: "PENDING" | "APPROVED" | "PARTIALLY_APPROVED" | "REJECTED";
+  approvedAmountPaise?: number;
+}
+
+export interface ClaimReconciliationAdjustment {
+  id: string;
+  type: "WRITE_OFF" | "APPROVED_ADJUSTMENT";
+  direction: "REDUCE_INVOICE_REQUIREMENT" | "INCREASE_INVOICE_REQUIREMENT";
+  amountPaise: number;
+  reason: string;
+  approvedBy: string;
+  approvedAt: string;
 }
 
 export interface ClaimBatch {
@@ -65,6 +88,10 @@ export interface ClaimBatch {
   invoicedAmountPaise?: number;
   collectedAmountPaise?: number;
   accountedAmountPaise?: number;
+  invoiceReference?: string;
+  collectionReference?: string;
+  accountingJournalReference?: string;
+  reconciliationAdjustments?: ClaimReconciliationAdjustment[];
   closedAt?: string;
 }
 
@@ -187,6 +214,9 @@ export interface ClaimLineResponse {
   lineId: string;
   status: NonNullable<ClaimBatchLine["responseStatus"]>;
   approvedAmountPaise: number;
+  reason?: string;
+  responseReference?: string;
+  representation?: ClaimRepresentation;
 }
 
 export function recordClaimResponse(batch: ClaimBatch, responses: ClaimLineResponse[], occurredAt: string): ClaimBatch {
@@ -196,7 +226,22 @@ export function recordClaimResponse(batch: ClaimBatch, responses: ClaimLineRespo
     const response = byLine.get(line.id);
     if (!response) return line;
     if (response.approvedAmountPaise < 0 || response.approvedAmountPaise > line.expectedAmountPaise) throw new Error("CLAIM_RESPONSE_AMOUNT_INVALID");
-    return { ...line, responseStatus: response.status, approvedAmountPaise: response.approvedAmountPaise };
+    if (response.status === "APPROVED" && response.approvedAmountPaise !== line.expectedAmountPaise) throw new Error("CLAIM_RESPONSE_STATUS_AMOUNT_MISMATCH");
+    if (response.status === "PARTIALLY_APPROVED" && (response.approvedAmountPaise <= 0 || response.approvedAmountPaise >= line.expectedAmountPaise)) throw new Error("CLAIM_RESPONSE_STATUS_AMOUNT_MISMATCH");
+    if (["REJECTED", "PENDING"].includes(response.status) && response.approvedAmountPaise !== 0) throw new Error("CLAIM_RESPONSE_STATUS_AMOUNT_MISMATCH");
+    if (["PARTIALLY_APPROVED", "REJECTED"].includes(response.status) && !response.reason?.trim()) throw new Error("CLAIM_RESPONSE_REASON_REQUIRED");
+    const representationHistory = response.representation
+      ? [...(line.representationHistory ?? []), response.representation]
+      : line.representationHistory;
+    return {
+      ...line,
+      responseStatus: response.status,
+      approvedAmountPaise: response.approvedAmountPaise,
+      responseVariancePaise: line.expectedAmountPaise - response.approvedAmountPaise,
+      responseReason: response.reason?.trim(),
+      responseReference: response.responseReference?.trim(),
+      representationHistory,
+    };
   });
   const responded = lines.filter((line) => line.responseStatus && line.responseStatus !== "PENDING").length;
   return { ...batch, lines, status: responded === lines.length ? "RESPONDED" : "PARTIALLY_RESPONDED", lastResponseAt: occurredAt, stageEnteredAt: occurredAt };
@@ -204,25 +249,53 @@ export function recordClaimResponse(batch: ClaimBatch, responses: ClaimLineRespo
 
 export function transitionClaimFinancials(
   batch: ClaimBatch,
-  input: { invoicedAmountPaise?: number; collectedAmountPaise?: number; accountedAmountPaise?: number; occurredAt: string },
+  input: {
+    invoicedAmountPaise?: number;
+    collectedAmountPaise?: number;
+    accountedAmountPaise?: number;
+    reference?: string;
+    occurredAt: string;
+  },
 ): ClaimBatch {
   const approved = batch.lines.reduce((sum, line) => sum + (line.approvedAmountPaise ?? 0), 0);
   if (input.invoicedAmountPaise !== undefined) {
+    if (input.invoicedAmountPaise <= 0) throw new Error("CLAIM_FINANCIAL_AMOUNT_MUST_BE_POSITIVE");
     if (batch.status !== "RESPONDED" || input.invoicedAmountPaise > approved) throw new Error("CLAIM_INVOICE_RECONCILIATION_FAILED");
-    return { ...batch, status: "INVOICED", invoicedAmountPaise: input.invoicedAmountPaise, stageEnteredAt: input.occurredAt };
+    return { ...batch, status: "INVOICED", invoicedAmountPaise: input.invoicedAmountPaise, invoiceReference: input.reference?.trim() || batch.invoiceReference, stageEnteredAt: input.occurredAt };
   }
   if (input.collectedAmountPaise !== undefined) {
+    if (input.collectedAmountPaise <= 0) throw new Error("CLAIM_FINANCIAL_AMOUNT_MUST_BE_POSITIVE");
     if (!batch.invoicedAmountPaise || !["INVOICED", "PARTIALLY_COLLECTED"].includes(batch.status) || input.collectedAmountPaise > batch.invoicedAmountPaise) throw new Error("CLAIM_COLLECTION_RECONCILIATION_FAILED");
-    return { ...batch, status: input.collectedAmountPaise === batch.invoicedAmountPaise ? "COLLECTED" : "PARTIALLY_COLLECTED", collectedAmountPaise: input.collectedAmountPaise, stageEnteredAt: input.occurredAt };
+    return { ...batch, status: input.collectedAmountPaise === batch.invoicedAmountPaise ? "COLLECTED" : "PARTIALLY_COLLECTED", collectedAmountPaise: input.collectedAmountPaise, collectionReference: input.reference?.trim() || batch.collectionReference, stageEnteredAt: input.occurredAt };
   }
   if (input.accountedAmountPaise !== undefined) {
+    if (input.accountedAmountPaise <= 0) throw new Error("CLAIM_FINANCIAL_AMOUNT_MUST_BE_POSITIVE");
     if (batch.status !== "COLLECTED" || input.accountedAmountPaise !== batch.collectedAmountPaise) throw new Error("CLAIM_ACCOUNTING_RECONCILIATION_FAILED");
-    return { ...batch, status: "ACCOUNTED", accountedAmountPaise: input.accountedAmountPaise, stageEnteredAt: input.occurredAt };
+    return { ...batch, status: "ACCOUNTED", accountedAmountPaise: input.accountedAmountPaise, accountingJournalReference: input.reference?.trim() || batch.accountingJournalReference, stageEnteredAt: input.occurredAt };
   }
   throw new Error("CLAIM_FINANCIAL_TRANSITION_REQUIRED");
 }
 
+export function adjustedApprovedAmountPaise(batch: ClaimBatch): number {
+  const approved = batch.lines.reduce((sum, line) => sum + (line.approvedAmountPaise ?? 0), 0);
+  return (batch.reconciliationAdjustments ?? []).reduce((total, adjustment) => {
+    if (adjustment.amountPaise <= 0 || !adjustment.reason.trim() || !adjustment.approvedBy.trim() || !adjustment.approvedAt.trim()) {
+      throw new Error("CLAIM_ADJUSTMENT_APPROVAL_REQUIRED");
+    }
+    return adjustment.direction === "REDUCE_INVOICE_REQUIREMENT"
+      ? total - adjustment.amountPaise
+      : total + adjustment.amountPaise;
+  }, approved);
+}
+
 export function closeClaimBatch(batch: ClaimBatch, occurredAt: string): ClaimBatch {
-  if (batch.status !== "ACCOUNTED" || batch.accountedAmountPaise !== batch.collectedAmountPaise || batch.collectedAmountPaise !== batch.invoicedAmountPaise) throw new Error("CLAIM_CLOSE_RECONCILIATION_REQUIRED");
+  const adjustedApproved = adjustedApprovedAmountPaise(batch);
+  if (
+    adjustedApproved <= 0 ||
+    batch.status !== "ACCOUNTED" ||
+    batch.invoicedAmountPaise !== adjustedApproved ||
+    batch.accountedAmountPaise !== batch.collectedAmountPaise ||
+    batch.collectedAmountPaise !== batch.invoicedAmountPaise
+  ) throw new Error("CLAIM_CLOSE_RECONCILIATION_REQUIRED");
   return { ...batch, status: "CLOSED", closedAt: occurredAt, stageEnteredAt: occurredAt };
 }

@@ -5,6 +5,8 @@ import {
   selectManagementOverview,
   type SubventionFinancialRecord,
 } from "../../../packages/domain/src/subvention/management";
+import { financialRecordsFromSnapshot } from "../../../apps/web/features/subvention/management/managementReadModel";
+import type { SubventionSnapshot } from "../../../packages/domain/src";
 
 const records: SubventionFinancialRecord[] = [
   {
@@ -227,5 +229,24 @@ describe("management overview", () => {
         records: [expect.objectContaining({ claimId: "CLM-APR-DUE" })],
       }),
     ]);
+  });
+});
+
+describe("live management source", () => {
+  it("derives records from the same claim-batch snapshot and preserves the source batch ID", () => {
+    const snapshot = {
+      masters: {
+        employers: [{ id: "EMP-1", name: "Employer One" }],
+        distributors: [{ id: "CP-1", name: "Ingram Micro India" }],
+        resellers: [],
+        oems: [],
+      },
+      claimBatches: [{
+        id: "batch-live-1", reference: "CLM-LIVE-1", status: "PARTIALLY_COLLECTED", settlementCounterpartyId: "CP-1", settlementCounterpartyType: "DISTRIBUTOR",
+        lines: [{ id: "line-1", transactionId: "tx-1", leaseId: "lease-1", employerId: "EMP-1", invoiceNumber: "INV-1", invoiceDate: "2026-07-01", deviceIdentifier: "IMEI-1", settlementCounterpartyId: "CP-1", settlementCounterpartyType: "DISTRIBUTOR", expectedAmountPaise: 5_000, approvedAmountPaise: 4_500, filingDeadline: "2026-09-01", ruleSnapshot: { eligibilityDecisionId: "decision-1", eligibilityDecisionVersion: 1, capturedAt: "2026-07-02", employerProgrammeMappingVersionId: "mapping-1", schemeVersionId: "scheme-1", calculationBasis: "INVOICE_VALUE", rateBps: 350, claimTimelineDays: 90, eligibleProductIds: ["product-1"], settlementCounterpartyType: "DISTRIBUTOR", precedenceSources: ["scheme-1"] } }],
+        expectedAmountPaise: 5_000, makerUserId: "maker", createdAt: "2026-07-02T00:00:00.000Z", stageEnteredAt: "2026-07-20T00:00:00.000Z", invoicedAmountPaise: 4_500, collectedAmountPaise: 2_000,
+      }],
+    } as unknown as Pick<SubventionSnapshot, "claimBatches" | "masters">;
+    expect(financialRecordsFromSnapshot(snapshot)).toEqual([expect.objectContaining({ claimId: "batch-live-1", employerName: "Employer One", counterpartyName: "Ingram Micro India", approvedValuePaise: 4_500, receiptAllocations: [expect.objectContaining({ receiptId: "batch-live-1:recorded-collection", amountPaise: 2_000 })] })]);
   });
 });

@@ -6,7 +6,7 @@ import { Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { DEMO_NOW } from "@/features/subvention/data/seed";
 import { ManagementOverview } from "@/features/subvention/management/ManagementOverview";
-import { DEMO_MANAGEMENT_RECORDS } from "@/features/subvention/management/managementReadModel";
+import { financialRecordsFromSnapshot } from "@/features/subvention/management/managementReadModel";
 import { OperationsWorkbench } from "@/features/subvention/operations/OperationsWorkbench";
 import { useSubvention } from "@/features/subvention/store/SubventionProvider";
 
@@ -44,8 +44,9 @@ function roleFocus(role: string) {
 }
 
 export default function Page() {
-  const { activeActor } = useSubvention();
+  const { activeActor, snapshot } = useSubvention();
   const focus = roleFocus(activeActor.role);
+  const managementRecords = financialRecordsFromSnapshot(snapshot);
 
   return (
     <div className="subvention-landing">
@@ -77,7 +78,7 @@ export default function Page() {
       <div id="management-position" className="subvention-landing-section">
         <Suspense fallback={<div className="subvention-section-loading">Loading financial position…</div>}>
           <ManagementOverview
-            records={DEMO_MANAGEMENT_RECORDS}
+            records={managementRecords}
             businessDate={DEMO_NOW.slice(0, 10)}
           />
         </Suspense>
