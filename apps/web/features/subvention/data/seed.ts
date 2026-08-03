@@ -5,11 +5,15 @@ import type {
   MasterCatalogue,
   OemConfiguration,
   PurchaseSourceEvidence,
+  PurchaseOrderEvidence,
   PurchaseTransaction,
   PurchaseTransactionInput,
   QuarantinedPurchaseImportRow,
   SchemeVersion,
   SubventionSeed,
+  TransactionEvidenceLink,
+  VendorInvoiceEvidence,
+  EWayBillEvidence,
 } from "@smart-epp/domain";
 import { evaluateEligibility } from "@smart-epp/domain";
 import { InMemorySubventionRepository } from "./InMemorySubventionRepository";
@@ -115,6 +119,24 @@ const masters: MasterCatalogue = {
       createdAt: masterTimestamp,
       updatedAt: masterTimestamp,
     },
+    ...[
+      ["reseller-fore-excel", "FORE-EXCEL", "Fore Excel Private Limited", "distributor-ingram"],
+      ["reseller-bluefin", "BLUEFIN", "Bluefin Unlimited", "distributor-redington"],
+      ["reseller-dixit", "DIXIT", "Dixit Infotech Services Private Limited", "distributor-ingram"],
+      ["reseller-unicorn-post", "UNICORN-POST", "Unicorn Post Media Solutions Private Limited", "distributor-redington"],
+      ["reseller-unicorn-info", "UNICORN-INFO", "Unicorn Infosolutions Private Limited", "distributor-ingram"],
+      ["reseller-tortoise", "TORTOISE", "Tortoise System Private Limited", "distributor-ingram"],
+    ].map(([id, code, name, distributorId]) => ({
+      id: id!,
+      kind: "RESELLER" as const,
+      code: code!,
+      name: name!,
+      status: "ACTIVE" as const,
+      oemId: "oem-apple",
+      distributorId: distributorId!,
+      createdAt: masterTimestamp,
+      updatedAt: masterTimestamp,
+    })),
   ],
   products: oems.flatMap((oem) =>
     (oem.productIds ?? []).map((productId) => ({
@@ -132,12 +154,18 @@ const masters: MasterCatalogue = {
       updatedAt: masterTimestamp,
     })),
   ),
-  employers: ["alpha", "beta", "gamma", "delta", "epsilon"].map(
-    (employer) => ({
+  employers: [
+    ["alpha", "CRISIL Limited"],
+    ["beta", "Indus Towers Limited"],
+    ["gamma", "One97 Communications Limited"],
+    ["delta", "Maruti Suzuki India Limited"],
+    ["epsilon", "Nayara Energy Limited"],
+  ].map(
+    ([employer, legalName]) => ({
       id: `employer-${employer}`,
       kind: "EMPLOYER" as const,
       code: `EMPLOYER-${employer.toLocaleUpperCase("en-IN")}`,
-      name: `Employer ${employer.charAt(0).toUpperCase()}${employer.slice(1)}`,
+      name: legalName,
       status: "ACTIVE" as const,
       programmeCode: "SMART-EPP",
       createdAt: masterTimestamp,
@@ -346,6 +374,22 @@ const programmeMappings: EmployerProgrammeMappingVersion[] = [
     resellerId: "reseller-radius",
     distributorId: "distributor-redington",
   }),
+  ...[
+    ["fore-excel", "reseller-fore-excel", "distributor-ingram"],
+    ["bluefin", "reseller-bluefin", "distributor-redington"],
+    ["dixit", "reseller-dixit", "distributor-ingram"],
+    ["unicorn-post", "reseller-unicorn-post", "distributor-redington"],
+    ["unicorn-info", "reseller-unicorn-info", "distributor-ingram"],
+  ].map(([suffix, resellerId, distributorId]) => mapping({
+    id: `mapping-alpha-apple-${suffix}`,
+    mappingId: `mapping-alpha-apple-${suffix}`,
+    employerId: "employer-alpha",
+    programmeId: "programme-apple",
+    oemId: "oem-apple",
+    schemeVersionId: "scheme-apple-h2-2026",
+    resellerId,
+    distributorId,
+  })),
   mapping({
     id: "mapping-alpha-samsung",
     mappingId: "mapping-alpha-samsung",
@@ -508,9 +552,31 @@ function transaction(
   };
 }
 
+const controlledInvoiceReferences = [
+  "FEPL10012",
+  "BLUF-000013",
+  "SL/203/MAY/25-26",
+  "MSDSA2526000456",
+  "SC4SA2526000048",
+];
+
+const evidenceVendorIds = [
+  "reseller-fore-excel",
+  "reseller-bluefin",
+  "reseller-dixit",
+  "reseller-unicorn-post",
+  "reseller-unicorn-info",
+];
+
 const eligibleTransactions = Array.from({ length: 20 }, (_, index) =>
   transaction(index + 1, {
     id: `transaction-eligible-${String(index + 1).padStart(2, "0")}`,
+    ...(evidenceVendorIds[index]
+      ? { resellerId: evidenceVendorIds[index] }
+      : {}),
+    ...(controlledInvoiceReferences[index]
+      ? { invoiceNumber: controlledInvoiceReferences[index] }
+      : {}),
   }),
 );
 const expiredTransactions = Array.from({ length: 3 }, (_, index) =>
@@ -559,6 +625,156 @@ const transactions = [
   ...claimedTransactions,
   duplicateImportTransaction,
 ];
+
+function vendorName(vendorId: string): string {
+  return masters.resellers.find((vendor) => vendor.id === vendorId)?.name ?? vendorId;
+}
+
+const purchaseOrders: PurchaseOrderEvidence[] = transactions.map((purchase) => ({
+  id: `evidence-po-${purchase.id}`,
+  purchaseOrderNumber: purchase.purchaseOrderNumber,
+  employerId: purchase.employerId,
+  programmeId: purchase.programmeId,
+  vendorId: purchase.resellerId,
+  settlementCounterpartyId: purchase.distributorId ?? purchase.resellerId,
+  oemId: purchase.oemId,
+  productId: purchase.productId,
+  orderDate: purchase.invoiceDate,
+  approvedAmountPaise: purchase.invoiceValuePaise,
+  quantity: 1,
+  approvalStatus: "APPROVED",
+  platformProviderId: "platform-tortoise",
+  source: "CONTROLLED_UPLOAD",
+}));
+
+const vendorInvoices: VendorInvoiceEvidence[] = transactions.map((purchase, index) => {
+  const invoiceNumber = controlledInvoiceReferences[index] ?? purchase.invoiceNumber;
+  const isDixit = index === 2;
+  return {
+    id: `evidence-invoice-${purchase.id}`,
+    sourceFileName: `${invoiceNumber.replace(/\//g, "-")}_document.pdf`,
+    sourceChecksum: `sha256:evidence-${purchase.id}`,
+    templateVersionId: `template-${purchase.resellerId}-v1`,
+    documentType: "TAX_INVOICE",
+    vendorId: purchase.resellerId,
+    vendorLegalName: vendorName(purchase.resellerId),
+    invoiceNumber,
+    invoiceDate: purchase.invoiceDate,
+    purchaseOrderNumber: purchase.purchaseOrderNumber,
+    resolvedPurchaseOrderId: `evidence-po-${purchase.id}`,
+    employerId: purchase.employerId,
+    programmeId: purchase.programmeId,
+    supplierGstin: `27GSTIN${String(index + 1).padStart(8, "0")}`,
+    billToGstin: "27AAECC0000A1Z0",
+    irn: `irn-${purchase.id}`,
+    deliveryNoteNumber: isDixit ? "255/MAY/25-26/DC" : undefined,
+    totalValuePaise: purchase.invoiceValuePaise,
+    recognitionConfidence: 0.98,
+    validationState: "COMMITTED",
+    requiresIrn: true,
+    requiresEWayBill: true,
+    lines: [{
+      id: `evidence-line-${purchase.id}`,
+      productText: purchase.productCode,
+      productId: purchase.productId,
+      deviceIdentifiers: [purchase.deviceIdentifier],
+      hsnOrSac: "85171300",
+      classification: "ELIGIBLE_DEVICE",
+      quantity: 1,
+      baseValuePaise: purchase.baseValuePaise,
+      taxableValuePaise: purchase.baseValuePaise,
+      taxAmountPaise: purchase.gstAmountPaise,
+      totalValuePaise: purchase.invoiceValuePaise,
+    }],
+    importedAt: purchase.importedAt,
+    importedBy: "sales-ops-maker",
+  };
+});
+
+const eWayBills: EWayBillEvidence[] = vendorInvoices
+  .filter((_, index) => index !== 19)
+  .map((invoice, index) => {
+    const isDixit = invoice.vendorId === "reseller-dixit";
+    const isPartAOnly = invoice.vendorId === "reseller-bluefin";
+    return {
+      id: `evidence-eway-${invoice.id}`,
+      eWayBillNumber: `EWB-${String(index + 1).padStart(6, "0")}`,
+      documentNumber: isDixit ? invoice.deliveryNoteNumber! : invoice.invoiceNumber,
+      documentDate: invoice.invoiceDate,
+      supplierGstin: invoice.supplierGstin,
+      recipientGstin: invoice.billToGstin,
+      hsnOrSac: invoice.lines[0]!.hsnOrSac,
+      valuePaise: invoice.totalValuePaise,
+      irn: invoice.irn,
+      partBPresent: !isPartAOnly,
+      movementValid: !isPartAOnly,
+      linkMode: isDixit ? "DELIVERY_NOTE" : "INVOICE_NUMBER",
+    };
+  });
+
+const evidenceLinks: TransactionEvidenceLink[] = transactions.map((purchase, index) => {
+  const invoice = vendorInvoices[index]!;
+  const eWayBill = eWayBills.find((bill) => bill.id === `evidence-eway-${invoice.id}`);
+  return {
+    transactionId: purchase.id,
+    purchaseOrder: purchaseOrders[index]!,
+    invoice,
+    invoiceLineId: invoice.lines[0]!.id,
+    deviceIdentifier: purchase.deviceIdentifier,
+    eWayBill,
+    valueTolerancePaise: 100,
+    linkedAt: purchase.importedAt,
+    linkedBy: "sales-ops-maker",
+  };
+});
+
+const tortoiseProtectionPo: PurchaseOrderEvidence = {
+  ...purchaseOrders[0]!,
+  id: "evidence-po-tortoise-protection",
+  purchaseOrderNumber: "PO-PROTECTION-0001",
+  vendorId: "reseller-tortoise",
+  approvedAmountPaise: 149_900,
+};
+const tortoiseProtectionInvoice: VendorInvoiceEvidence = {
+  ...vendorInvoices[0]!,
+  id: "evidence-invoice-tortoise-protection",
+  sourceFileName: "TS-LS-HR-2025-2026-000398.pdf",
+  sourceChecksum: "sha256:tortoise-protection-000398",
+  templateVersionId: "template-tortoise-protection-v1",
+  documentType: "PROTECTION_INVOICE",
+  vendorId: "reseller-tortoise",
+  vendorLegalName: "Tortoise System Private Limited",
+  invoiceNumber: "TS/LS/HR/2025-2026/000398",
+  purchaseOrderNumber: tortoiseProtectionPo.purchaseOrderNumber,
+  resolvedPurchaseOrderId: tortoiseProtectionPo.id,
+  totalValuePaise: 149_900,
+  requiresEWayBill: false,
+  lines: [{
+    id: "evidence-line-tortoise-protection",
+    productText: "OneAssist damage and theft protection plan",
+    productId: undefined,
+    deviceIdentifiers: [transactions[0]!.deviceIdentifier],
+    hsnOrSac: "999799",
+    classification: "LINKED_SERVICE",
+    quantity: 1,
+    baseValuePaise: 127_034,
+    taxableValuePaise: 127_034,
+    taxAmountPaise: 22_866,
+    totalValuePaise: 149_900,
+  }],
+};
+purchaseOrders.push(tortoiseProtectionPo);
+vendorInvoices.push(tortoiseProtectionInvoice);
+evidenceLinks.push({
+  transactionId: transactions[0]!.id,
+  purchaseOrder: tortoiseProtectionPo,
+  invoice: tortoiseProtectionInvoice,
+  invoiceLineId: tortoiseProtectionInvoice.lines[0]!.id,
+  deviceIdentifier: transactions[0]!.deviceIdentifier,
+  valueTolerancePaise: 100,
+  linkedAt: transactions[0]!.importedAt,
+  linkedBy: "sales-ops-maker",
+});
 
 const eligibilityDecisions = eligibleTransactions.slice(0, 12).map((purchase, index) =>
   evaluateEligibility({
@@ -835,6 +1051,10 @@ const demoSeed: SubventionSeed = {
   transactions,
   eligibilityDecisions,
   claimBatches: [],
+  purchaseOrders,
+  vendorInvoices,
+  eWayBills,
+  evidenceLinks,
   quarantinedImports,
   auditEvents,
   actors,

@@ -116,6 +116,25 @@ describe("subvention transaction evidence", () => {
       ]));
   });
 
+  it("blocks an evidence package linked to a different transaction invoice", () => {
+    const link = fixture();
+    const result = validateEvidenceLink(link, {
+      id: link.transactionId,
+      purchaseOrderNumber: link.purchaseOrder.purchaseOrderNumber,
+      invoiceNumber: "OTHER-INVOICE",
+      employerId: link.purchaseOrder.employerId,
+      programmeId: link.purchaseOrder.programmeId,
+      productId: link.purchaseOrder.productId,
+      deviceIdentifier: link.deviceIdentifier!,
+    });
+
+    expect(result.decision).toBe("BLOCKED");
+    expect(result.rules).toContainEqual(expect.objectContaining({
+      code: "TRANSACTION_INVOICE_MATCH",
+      outcome: "FAIL",
+    }));
+  });
+
   it("supports a configured delivery-note link without vendor hardcoding", () => {
     const base = fixture();
     const result = validateEvidenceLink(fixture({

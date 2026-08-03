@@ -1,6 +1,12 @@
 import type { OemRuleDefaults } from "./programme-mapping";
 import type { ClaimBatch, ClaimLineResponse } from "./claims";
 import type {
+  EWayBillEvidence,
+  PurchaseOrderEvidence,
+  TransactionEvidenceLink,
+  VendorInvoiceEvidence,
+} from "./evidence";
+import type {
   MasterCatalogue,
   MasterCommand,
   MasterKind,
@@ -35,6 +41,7 @@ export type AuditAction =
   | "PROGRAMME_MAPPING_REJECTED"
   | "PURCHASE_IMPORTED"
   | "PURCHASE_IMPORT_QUARANTINED"
+  | "TRANSACTION_EVIDENCE_LINKED"
   | "ELIGIBILITY_EVALUATED"
   | "CLAIM_BATCH_CREATED"
   | "CLAIM_BATCH_SUBMITTED"
@@ -54,6 +61,7 @@ export interface AuditEvent {
     | "EmployerProgrammeMappingVersion"
     | "PurchaseTransaction"
     | "PurchaseImportRow"
+    | "TransactionEvidenceLink"
     | "EligibilityDecision"
     | "ClaimBatch";
   entityId: string;
@@ -93,6 +101,10 @@ export interface SubventionSeed {
   transactions: PurchaseTransaction[];
   eligibilityDecisions: EligibilityDecision[];
   claimBatches: ClaimBatch[];
+  purchaseOrders: PurchaseOrderEvidence[];
+  vendorInvoices: VendorInvoiceEvidence[];
+  eWayBills: EWayBillEvidence[];
+  evidenceLinks: TransactionEvidenceLink[];
   quarantinedImports: QuarantinedPurchaseImportRow[];
   auditEvents: AuditEvent[];
   actors: Actor[];
@@ -234,6 +246,18 @@ export interface EligibilityDecisionRepository {
   ): Promise<EligibilityDecision[]>;
 }
 
+export interface EvidenceRepository {
+  listPurchaseOrders(): Promise<PurchaseOrderEvidence[]>;
+  listVendorInvoices(): Promise<VendorInvoiceEvidence[]>;
+  listEWayBills(): Promise<EWayBillEvidence[]>;
+  listEvidenceLinks(transactionId?: string): Promise<TransactionEvidenceLink[]>;
+  saveEvidenceLink(
+    link: TransactionEvidenceLink,
+    actor: Actor,
+    remarks: string,
+  ): Promise<TransactionEvidenceLink>;
+}
+
 export interface AuditRepository {
   listAuditEvents(): Promise<AuditEvent[]>;
   listForEntity(
@@ -265,6 +289,7 @@ export interface SubventionRepository
     SchemeRepository,
     ProgrammeMappingRepository,
     PurchaseTransactionRepository,
+    EvidenceRepository,
     EligibilityDecisionRepository,
     ClaimRepository,
     AuditRepository {

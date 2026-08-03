@@ -14,6 +14,7 @@ import {
   recordClaimSubmission,
   programmeMappingDraftSchema,
   validatePurchaseImport,
+  validateEvidenceLink,
   transitionMaster,
   transitionClaimFinancials,
   submitClaimBatch,
@@ -25,6 +26,7 @@ import {
   type ClaimBatch,
   type ClaimLineResponse,
   type EligibilityDecision,
+  type EWayBillEvidence,
   type EmployerProgrammeMappingVersion,
   type ImportResult,
   type MasterCatalogue,
@@ -33,17 +35,21 @@ import {
   type MasterRecord,
   type OemConfiguration,
   type PurchaseTransaction,
+  type PurchaseOrderEvidence,
   type PurchaseTransactionInput,
   type PurchaseImportMasterData,
   type ProgrammeMappingEffectiveWindow,
   type QuarantinedPurchaseImportRow,
   type RepositoryDependencies,
+  type RuleResult,
   type SchemeVersion,
   type SchemeEffectiveWindow,
   type SubventionCommandAction,
   type SubventionRepository,
   type SubventionSeed,
   type SubventionSnapshot,
+  type TransactionEvidenceLink,
+  type VendorInvoiceEvidence,
 } from "@smart-epp/domain";
 
 function clone<T>(value: T): T {
@@ -61,6 +67,10 @@ export class InMemorySubventionRepository
   private quarantinedImports: QuarantinedPurchaseImportRow[];
   private eligibilityDecisions: EligibilityDecision[];
   private claimBatches: ClaimBatch[];
+  private purchaseOrders: PurchaseOrderEvidence[];
+  private vendorInvoices: VendorInvoiceEvidence[];
+  private eWayBills: EWayBillEvidence[];
+  private evidenceLinks: TransactionEvidenceLink[];
   private auditEvents: AuditEvent[];
   private actors: Actor[];
   private purchaseImportMasterData: PurchaseImportMasterData;
@@ -85,6 +95,10 @@ export class InMemorySubventionRepository
     this.quarantinedImports = copied.quarantinedImports;
     this.eligibilityDecisions = copied.eligibilityDecisions;
     this.claimBatches = copied.claimBatches;
+    this.purchaseOrders = copied.purchaseOrders ?? [];
+    this.vendorInvoices = copied.vendorInvoices ?? [];
+    this.eWayBills = copied.eWayBills ?? [];
+    this.evidenceLinks = copied.evidenceLinks ?? [];
     this.auditEvents = copied.auditEvents;
     this.actors = copied.actors;
     this.purchaseImportMasterData = copied.purchaseImportMasterData;
@@ -112,6 +126,10 @@ export class InMemorySubventionRepository
       transactions: this.transactions,
       eligibilityDecisions: this.eligibilityDecisions,
       claimBatches: this.claimBatches,
+      purchaseOrders: this.purchaseOrders,
+      vendorInvoices: this.vendorInvoices,
+      eWayBills: this.eWayBills,
+      evidenceLinks: this.evidenceLinks,
       quarantinedImports: this.quarantinedImports,
       auditEvents: this.auditEvents,
       actors: this.actors,
@@ -129,6 +147,76 @@ export class InMemorySubventionRepository
 
   async listMasters(kind?: MasterKind): Promise<MasterRecord[]> {
     return clone(listMasterRecords(this.masters, kind));
+  }
+
+  async listPurchaseOrders(): Promise<PurchaseOrderEvidence[]> {
+    return clone(this.purchaseOrders);
+  }
+
+  async listVendorInvoices(): Promise<VendorInvoiceEvidence[]> {
+    return clone(this.vendorInvoices);
+  }
+
+  async listEWayBills(): Promise<EWayBillEvidence[]> {
+    return clone(this.eWayBills);
+  }
+
+  async listEvidenceLinks(transactionId?: string): Promise<TransactionEvidenceLink[]> {
+    return clone(
+      transactionId
+        ? this.evidenceLinks.filter((link) => link.transactionId === transactionId)
+        : this.evidenceLinks,
+    );
+  }
+
+  async saveEvidenceLink(
+    link: TransactionEvidenceLink,
+    actor: Actor,
+    remarks: string,
+  ): Promise<TransactionEvidenceLink> {
+    this.assertCommandActor(actor, "IMPORT_PURCHASE");
+    if (!remarks.trim()) throw new Error("Evidence-link remarks are required");
+    const transaction = this.transactions.find((candidate) => candidate.id === link.transactionId);
+    if (!transaction) {
+      throw new Error(`Purchase transaction ${link.transactionId} was not found`);
+    }
+    const key = `${link.transactionId}|${link.invoice.id}|${link.invoiceLineId}`;
+    const currentIndex = this.evidenceLinks.findIndex(
+      (candidate) => `${candidate.transactionId}|${candidate.invoice.id}|${candidate.invoiceLineId}` === key,
+    );
+    const before = currentIndex >= 0 ? this.evidenceLinks[currentIndex]! : null;
+    const saved = clone(link);
+    const poIndex = this.purchaseOrders.findIndex((candidate) => candidate.id === saved.purchaseOrder.id);
+    const invoiceIndex = this.vendorInvoices.findIndex((candidate) => candidate.id === saved.invoice.id);
+    if (poIndex >= 0) this.purchaseOrders[poIndex] = clone(saved.purchaseOrder);
+    else this.purchaseOrders.push(clone(saved.purchaseOrder));
+    if (invoiceIndex >= 0) this.vendorInvoices[invoiceIndex] = clone(saved.invoice);
+    else this.vendorInvoices.push(clone(saved.invoice));
+    if (saved.eWayBill) {
+      const eWayIndex = this.eWayBills.findIndex((candidate) => candidate.id === saved.eWayBill?.id);
+      if (eWayIndex >= 0) this.eWayBills[eWayIndex] = clone(saved.eWayBill);
+      else this.eWayBills.push(clone(saved.eWayBill));
+    }
+    if (currentIndex >= 0) this.evidenceLinks[currentIndex] = saved;
+    else this.evidenceLinks.push(saved);
+    this.auditEvents.push({
+      id: this.nextUniqueId("audit", "AuditEvent", new Set(this.auditEvents.map((event) => event.id))),
+      entityType: "TransactionEvidenceLink",
+      entityId: key,
+      action: "TRANSACTION_EVIDENCE_LINKED",
+      actor: clone(actor),
+      occurredAt: this.dependencies.now(),
+      remarks,
+      beforeState: before ? clone(before) : null,
+      afterState: clone(saved),
+      provenance: {
+        source: "CONTROLLED_IMPORT",
+        sourceEntityId: saved.invoice.id,
+        sourceChecksum: saved.invoice.sourceChecksum,
+      },
+      metadata: { validation: validateEvidenceLink(saved, transaction) },
+    });
+    return clone(saved);
   }
 
   async saveMasterDraft(
@@ -907,7 +995,7 @@ export class InMemorySubventionRepository
         "EligibilityDecision",
         decisionIds,
       );
-      const decision = evaluateEligibility({
+      const commercialDecision = evaluateEligibility({
         transaction: clone(transaction),
         schemes: clone(this.schemes),
         mappings: clone(this.programmeMappings),
@@ -933,6 +1021,7 @@ export class InMemorySubventionRepository
         version: (previousDecision?.version ?? 0) + 1,
         previousDecision,
       });
+      const decision = this.applyEvidenceGate(commercialDecision);
       const auditEvent: AuditEvent = {
         id: this.nextUniqueId("audit", "AuditEvent", auditIds),
         entityType: "EligibilityDecision",
@@ -964,6 +1053,68 @@ export class InMemorySubventionRepository
     this.eligibilityDecisions.push(...decisions);
     this.auditEvents.push(...auditEvents);
     return clone(decisions);
+  }
+
+  private applyEvidenceGate(decision: EligibilityDecision): EligibilityDecision {
+    const links = this.evidenceLinks.filter(
+      (candidate) => candidate.transactionId === decision.transactionId,
+    );
+    const link = links.find((candidate) => {
+      const line = candidate.invoice.lines.find(
+        (invoiceLine) => invoiceLine.id === candidate.invoiceLineId,
+      );
+      return line?.classification === "ELIGIBLE_DEVICE";
+    });
+    if (!link) {
+      return {
+        ...decision,
+        status: "INELIGIBLE",
+        ruleResults: [
+          ...decision.ruleResults,
+          {
+            code: "TRANSACTION_EVIDENCE_MISSING",
+            label: "Purchase evidence",
+            outcome: "FAIL",
+            reason: "No physical-device PO and invoice evidence link is available.",
+            recoveryAction: "Link the approved PO, recognised invoice and device identifier, then re-evaluate.",
+          },
+        ],
+      };
+    }
+    const transaction = this.transactions.find(
+      (candidate) => candidate.id === decision.transactionId,
+    );
+    const evidence = validateEvidenceLink(link, transaction);
+    const evidenceRules: RuleResult[] = evidence.rules.map((rule) =>
+      rule.outcome === "PASS"
+        ? {
+            code: rule.code,
+            label: rule.label,
+            outcome: "PASS",
+            reason: rule.reason,
+            sourceEntityType: "TransactionEvidenceLink",
+            sourceEntityId: `${link.transactionId}|${link.invoice.id}|${link.invoiceLineId}`,
+          }
+        : {
+            code: rule.code,
+            label: rule.label,
+            outcome: rule.outcome,
+            reason: rule.reason,
+            recoveryAction: rule.recoveryAction ?? "Resolve the evidence exception, then re-evaluate.",
+            sourceEntityType: "TransactionEvidenceLink",
+            sourceEntityId: `${link.transactionId}|${link.invoice.id}|${link.invoiceLineId}`,
+          },
+    );
+    return {
+      ...decision,
+      status:
+        evidence.decision === "PASS"
+          ? decision.status
+          : evidence.decision === "REVIEW"
+            ? "EXCEPTION_REVIEW"
+            : "INELIGIBLE",
+      ruleResults: [...decision.ruleResults, ...evidenceRules],
+    };
   }
 
   async listClaimBatches(): Promise<ClaimBatch[]> {

@@ -248,6 +248,10 @@ function seedFixture(overrides: Partial<SubventionSeed> = {}): SubventionSeed {
     transactions: [purchaseFixture()],
     eligibilityDecisions: [],
     claimBatches: [],
+    purchaseOrders: [],
+    vendorInvoices: [],
+    eWayBills: [],
+    evidenceLinks: [],
     quarantinedImports: [],
     auditEvents: [],
     actors: [
@@ -296,6 +300,40 @@ function createRepositoryFixture(
 }
 
 describe("subvention repository", () => {
+  it("persists evidence changes, audits them, and gates eligibility", async () => {
+    const repository = createDemoSubventionRepository();
+    const transactionId = "transaction-eligible-01";
+    const [link] = await repository.listEvidenceLinks(transactionId);
+    expect(link).toBeDefined();
+
+    const saved = await repository.saveEvidenceLink(
+      {
+        ...link!,
+        eWayBill: { ...link!.eWayBill!, partBPresent: false, movementValid: false },
+      },
+      { userId: "sales-ops-maker", role: "SALES_OPS_MAKER" },
+      "Record Part-A-only movement evidence",
+    );
+    const decision = await repository.evaluateTransaction(
+      transactionId,
+      { userId: "sales-ops-maker", role: "SALES_OPS_MAKER" },
+    );
+
+    expect(saved.eWayBill?.partBPresent).toBe(false);
+    expect(decision.status).toBe("EXCEPTION_REVIEW");
+    expect(decision.ruleResults).toContainEqual(expect.objectContaining({
+      code: "EWAY_PART_B_REVIEW",
+      outcome: "REVIEW",
+    }));
+    expect(await repository.listForEntity(
+      "TransactionEvidenceLink",
+      `${transactionId}|${saved.invoice.id}|${saved.invoiceLineId}`,
+    )).toContainEqual(expect.objectContaining({
+      action: "TRANSACTION_EVIDENCE_LINKED",
+      remarks: "Record Part-A-only movement evidence",
+    }));
+  });
+
   it("submits and approves with different users and appends audit events", async () => {
     const repository = createRepositoryFixture();
     await repository.submitScheme(
@@ -1457,7 +1495,7 @@ describe("subvention repository", () => {
     expect(
       first.schemes.filter((scheme) => scheme.workflowStatus === "DRAFT"),
     ).toHaveLength(1);
-    expect(first.programmeMappings).toHaveLength(10);
+    expect(first.programmeMappings).toHaveLength(15);
     expect(
       first.programmeMappings.filter(
         (mapping) => mapping.workflowStatus === "SUBMITTED",

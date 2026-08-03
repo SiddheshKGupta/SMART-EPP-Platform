@@ -38,6 +38,7 @@ export function TransactionEvidenceDrawer({
   const references = [
     row.evidence.purchaseOrder,
     row.evidence.vendorInvoice,
+    row.evidence.movementEvidence,
     {
       label: "Device / IMEI",
       reference: row.evidence.deviceIdentifier,

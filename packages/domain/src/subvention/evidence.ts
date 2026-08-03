@@ -119,6 +119,16 @@ export interface EvidenceValidationResult {
   rules: EvidenceRuleResult[];
 }
 
+export interface TransactionEvidenceSubject {
+  id: string;
+  purchaseOrderNumber: string;
+  invoiceNumber: string;
+  employerId: string;
+  programmeId: string;
+  productId: string;
+  deviceIdentifier: string;
+}
+
 function normaliseReference(value: string | undefined): string {
   return value?.trim().toLocaleUpperCase("en-IN").replace(/\//g, "-") ?? "";
 }
@@ -132,6 +142,7 @@ function addRule(
 
 export function validateEvidenceLink(
   link: TransactionEvidenceLink,
+  subject?: TransactionEvidenceSubject,
 ): EvidenceValidationResult {
   const rules: EvidenceRuleResult[] = [];
   const { purchaseOrder: po, invoice } = link;
@@ -185,10 +196,34 @@ export function validateEvidenceLink(
       reason: "The invoice line is a linked service and may enrich the device record only.",
     });
   } else {
+    if (subject) {
+      const subjectChecks: Array<[string, string, boolean, string]> = [
+        ["TRANSACTION_ID_MATCH", "Transaction", link.transactionId === subject.id, "Link evidence to the correct transaction."],
+        ["TRANSACTION_PO_MATCH", "Transaction PO", normaliseReference(po.purchaseOrderNumber) === normaliseReference(subject.purchaseOrderNumber), "Correct the transaction PO reference or evidence link."],
+        ["TRANSACTION_INVOICE_MATCH", "Transaction invoice", normaliseReference(invoice.invoiceNumber) === normaliseReference(subject.invoiceNumber), "Correct the transaction invoice reference or evidence link."],
+        ["TRANSACTION_EMPLOYER_MATCH", "Transaction employer", po.employerId === subject.employerId, "Link evidence for the transaction employer."],
+        ["TRANSACTION_PROGRAMME_MATCH", "Transaction programme", po.programmeId === subject.programmeId, "Link evidence for the transaction programme."],
+        ["TRANSACTION_PRODUCT_MATCH", "Transaction product", po.productId === subject.productId, "Link evidence for the transaction product."],
+      ];
+      subjectChecks.forEach(([code, label, passed, recoveryAction]) => addRule(rules, passed ? {
+        code,
+        label,
+        outcome: "PASS",
+        reason: `${label} matches the evidence chain.`,
+      } : {
+        code,
+        label,
+        outcome: "FAIL",
+        reason: `${label} does not match the evidence chain.`,
+        recoveryAction,
+      }));
+    }
     const identifierMatches = Boolean(link.deviceIdentifier) &&
       line.deviceIdentifiers.some(
         (identifier) => normaliseReference(identifier) === normaliseReference(link.deviceIdentifier),
       );
+    const subjectIdentifierMatches = !subject ||
+      normaliseReference(subject.deviceIdentifier) === normaliseReference(link.deviceIdentifier);
     addRule(rules, identifierMatches ? {
       code: "DEVICE_IDENTIFIER_MATCH",
       label: "Device identifier",
@@ -201,6 +236,15 @@ export function validateEvidenceLink(
       reason: "The transaction device identifier is missing from the selected invoice line.",
       recoveryAction: "Select the correct invoice line or resolve the IMEI/serial mismatch.",
     });
+    if (!subjectIdentifierMatches) {
+      addRule(rules, {
+        code: "TRANSACTION_DEVICE_MISMATCH",
+        label: "Transaction device identifier",
+        outcome: "FAIL",
+        reason: "The linked device identifier does not match the transaction.",
+        recoveryAction: "Link the invoice line containing the transaction IMEI or serial number.",
+      });
+    }
 
     addRule(rules, line.classification === "ELIGIBLE_DEVICE" ? {
       code: "HSN_CLASSIFICATION_ELIGIBLE",

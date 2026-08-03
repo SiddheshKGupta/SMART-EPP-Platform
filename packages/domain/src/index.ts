@@ -21,6 +21,7 @@ export {
 export * from "./subvention/dates";
 export * from "./subvention/claims";
 export * from "./subvention/eligibility";
+export * from "./subvention/evidence";
 export * from "./subvention/issues";
 export * from "./subvention/master-workflow";
 export * from "./subvention/master-data";

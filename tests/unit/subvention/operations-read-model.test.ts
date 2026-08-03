@@ -78,7 +78,8 @@ describe("operations read model", () => {
     const row = model.rows.find((candidate) => candidate.systemResult === "Ready for Claim")!;
 
     expect(row.evidence.purchaseOrder.reference).toMatch(/^PO-/);
-    expect(row.evidence.vendorInvoice.reference).toMatch(/^INV-/);
+    expect(row.evidence.vendorInvoice.reference).toBeTruthy();
+    expect(row.evidence.movementEvidence.state).toBe("MATCHED");
     expect(row.evidence.deviceIdentifier).toBeTruthy();
     expect(row.evidence.programme.reference).toBeTruthy();
     expect(row.evidence.scheme.reference).toBeTruthy();
@@ -86,6 +87,21 @@ describe("operations read model", () => {
     expect(row.evidence.expectedAmountPaise).toBeGreaterThan(0);
     expect(row.evidence.filingDeadline).toMatch(/^2026-/);
     expect(row.technicalDetails.ruleResults.length).toBeGreaterThan(0);
+  });
+
+  it("gates Operations outcomes using persisted purchase evidence", () => {
+    const snapshot = createDemoSubventionSeed();
+    const model = buildOperationsReadModel(snapshot, {
+      actor: snapshot.actors[0]!,
+      evaluatedAt,
+    });
+
+    expect(model.rows.find((row) => row.invoiceNumber === "BLUF-000013")?.systemResult)
+      .toBe("Needs Review");
+    expect(model.rows.find((row) => row.transactionId === "transaction-eligible-20")?.systemResult)
+      .toBe("Blocked");
+    expect(model.rows.find((row) => row.invoiceNumber === "SL/203/MAY/25-26")?.systemResult)
+      .toBe("Ready for Claim");
   });
 
   it("preserves the first actionable recovery instruction for exception work", () => {
