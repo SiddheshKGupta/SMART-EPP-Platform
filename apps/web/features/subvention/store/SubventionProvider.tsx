@@ -9,7 +9,11 @@ import {
 } from "react";
 import type {
   Actor,
+  ClaimAccountingInput,
+  ClaimAdjustmentInput,
   ClaimBatch,
+  ClaimCollectionInput,
+  ClaimInvoiceInput,
   ClaimLineResponse,
   DomainIssue,
   EligibilityDecision,
@@ -118,9 +122,10 @@ export interface SubventionContextValue {
   approveClaimBatch(id: string, remarks: string): Promise<SubventionCommandResult<ClaimBatch>>;
   recordClaimSubmission(id: string, reference: string, remarks: string): Promise<SubventionCommandResult<ClaimBatch>>;
   recordClaimResponse(id: string, responses: ClaimLineResponse[], remarks: string): Promise<SubventionCommandResult<ClaimBatch>>;
-  recordClaimInvoice(id: string, amountPaise: number, remarks: string): Promise<SubventionCommandResult<ClaimBatch>>;
-  recordClaimCollection(id: string, amountPaise: number, remarks: string): Promise<SubventionCommandResult<ClaimBatch>>;
-  recordClaimAccounting(id: string, amountPaise: number, remarks: string): Promise<SubventionCommandResult<ClaimBatch>>;
+  recordClaimInvoice(id: string, input: ClaimInvoiceInput, remarks: string): Promise<SubventionCommandResult<ClaimBatch>>;
+  recordClaimCollection(id: string, input: ClaimCollectionInput, remarks: string): Promise<SubventionCommandResult<ClaimBatch>>;
+  recordClaimAccounting(id: string, input: ClaimAccountingInput, remarks: string): Promise<SubventionCommandResult<ClaimBatch>>;
+  approveClaimAdjustment(id: string, input: ClaimAdjustmentInput, remarks: string): Promise<SubventionCommandResult<ClaimBatch>>;
   closeClaimBatch(id: string, remarks: string): Promise<SubventionCommandResult<ClaimBatch>>;
   issues: DomainIssue[];
   actionError?: SubventionActionError;
@@ -349,15 +354,19 @@ export function SubventionProvider({ children }: { children: ReactNode }) {
     [activeActor, repository, runCommand],
   );
   const recordClaimInvoice = useCallback(
-    (id: string, amountPaise: number, remarks: string) => runCommand(() => repository.recordClaimInvoice(id, amountPaise, activeActor, remarks)),
+    (id: string, input: ClaimInvoiceInput, remarks: string) => runCommand(() => repository.recordClaimInvoice(id, input, activeActor, remarks)),
     [activeActor, repository, runCommand],
   );
   const recordClaimCollection = useCallback(
-    (id: string, amountPaise: number, remarks: string) => runCommand(() => repository.recordClaimCollection(id, amountPaise, activeActor, remarks)),
+    (id: string, input: ClaimCollectionInput, remarks: string) => runCommand(() => repository.recordClaimCollection(id, input, activeActor, remarks)),
     [activeActor, repository, runCommand],
   );
   const recordClaimAccounting = useCallback(
-    (id: string, amountPaise: number, remarks: string) => runCommand(() => repository.recordClaimAccounting(id, amountPaise, activeActor, remarks)),
+    (id: string, input: ClaimAccountingInput, remarks: string) => runCommand(() => repository.recordClaimAccounting(id, input, activeActor, remarks)),
+    [activeActor, repository, runCommand],
+  );
+  const approveClaimAdjustment = useCallback(
+    (id: string, input: ClaimAdjustmentInput, remarks: string) => runCommand(() => repository.approveClaimAdjustment(id, input, activeActor, remarks)),
     [activeActor, repository, runCommand],
   );
   const closeClaimBatch = useCallback(
@@ -452,6 +461,7 @@ export function SubventionProvider({ children }: { children: ReactNode }) {
         recordClaimInvoice,
         recordClaimCollection,
         recordClaimAccounting,
+        approveClaimAdjustment,
         closeClaimBatch,
         issues,
         actionError,

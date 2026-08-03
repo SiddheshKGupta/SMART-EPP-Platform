@@ -388,6 +388,51 @@ describe("subvention repository", () => {
       .toEqual(expect.objectContaining({ id: reevaluated.id, version: 2 }));
   });
 
+  it("freezes current evidence provenance and segregates claim financial duties", async () => {
+    const repository = createDemoSubventionRepository();
+    const maker = { userId: "sales-ops-maker", role: "SALES_OPS_MAKER" };
+    const checker = { userId: "business-head-checker", role: "BUSINESS_HEAD_CHECKER" };
+    const transactionId = "transaction-eligible-01";
+    const [link] = await repository.listEvidenceLinks(transactionId);
+    const batch = await repository.createClaimBatch([transactionId], link!.purchaseOrder.settlementCounterpartyId, maker, "Prepare claim");
+    expect(batch.lines[0]!.ruleSnapshot.evidence).toMatchObject({
+      invoiceId: link!.invoice.id,
+      invoiceSourceChecksum: link!.invoice.sourceChecksum,
+      invoiceTemplateVersionId: link!.invoice.templateVersionId,
+      purchaseOrderId: link!.purchaseOrder.id,
+      validation: { decision: "PASS" },
+    });
+    const submitted = await repository.submitClaimBatch(batch.id, maker, "Submit claim");
+    const approved = await repository.approveClaimBatch(submitted.id, checker, "Approve claim");
+    const sent = await repository.recordClaimSubmission(approved.id, "OEM-SUB-1", maker, "Submit to counterparty");
+    const responded = await repository.recordClaimResponse(sent.id, sent.lines.map((line) => ({ lineId: line.id, status: "APPROVED", approvedAmountPaise: line.expectedAmountPaise })), maker, "Record OEM response");
+    const amountPaise = responded.lines.reduce((sum, line) => sum + (line.approvedAmountPaise ?? 0), 0);
+
+    await expect(repository.recordClaimInvoice(responded.id, { reference: "INV-SUB-1", amountPaise }, maker, "Unauthorized invoice")).rejects.toThrow("not authorized");
+    const invoiced = await repository.recordClaimInvoice(responded.id, { reference: "INV-SUB-1", amountPaise }, { userId: "finance-billing", role: "FINANCE_BILLING" }, "Raise subvention invoice");
+    expect(invoiced.invoiceReference).toBe("INV-SUB-1");
+    const collected = await repository.recordClaimCollection(invoiced.id, { reference: "UTR-1", amountPaise }, { userId: "finance-receipt", role: "FINANCE_RECEIPT" }, "Allocate receipt");
+    expect(collected.collectionReference).toBe("UTR-1");
+    const accounted = await repository.recordClaimAccounting(collected.id, { journalReference: "JV-1", amountPaise }, { userId: "finance-accounts", role: "FINANCE_ACCOUNTS" }, "Post journal");
+    expect(accounted.accountingJournalReference).toBe("JV-1");
+    expect((await repository.closeClaimBatch(accounted.id, checker, "Close reconciled claim")).status).toBe("CLOSED");
+  });
+
+  it("requires an independent authorized approver for a typed claim adjustment", async () => {
+    const repository = createDemoSubventionRepository();
+    const maker = { userId: "sales-ops-maker", role: "SALES_OPS_MAKER" };
+    const checker = { userId: "business-head-checker", role: "BUSINESS_HEAD_CHECKER" };
+    const [link] = await repository.listEvidenceLinks("transaction-eligible-01");
+    const batch = await repository.createClaimBatch(["transaction-eligible-01"], link!.purchaseOrder.settlementCounterpartyId, maker, "Prepare claim");
+    const sent = await repository.recordClaimSubmission((await repository.approveClaimBatch((await repository.submitClaimBatch(batch.id, maker, "Submit claim")).id, checker, "Approve claim")).id, "OEM-SUB-2", maker, "Submit to counterparty");
+    const responded = await repository.recordClaimResponse(sent.id, sent.lines.map((line) => ({ lineId: line.id, status: "APPROVED", approvedAmountPaise: line.expectedAmountPaise })), maker, "Record OEM response");
+    const adjustment = { id: "adjustment-1", type: "WRITE_OFF" as const, direction: "REDUCE_INVOICE_REQUIREMENT" as const, amountPaise: 100, reason: "Approved settlement variance", requestedBy: checker.userId };
+    await expect(repository.approveClaimAdjustment(responded.id, adjustment, checker, "Self approve adjustment")).rejects.toThrow("Maker cannot approve own claim adjustment");
+    const adjusted = await repository.approveClaimAdjustment(responded.id, { ...adjustment, requestedBy: maker.userId }, checker, "Approve adjustment");
+    expect(adjusted.reconciliationAdjustments).toEqual([expect.objectContaining({ id: "adjustment-1", approvedBy: checker.userId })]);
+    expect(await repository.listForEntity("ClaimBatch", responded.id)).toContainEqual(expect.objectContaining({ action: "CLAIM_RECONCILIATION_ADJUSTMENT_APPROVED", beforeState: expect.any(Object), afterState: expect.objectContaining({ reconciliationAdjustments: expect.any(Array) }) }));
+  });
+
   it("submits and approves with different users and appends audit events", async () => {
     const repository = createRepositoryFixture();
     await repository.submitScheme(
@@ -1615,6 +1660,9 @@ describe("subvention repository", () => {
       "MASTER_DATA_ADMIN",
       "MANAGEMENT_VIEWER",
       "AUDITOR",
+      "FINANCE_BILLING",
+      "FINANCE_RECEIPT",
+      "FINANCE_ACCOUNTS",
     ]);
     first.transactions
       .filter((transaction) => transaction.employerId !== "employer-unmapped")

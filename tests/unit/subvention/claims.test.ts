@@ -36,7 +36,7 @@ function decision(id: string, status: EligibilityDecision["status"] = "ELIGIBLE"
 }
 
 function draft(ids = ["tx-1", "tx-2"]) {
-  return createClaimBatch({ id: "batch-1", reference: "CLM-202607-001", transactionIds: ids, settlementCounterpartyId: "distributor-ingram", transactions: ids.map((id) => transaction(id)), eligibilityDecisions: ids.map((id) => decision(id)), existingBatches: [], actor: maker, occurredAt });
+  return createClaimBatch({ id: "batch-1", reference: "CLM-202607-001", transactionIds: ids, settlementCounterpartyId: "distributor-ingram", transactions: ids.map((id) => transaction(id)), eligibilityDecisions: ids.map((id) => decision(id)), evidenceSnapshots: Object.fromEntries(ids.map((id) => [id, { evidenceLinkIdentity: `${id}|invoice-${id}|line-1`, evidenceLinkedAt: occurredAt, invoiceId: `invoice-${id}`, invoiceSourceChecksum: `sha256:${id}`, invoiceTemplateVersionId: "template-1", purchaseOrderId: `po-${id}`, eWayBillId: `eway-${id}`, eWayBillStatus: "VALID_MOVEMENT", validation: { decision: "PASS", capturedAt: occurredAt, rules: [{ code: "PO_APPROVED", outcome: "PASS" }] } }])), existingBatches: [], actor: maker, occurredAt });
 }
 
 describe("controlled claim lifecycle", () => {
@@ -49,9 +49,10 @@ describe("controlled claim lifecycle", () => {
   });
 
   it("rejects missing eligibility, mixed routes and duplicate inclusion", () => {
-    expect(() => createClaimBatch({ id: "batch", reference: "CLM", transactionIds: ["tx-1"], settlementCounterpartyId: "distributor-ingram", transactions: [transaction("tx-1")], eligibilityDecisions: [], existingBatches: [], actor: maker, occurredAt })).toThrow("CLAIM_PERSISTED_ELIGIBILITY_REQUIRED");
-    expect(() => createClaimBatch({ id: "batch", reference: "CLM", transactionIds: ["tx-1"], settlementCounterpartyId: "distributor-redington", transactions: [transaction("tx-1")], eligibilityDecisions: [decision("tx-1")], existingBatches: [], actor: maker, occurredAt })).toThrow("CLAIM_BATCH_MIXED_SETTLEMENT_COUNTERPARTY");
-    expect(() => createClaimBatch({ id: "batch-2", reference: "CLM-2", transactionIds: ["tx-1"], settlementCounterpartyId: "distributor-ingram", transactions: [transaction("tx-1")], eligibilityDecisions: [decision("tx-1")], existingBatches: [draft(["tx-1"])], actor: maker, occurredAt })).toThrow("DUPLICATE_CLAIM_TRANSACTION");
+    const evidenceSnapshots = { "tx-1": draft(["tx-1"]).lines[0]!.ruleSnapshot.evidence };
+    expect(() => createClaimBatch({ id: "batch", reference: "CLM", transactionIds: ["tx-1"], settlementCounterpartyId: "distributor-ingram", transactions: [transaction("tx-1")], eligibilityDecisions: [], evidenceSnapshots, existingBatches: [], actor: maker, occurredAt })).toThrow("CLAIM_PERSISTED_ELIGIBILITY_REQUIRED");
+    expect(() => createClaimBatch({ id: "batch", reference: "CLM", transactionIds: ["tx-1"], settlementCounterpartyId: "distributor-redington", transactions: [transaction("tx-1")], eligibilityDecisions: [decision("tx-1")], evidenceSnapshots, existingBatches: [], actor: maker, occurredAt })).toThrow("CLAIM_BATCH_MIXED_SETTLEMENT_COUNTERPARTY");
+    expect(() => createClaimBatch({ id: "batch-2", reference: "CLM-2", transactionIds: ["tx-1"], settlementCounterpartyId: "distributor-ingram", transactions: [transaction("tx-1")], eligibilityDecisions: [decision("tx-1")], evidenceSnapshots, existingBatches: [draft(["tx-1"])], actor: maker, occurredAt })).toThrow("DUPLICATE_CLAIM_TRANSACTION");
   });
 
   it("enforces maker-checker, locking and reconciled closure", () => {
@@ -81,7 +82,7 @@ describe("controlled claim lifecycle", () => {
   it("permits closure when a typed approved write-off explains the invoice variance", () => {
     const sent = recordClaimSubmission(approveClaimBatch(submitClaimBatch(draft(["tx-1"]), maker, occurredAt), checker, occurredAt), "OEM-REF-1", occurredAt);
     const responded = recordClaimResponse(sent, [{ lineId: sent.lines[0]!.id, status: "APPROVED", approvedAmountPaise: 3_500 }], occurredAt);
-    const adjusted = { ...responded, reconciliationAdjustments: [{ id: "adj-1", type: "WRITE_OFF" as const, direction: "REDUCE_INVOICE_REQUIREMENT" as const, amountPaise: 500, reason: "Approved short settlement", approvedBy: checker.userId, approvedAt: occurredAt }] };
+    const adjusted = { ...responded, reconciliationAdjustments: [{ id: "adj-1", type: "WRITE_OFF" as const, direction: "REDUCE_INVOICE_REQUIREMENT" as const, amountPaise: 500, reason: "Approved short settlement", requestedBy: maker.userId, approvedBy: checker.userId, approvedAt: occurredAt }] };
     const invoiced = transitionClaimFinancials(adjusted, { invoicedAmountPaise: 3_000, occurredAt });
     const collected = transitionClaimFinancials(invoiced, { collectedAmountPaise: 3_000, occurredAt });
     const accounted = transitionClaimFinancials(collected, { accountedAmountPaise: 3_000, occurredAt });

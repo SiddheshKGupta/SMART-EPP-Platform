@@ -5,6 +5,7 @@ import type {
   PurchaseTransaction,
   SettlementCounterpartyType,
 } from "./types";
+import type { EvidenceDecision, EvidenceRuleOutcome } from "./evidence";
 
 export const CLAIM_BATCH_STATUSES = [
   "DRAFT",
@@ -26,6 +27,23 @@ export interface ClaimRuleSnapshot extends EligibilityRuleSnapshot {
   eligibilityDecisionId: string;
   eligibilityDecisionVersion: number;
   capturedAt: string;
+  evidence: ClaimEvidenceSnapshot;
+}
+
+export interface ClaimEvidenceSnapshot {
+  evidenceLinkIdentity: string;
+  evidenceLinkedAt: string;
+  invoiceId: string;
+  invoiceSourceChecksum: string;
+  invoiceTemplateVersionId: string;
+  purchaseOrderId: string;
+  eWayBillId?: string;
+  eWayBillStatus?: "VALID_MOVEMENT" | "PART_A_ONLY" | "NOT_REQUIRED";
+  validation: {
+    decision: EvidenceDecision;
+    capturedAt: string;
+    rules: Array<{ code: string; outcome: EvidenceRuleOutcome }>;
+  };
 }
 
 export interface ClaimBatchLine {
@@ -66,6 +84,19 @@ export interface ClaimReconciliationAdjustment {
   reason: string;
   approvedBy: string;
   approvedAt: string;
+  requestedBy: string;
+}
+
+export interface ClaimInvoiceInput { reference: string; amountPaise: number }
+export interface ClaimCollectionInput { reference: string; amountPaise: number }
+export interface ClaimAccountingInput { journalReference: string; amountPaise: number }
+export interface ClaimAdjustmentInput {
+  id: string;
+  type: ClaimReconciliationAdjustment["type"];
+  direction: ClaimReconciliationAdjustment["direction"];
+  amountPaise: number;
+  reason: string;
+  requestedBy: string;
 }
 
 export interface ClaimBatch {
@@ -102,6 +133,7 @@ export interface CreateClaimBatchInput {
   settlementCounterpartyId: string;
   transactions: PurchaseTransaction[];
   eligibilityDecisions: EligibilityDecision[];
+  evidenceSnapshots: Record<string, ClaimEvidenceSnapshot>;
   existingBatches: ClaimBatch[];
   actor: Actor;
   occurredAt: string;
@@ -146,6 +178,10 @@ export function createClaimBatch(input: CreateClaimBatchInput): ClaimBatch {
     if (!decision || decision.status !== "ELIGIBLE" || !decision.ruleSnapshot) {
       throw new Error(`CLAIM_PERSISTED_ELIGIBILITY_REQUIRED:${transactionId}`);
     }
+    const evidence = input.evidenceSnapshots[transactionId];
+    if (!evidence || evidence.validation.decision !== "PASS") {
+      throw new Error(`CLAIM_CURRENT_EVIDENCE_REQUIRED:${transactionId}`);
+    }
     const counterparty = counterpartyFor(transaction, decision);
     if (counterparty.id !== input.settlementCounterpartyId) {
       throw new Error("CLAIM_BATCH_MIXED_SETTLEMENT_COUNTERPARTY");
@@ -167,6 +203,7 @@ export function createClaimBatch(input: CreateClaimBatchInput): ClaimBatch {
         eligibilityDecisionId: decision.id,
         eligibilityDecisionVersion: decision.version,
         capturedAt: input.occurredAt,
+        evidence: structuredClone(evidence),
       },
     };
   });
@@ -286,6 +323,30 @@ export function adjustedApprovedAmountPaise(batch: ClaimBatch): number {
       ? total - adjustment.amountPaise
       : total + adjustment.amountPaise;
   }, approved);
+}
+
+export function addClaimReconciliationAdjustment(
+  batch: ClaimBatch,
+  input: ClaimAdjustmentInput,
+  approver: Actor,
+  occurredAt: string,
+): ClaimBatch {
+  if (!["RESPONDED", "INVOICED", "PARTIALLY_COLLECTED", "COLLECTED", "ACCOUNTED"].includes(batch.status)) {
+    throw new Error("CLAIM_ADJUSTMENT_INVALID_STAGE");
+  }
+  if (input.amountPaise <= 0 || !input.reason.trim()) throw new Error("CLAIM_ADJUSTMENT_INVALID");
+  if (input.requestedBy === approver.userId) throw new Error("Maker cannot approve own claim adjustment");
+  if (!["BUSINESS_HEAD_CHECKER", "MANAGEMENT_VIEWER"].includes(approver.role)) throw new Error("CLAIM_ADJUSTMENT_APPROVER_REQUIRED");
+  if ((batch.reconciliationAdjustments ?? []).some((row) => row.id === input.id)) throw new Error("CLAIM_ADJUSTMENT_DUPLICATE");
+  return {
+    ...batch,
+    reconciliationAdjustments: [...(batch.reconciliationAdjustments ?? []), {
+      ...input,
+      reason: input.reason.trim(),
+      approvedBy: approver.userId,
+      approvedAt: occurredAt,
+    }],
+  };
 }
 
 export function closeClaimBatch(batch: ClaimBatch, occurredAt: string): ClaimBatch {

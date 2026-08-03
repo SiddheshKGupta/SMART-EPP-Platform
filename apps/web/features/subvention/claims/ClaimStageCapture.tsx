@@ -93,9 +93,9 @@ export function ClaimStageCapture({ batch }: { batch: ClaimBatch }) {
           <Button className="w-fit" disabled={busy || !reference.trim() || rupeesToPaise(amount) <= 0} onClick={() => run(() => {
             const paise = rupeesToPaise(amount);
             const auditRemarks = `${reason}; reference: ${reference.trim()}`;
-            if (batch.status === "RESPONDED") return commands.recordClaimInvoice(batch.id, paise, auditRemarks);
-            if (batch.status === "COLLECTED") return commands.recordClaimAccounting(batch.id, paise, auditRemarks);
-            return commands.recordClaimCollection(batch.id, paise, auditRemarks);
+            if (batch.status === "RESPONDED") return commands.recordClaimInvoice(batch.id, { reference: reference.trim(), amountPaise: paise }, auditRemarks);
+            if (batch.status === "COLLECTED") return commands.recordClaimAccounting(batch.id, { journalReference: reference.trim(), amountPaise: paise }, auditRemarks);
+            return commands.recordClaimCollection(batch.id, { reference: reference.trim(), amountPaise: paise }, auditRemarks);
           })}>{batch.status === "RESPONDED" ? "Record invoice" : batch.status === "COLLECTED" ? "Post accounting" : "Allocate receipt"}</Button>
         </div>
       ) : null}

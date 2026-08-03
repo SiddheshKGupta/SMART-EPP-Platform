@@ -1,5 +1,12 @@
 import type { OemRuleDefaults } from "./programme-mapping";
-import type { ClaimBatch, ClaimLineResponse } from "./claims";
+import type {
+  ClaimAccountingInput,
+  ClaimAdjustmentInput,
+  ClaimBatch,
+  ClaimCollectionInput,
+  ClaimInvoiceInput,
+  ClaimLineResponse,
+} from "./claims";
 import type {
   EWayBillEvidence,
   PurchaseOrderEvidence,
@@ -58,6 +65,7 @@ export type AuditAction =
   | "CLAIM_INVOICE_RECORDED"
   | "CLAIM_COLLECTION_RECORDED"
   | "CLAIM_ACCOUNTED"
+  | "CLAIM_RECONCILIATION_ADJUSTMENT_APPROVED"
   | "CLAIM_CLOSED";
 
 export interface AuditEvent {
@@ -299,9 +307,10 @@ export interface ClaimRepository {
   approveClaimBatch(id: string, actor: Actor, remarks: string): Promise<ClaimBatch>;
   recordClaimSubmission(id: string, reference: string, actor: Actor, remarks: string): Promise<ClaimBatch>;
   recordClaimResponse(id: string, responses: ClaimLineResponse[], actor: Actor, remarks: string): Promise<ClaimBatch>;
-  recordClaimInvoice(id: string, amountPaise: number, actor: Actor, remarks: string): Promise<ClaimBatch>;
-  recordClaimCollection(id: string, amountPaise: number, actor: Actor, remarks: string): Promise<ClaimBatch>;
-  recordClaimAccounting(id: string, amountPaise: number, actor: Actor, remarks: string): Promise<ClaimBatch>;
+  recordClaimInvoice(id: string, input: ClaimInvoiceInput, actor: Actor, remarks: string): Promise<ClaimBatch>;
+  recordClaimCollection(id: string, input: ClaimCollectionInput, actor: Actor, remarks: string): Promise<ClaimBatch>;
+  recordClaimAccounting(id: string, input: ClaimAccountingInput, actor: Actor, remarks: string): Promise<ClaimBatch>;
+  approveClaimAdjustment(id: string, input: ClaimAdjustmentInput, actor: Actor, remarks: string): Promise<ClaimBatch>;
   closeClaimBatch(id: string, actor: Actor, remarks: string): Promise<ClaimBatch>;
 }
 

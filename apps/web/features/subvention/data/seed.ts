@@ -26,6 +26,9 @@ const actors: Actor[] = [
   { userId: "master-data-admin", role: "MASTER_DATA_ADMIN" },
   { userId: "management-viewer", role: "MANAGEMENT_VIEWER" },
   { userId: "audit-reviewer", role: "AUDITOR" },
+  { userId: "finance-billing", role: "FINANCE_BILLING" },
+  { userId: "finance-receipt", role: "FINANCE_RECEIPT" },
+  { userId: "finance-accounts", role: "FINANCE_ACCOUNTS" },
 ];
 
 const oems: OemConfiguration[] = [

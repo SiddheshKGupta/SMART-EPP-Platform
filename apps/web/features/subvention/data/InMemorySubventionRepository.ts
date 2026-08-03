@@ -1,6 +1,7 @@
 import {
   assertProgrammeMappingApprovalValid,
   approveClaimBatch,
+  addClaimReconciliationAdjustment,
   assertMasterMutationAuthorized,
   assertSubventionCommandAuthorized,
   evaluateEligibility,
@@ -26,6 +27,11 @@ import {
   type Actor,
   type AuditEvent,
   type ClaimBatch,
+  type ClaimAccountingInput,
+  type ClaimAdjustmentInput,
+  type ClaimCollectionInput,
+  type ClaimEvidenceSnapshot,
+  type ClaimInvoiceInput,
   type ClaimLineResponse,
   type EligibilityDecision,
   type EWayBillEvidence,
@@ -1280,6 +1286,31 @@ export class InMemorySubventionRepository
       "ClaimBatch",
       new Set(this.claimBatches.map((batch) => batch.id)),
     );
+    const evidenceSnapshots = Object.fromEntries(transactionIds.map((transactionId): [string, ClaimEvidenceSnapshot] => {
+      if (this.eligibilityInvalidatedTransactions.has(transactionId)) {
+        throw new Error(`CLAIM_PERSISTED_ELIGIBILITY_REQUIRED:${transactionId}`);
+      }
+      const transaction = this.transactions.find((row) => row.id === transactionId);
+      const link = this.evidenceLinks.find((candidate) => candidate.transactionId === transactionId && candidate.invoice.lines.some((line) => line.id === candidate.invoiceLineId && line.classification === "ELIGIBLE_DEVICE"));
+      if (!transaction || !link) throw new Error(`CLAIM_CURRENT_EVIDENCE_REQUIRED:${transactionId}`);
+      const validation = validateEvidenceLink(link, transaction);
+      if (validation.decision !== "PASS") throw new Error(`CLAIM_CURRENT_EVIDENCE_REQUIRED:${transactionId}`);
+      return [transactionId, {
+        evidenceLinkIdentity: `${link.transactionId}|${link.invoice.id}|${link.invoiceLineId}|${link.linkedAt}`,
+        evidenceLinkedAt: link.linkedAt,
+        invoiceId: link.invoice.id,
+        invoiceSourceChecksum: link.invoice.sourceChecksum,
+        invoiceTemplateVersionId: link.invoice.templateVersionId,
+        purchaseOrderId: link.purchaseOrder.id,
+        eWayBillId: link.eWayBill?.id,
+        eWayBillStatus: !link.invoice.requiresEWayBill ? "NOT_REQUIRED" : link.eWayBill?.partBPresent && link.eWayBill.movementValid ? "VALID_MOVEMENT" : "PART_A_ONLY",
+        validation: {
+          decision: validation.decision,
+          capturedAt: occurredAt,
+          rules: validation.rules.map((rule) => ({ code: rule.code, outcome: rule.outcome })),
+        },
+      }];
+    }));
     const created = createClaimBatch({
       id,
       reference: `CLM-${occurredAt.slice(0, 7).replace("-", "")}-${String(this.claimBatches.length + 1).padStart(3, "0")}`,
@@ -1287,6 +1318,7 @@ export class InMemorySubventionRepository
       settlementCounterpartyId,
       transactions: this.transactions,
       eligibilityDecisions: this.activeEligibilityDecisions(),
+      evidenceSnapshots,
       existingBatches: this.claimBatches,
       actor,
       occurredAt,
@@ -1324,29 +1356,39 @@ export class InMemorySubventionRepository
     );
   }
 
-  async recordClaimInvoice(id: string, amountPaise: number, actor: Actor, remarks: string): Promise<ClaimBatch> {
-    this.assertClaimActor(actor, ["SALES_OPS_MAKER", "BUSINESS_HEAD_CHECKER"], remarks);
+  async recordClaimInvoice(id: string, input: ClaimInvoiceInput, actor: Actor, remarks: string): Promise<ClaimBatch> {
+    this.assertClaimActor(actor, ["FINANCE_BILLING"], remarks);
+    if (!input.reference.trim()) throw new Error("CLAIM_INVOICE_REFERENCE_REQUIRED");
     return this.mutateClaim(id, actor, remarks, "CLAIM_INVOICE_RECORDED", (current) =>
-      transitionClaimFinancials(current, { invoicedAmountPaise: amountPaise, occurredAt: this.dependencies.now() }),
+      transitionClaimFinancials(current, { invoicedAmountPaise: input.amountPaise, reference: input.reference, occurredAt: this.dependencies.now() }),
     );
   }
 
-  async recordClaimCollection(id: string, amountPaise: number, actor: Actor, remarks: string): Promise<ClaimBatch> {
-    this.assertClaimActor(actor, ["SALES_OPS_MAKER", "BUSINESS_HEAD_CHECKER"], remarks);
+  async recordClaimCollection(id: string, input: ClaimCollectionInput, actor: Actor, remarks: string): Promise<ClaimBatch> {
+    this.assertClaimActor(actor, ["FINANCE_RECEIPT"], remarks);
+    if (!input.reference.trim()) throw new Error("CLAIM_COLLECTION_REFERENCE_REQUIRED");
     return this.mutateClaim(id, actor, remarks, "CLAIM_COLLECTION_RECORDED", (current) =>
-      transitionClaimFinancials(current, { collectedAmountPaise: amountPaise, occurredAt: this.dependencies.now() }),
+      transitionClaimFinancials(current, { collectedAmountPaise: input.amountPaise, reference: input.reference, occurredAt: this.dependencies.now() }),
     );
   }
 
-  async recordClaimAccounting(id: string, amountPaise: number, actor: Actor, remarks: string): Promise<ClaimBatch> {
-    this.assertClaimActor(actor, ["BUSINESS_HEAD_CHECKER"], remarks);
+  async recordClaimAccounting(id: string, input: ClaimAccountingInput, actor: Actor, remarks: string): Promise<ClaimBatch> {
+    this.assertClaimActor(actor, ["FINANCE_ACCOUNTS"], remarks);
+    if (!input.journalReference.trim()) throw new Error("CLAIM_ACCOUNTING_REFERENCE_REQUIRED");
     return this.mutateClaim(id, actor, remarks, "CLAIM_ACCOUNTED", (current) =>
-      transitionClaimFinancials(current, { accountedAmountPaise: amountPaise, occurredAt: this.dependencies.now() }),
+      transitionClaimFinancials(current, { accountedAmountPaise: input.amountPaise, reference: input.journalReference, occurredAt: this.dependencies.now() }),
+    );
+  }
+
+  async approveClaimAdjustment(id: string, input: ClaimAdjustmentInput, actor: Actor, remarks: string): Promise<ClaimBatch> {
+    this.assertClaimActor(actor, ["BUSINESS_HEAD_CHECKER", "MANAGEMENT_VIEWER"], remarks);
+    return this.mutateClaim(id, actor, remarks, "CLAIM_RECONCILIATION_ADJUSTMENT_APPROVED", (current) =>
+      addClaimReconciliationAdjustment(current, input, actor, this.dependencies.now()),
     );
   }
 
   async closeClaimBatch(id: string, actor: Actor, remarks: string): Promise<ClaimBatch> {
-    this.assertClaimActor(actor, ["BUSINESS_HEAD_CHECKER"], remarks);
+    this.assertClaimActor(actor, ["BUSINESS_HEAD_CHECKER", "MANAGEMENT_VIEWER"], remarks);
     return this.mutateClaim(id, actor, remarks, "CLAIM_CLOSED", (current) =>
       closeClaimBatch(current, this.dependencies.now()),
     );
