@@ -296,7 +296,7 @@ a {
 .module-kicker,
 .eyebrow {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 760;
   letter-spacing: 0.105em;
   text-transform: uppercase;
@@ -322,7 +322,7 @@ a {
 .module-group-label {
   padding: 0 10px 4px;
   color: #7a8596;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 760;
   letter-spacing: 0.09em;
   text-transform: uppercase;
@@ -384,7 +384,7 @@ a {
 .module-footnote span {
   display: block;
   color: #7a8596;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.07em;
   text-transform: uppercase;
@@ -393,7 +393,7 @@ a {
 .module-footnote p {
   margin: 4px 0 0;
   color: #4b5565;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .module-footnote strong {
@@ -454,7 +454,7 @@ a {
 
 .actor-caption {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 650;
 }
 
@@ -522,7 +522,7 @@ a {
   gap: 6px;
   border-color: currentColor;
   background: #fff;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 760;
   letter-spacing: 0.035em;
   text-transform: uppercase;
@@ -1622,7 +1622,7 @@ th.sticky-master-name {
   color: var(--muted);
   padding: 9px 24px 12px;
   text-align: end;
-  font-size: 10px;
+  font-size: 12px;
   letter-spacing: 0.02em;
 }
 
@@ -2752,7 +2752,7 @@ th.selection-column {
 .subvention-role-cue > div span {
   display: block;
   color: var(--provenance-plum);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 760;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -2839,7 +2839,7 @@ th.selection-column {
 
 .subvention-governance-note p {
   margin: 0;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .operations-workbench {
@@ -2874,7 +2874,7 @@ th.selection-column {
   background: #fff;
   padding: 6px 10px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .operations-result-summary strong {
@@ -2892,7 +2892,7 @@ th.selection-column {
 
 .operations-queue-heading > span {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 650;
 }
 
@@ -2947,6 +2947,10 @@ th.selection-column {
   table-layout: fixed;
 }
 
+.operations-table-scroll td {
+  font-size: 13px;
+}
+
 .operations-table-scroll th:nth-child(1) { width: 24%; }
 .operations-table-scroll th:nth-child(2) { width: 19%; }
 .operations-table-scroll th:nth-child(3) { width: 27%; }
@@ -2963,7 +2967,7 @@ th.selection-column {
   overflow: hidden;
   color: var(--navy-strong);
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  font-size: 11.5px;
+  font-size: 13px;
   font-weight: 680;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2972,7 +2976,7 @@ th.selection-column {
 .operations-primary-cell span {
   overflow: hidden;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -3003,20 +3007,22 @@ th.selection-column {
   inset-block: 0;
   inset-inline-end: 0;
   width: min(92vw, 520px);
-  overflow-y: auto;
+  min-height: 0;
+  overflow: hidden;
   border-inline-start: 1px solid var(--border);
   background: #fff;
   box-shadow: -18px 0 50px #132a4f1a;
-  padding: 20px;
+  padding: 0;
+  gap: 0;
 }
 
 .operations-evidence-header {
   display: flex;
+  flex-direction: column;
   align-items: flex-start;
-  justify-content: space-between;
-  gap: 14px;
+  gap: 4px;
   border-block-end: 1px solid var(--border);
-  padding-block-end: 15px;
+  padding: 20px 56px 16px 20px;
 }
 
 .operations-evidence-header h2 {
@@ -3027,6 +3033,13 @@ th.selection-column {
 }
 
 .operations-evidence-list { margin-block-start: 8px; }
+
+.operations-evidence-body {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 20px 20px;
+}
 
 .operations-evidence-row {
   display: flex;
@@ -3045,7 +3058,7 @@ th.selection-column {
 
 .operations-evidence-row > div span {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 650;
   text-transform: uppercase;
 }
@@ -3060,7 +3073,7 @@ th.selection-column {
   flex: 0 0 auto;
   align-items: center;
   gap: 5px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -3082,7 +3095,7 @@ th.selection-column {
   padding: 12px;
 }
 
-.operations-evidence-summary dt { color: var(--muted); font-size: 10px; }
+.operations-evidence-summary dt { color: var(--muted); font-size: 12px; }
 .operations-evidence-summary dd { margin: 3px 0 0; font-size: 14px; font-weight: 700; }
 
 .operations-recovery-note {
@@ -3106,7 +3119,7 @@ th.selection-column {
 .operations-technical-details summary {
   cursor: pointer;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 650;
 }
 
@@ -3124,11 +3137,38 @@ th.selection-column {
   padding: 9px;
 }
 
-.operations-technical-details dt { color: var(--muted); font-size: 10px; }
-.operations-technical-details dd { margin: 2px 0 0; overflow-wrap: anywhere; font-size: 11px; }
+.operations-technical-details dt { color: var(--muted); font-size: 12px; }
+.operations-technical-details dd { margin: 2px 0 0; overflow-wrap: anywhere; font-size: 12px; }
 .operations-technical-details ul { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .operations-technical-details li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 10px; }
-.operations-technical-details li span:not(.status-badge) { grid-column: 1 / -1; color: var(--muted); font-size: 11px; }
+.operations-technical-details li span:not(.status-badge) { grid-column: 1 / -1; color: var(--muted); font-size: 12px; }
+
+.hierarchy-path {
+  display: flex;
+  gap: 0;
+  overflow-x: auto;
+  padding-block-end: 4px;
+  scrollbar-width: thin;
+}
+
+.hierarchy-step {
+  display: grid;
+  min-width: 0;
+  flex: 1 0 174px;
+  grid-template-columns: minmax(150px, 1fr) 24px;
+  align-items: center;
+}
+
+.hierarchy-step:last-child {
+  grid-template-columns: minmax(150px, 1fr);
+}
+
+.hierarchy-arrow {
+  width: 16px;
+  height: 16px;
+  justify-self: center;
+  color: #98a2b3;
+}
 
 @media (max-width: 1180px) {
   .subvention-product-header {
@@ -3166,11 +3206,21 @@ th.selection-column {
   }
 
   .module-link-group {
-    display: contents;
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: row;
+    align-items: center;
+    gap: 3px;
   }
 
   .module-group-label {
-    display: none;
+    display: block;
+    padding: 0 5px 0 9px;
+    white-space: nowrap;
+  }
+
+  .module-link-group + .module-link-group {
+    margin-block-start: 0;
   }
 }
 

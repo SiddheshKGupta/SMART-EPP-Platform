@@ -95,6 +95,8 @@ export function ModuleNavigation() {
                   data-active={active}
                   href={item.href}
                   aria-current={active ? "page" : undefined}
+                  aria-label={item.label}
+                  title={item.label}
                 >
                   <Icon aria-hidden />
                   <span>{item.label}</span>

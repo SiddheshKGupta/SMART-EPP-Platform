@@ -2,11 +2,12 @@
 
 import {
   ArrowRight,
-  BriefcaseBusiness,
-  Building2,
-  Landmark,
+  ClipboardCheck,
+  Database,
+  FileInput,
+  LayoutDashboard,
+  ScrollText,
   Search,
-  ShieldCheck,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type ComponentType } from "react";
@@ -37,10 +38,12 @@ interface CommandRoute {
 }
 
 const routes: CommandRoute[] = [
-  { label: "My Workbench", href: "/", icon: BriefcaseBusiness },
-  { label: "Onboarding", href: "/onboarding", icon: Building2 },
-  { label: "Foreclosure", href: "/foreclosure", icon: Landmark },
-  { label: "Subvention", href: "/subvention", icon: ShieldCheck },
+  { label: "Subvention overview", href: "/subvention", icon: LayoutDashboard },
+  { label: "Operations workbench", href: "/subvention/operations", icon: ClipboardCheck },
+  { label: "Upload documents", href: "/subvention/purchase-imports", icon: FileInput },
+  { label: "Claims and tracking", href: "/subvention/claims", icon: ScrollText },
+  { label: "Master data", href: "/subvention/masters", icon: Database },
+  { label: "Data model", href: "/subvention/administration/data-model", icon: Database },
 ];
 
 function actorLabel(role: string): string {
@@ -83,7 +86,7 @@ export function CommandBar() {
           aria-label="Open command menu"
         >
           <Search aria-hidden />
-          <span>Find records or go to a module</span>
+          <span>Go to a Subvention workspace</span>
           <kbd>Ctrl K</kbd>
         </Button>
 
@@ -115,15 +118,15 @@ export function CommandBar() {
       <CommandDialog
         open={open}
         onOpenChange={setOpen}
-        title="Smart EPP command menu"
-        description="Search modules and operational destinations."
+        title="Subvention navigation"
+        description="Go directly to a Subvention workspace."
         className="command-dialog"
       >
         <Command>
           <CommandInput
             autoFocus
             aria-label="Search commands"
-            placeholder="Search modules and work queues…"
+            placeholder="Go to a workspace…"
           />
           <CommandList>
             <CommandEmpty>No matching destination.</CommandEmpty>
