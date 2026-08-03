@@ -13,6 +13,8 @@ import type {
   EligibilityDecision,
   EmployerProgrammeMappingVersion,
   ImportResult,
+  MasterCommand,
+  MasterRecord,
   PurchaseTransactionInput,
   ProgrammeMappingEffectiveWindow,
   SchemeEffectiveWindow,
@@ -40,6 +42,14 @@ export interface SubventionContextValue {
   snapshot: SubventionSnapshot;
   activeActor: Actor;
   setActiveActor(actor: Actor): void;
+  saveMasterDraft(
+    master: MasterRecord,
+    reason: string,
+  ): Promise<SubventionCommandResult<MasterRecord>>;
+  deactivateMaster(
+    id: string,
+    reason: string,
+  ): Promise<SubventionCommandResult<MasterRecord>>;
   submitScheme(
     id: string,
     remarks: string,
@@ -296,12 +306,39 @@ export function SubventionProvider({ children }: { children: ReactNode }) {
     [activeActor, repository, runCommand],
   );
 
+  const masterCommand = useCallback(
+    (reason: string): MasterCommand => ({
+      actor: activeActor,
+      reason,
+      source: "MASTER_DATA_WORKBENCH",
+    }),
+    [activeActor],
+  );
+
+  const saveMasterDraft = useCallback(
+    (master: MasterRecord, reason: string) =>
+      runCommand(() =>
+        repository.saveMasterDraft(master, masterCommand(reason)),
+      ),
+    [masterCommand, repository, runCommand],
+  );
+
+  const deactivateMaster = useCallback(
+    (id: string, reason: string) =>
+      runCommand(() =>
+        repository.deactivateMaster(id, masterCommand(reason)),
+      ),
+    [masterCommand, repository, runCommand],
+  );
+
   return (
     <SubventionContext.Provider
       value={{
         snapshot,
         activeActor,
         setActiveActor,
+        saveMasterDraft,
+        deactivateMaster,
         submitScheme,
         approveScheme,
         returnScheme,
