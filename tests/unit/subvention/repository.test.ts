@@ -504,6 +504,149 @@ describe("subvention repository", () => {
     ).toBe("RESOLVED");
   });
 
+  it.each([
+    ["does not exist", "mapping-version-forged"],
+    ["belongs to a different mapping", "mapping-version-unrelated"],
+  ])(
+    "rejects an explicit predecessor that %s",
+    async (_reason, supersedesVersionId) => {
+      const prior = mappingFixture({
+        effectiveTo: "2026-12-31",
+      });
+      const successor = mappingFixture({
+        id: "mapping-version-successor",
+        version: 2,
+        workflowStatus: "SUBMITTED",
+        checkerUserId: undefined,
+        approvedAt: undefined,
+        effectiveFrom: "2027-01-01",
+        effectiveTo: "2027-06-30",
+        supersedesVersionId,
+      });
+      const unrelated = mappingFixture({
+        id: "mapping-version-unrelated",
+        mappingId: "mapping-unrelated",
+        effectiveFrom: "2027-01-01",
+        effectiveTo: "2027-06-30",
+      });
+      const repository = createRepositoryFixture(
+        seedFixture({
+          programmeMappings:
+            supersedesVersionId === unrelated.id
+              ? [prior, unrelated, successor]
+              : [prior, successor],
+        }),
+      );
+
+      await expect(
+        repository.approveProgrammeMapping(
+          successor.id,
+          { userId: "checker-1", role: "BUSINESS_HEAD_CHECKER" },
+          "Attempt forged predecessor approval",
+        ),
+      ).rejects.toThrow(
+        "Superseded programme mapping version must be the approved immediate predecessor",
+      );
+    },
+  );
+
+  it("rejects an explicit predecessor that is not approved", async () => {
+    const unapprovedPrior = mappingFixture({
+      workflowStatus: "DRAFT",
+      checkerUserId: undefined,
+      approvedAt: undefined,
+    });
+    const successor = mappingFixture({
+      id: "mapping-version-successor",
+      version: 2,
+      workflowStatus: "SUBMITTED",
+      checkerUserId: undefined,
+      approvedAt: undefined,
+      effectiveFrom: "2027-01-01",
+      effectiveTo: "2027-06-30",
+      supersedesVersionId: unapprovedPrior.id,
+    });
+    const repository = createRepositoryFixture(
+      seedFixture({ programmeMappings: [unapprovedPrior, successor] }),
+    );
+
+    await expect(
+      repository.approveProgrammeMapping(
+        successor.id,
+        { userId: "checker-1", role: "BUSINESS_HEAD_CHECKER" },
+        "Attempt unapproved predecessor approval",
+      ),
+    ).rejects.toThrow(
+      "Superseded programme mapping version must be the approved immediate predecessor",
+    );
+  });
+
+  it("rejects an explicit predecessor that is not the immediately prior version", async () => {
+    const earliestPrior = mappingFixture({
+      id: "mapping-version-1",
+      effectiveTo: "2026-08-31",
+    });
+    const immediatePrior = mappingFixture({
+      id: "mapping-version-2",
+      version: 2,
+      effectiveFrom: "2026-09-01",
+      effectiveTo: "2026-12-31",
+    });
+    const successor = mappingFixture({
+      id: "mapping-version-3",
+      version: 3,
+      workflowStatus: "SUBMITTED",
+      checkerUserId: undefined,
+      approvedAt: undefined,
+      effectiveFrom: "2027-01-01",
+      effectiveTo: "2027-06-30",
+      supersedesVersionId: earliestPrior.id,
+    });
+    const repository = createRepositoryFixture(
+      seedFixture({
+        programmeMappings: [earliestPrior, immediatePrior, successor],
+      }),
+    );
+
+    await expect(
+      repository.approveProgrammeMapping(
+        successor.id,
+        { userId: "checker-1", role: "BUSINESS_HEAD_CHECKER" },
+        "Attempt stale predecessor approval",
+      ),
+    ).rejects.toThrow(
+      "Superseded programme mapping version must be the approved immediate predecessor",
+    );
+  });
+
+  it("approves a successor that explicitly references the immediate predecessor", async () => {
+    const prior = mappingFixture({ effectiveTo: "2026-12-31" });
+    const successor = mappingFixture({
+      id: "mapping-version-successor",
+      version: 2,
+      workflowStatus: "SUBMITTED",
+      checkerUserId: undefined,
+      approvedAt: undefined,
+      effectiveFrom: "2027-01-01",
+      effectiveTo: "2027-06-30",
+      supersedesVersionId: prior.id,
+    });
+    const repository = createRepositoryFixture(
+      seedFixture({ programmeMappings: [prior, successor] }),
+    );
+
+    await expect(
+      repository.approveProgrammeMapping(
+        successor.id,
+        { userId: "checker-1", role: "BUSINESS_HEAD_CHECKER" },
+        "Approve valid explicit successor",
+      ),
+    ).resolves.toMatchObject({
+      workflowStatus: "APPROVED",
+      supersedesVersionId: prior.id,
+    });
+  });
+
   it("preserves a historical gap when the successor starts after the prior window", async () => {
     const prior = mappingFixture();
     const successor = mappingFixture({

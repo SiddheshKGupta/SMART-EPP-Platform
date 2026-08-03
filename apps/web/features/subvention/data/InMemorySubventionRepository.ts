@@ -935,6 +935,22 @@ export class InMemorySubventionRepository
           supersedesVersionId: prior.id,
         };
       }
+      if (updated.supersedesVersionId) {
+        const predecessor = this.programmeMappings.find(
+          (mapping) => mapping.id === updated.supersedesVersionId,
+        );
+        if (
+          !predecessor ||
+          predecessor.workflowStatus !== "APPROVED" ||
+          predecessor.mappingId !== updated.mappingId ||
+          predecessor.version !== updated.version - 1 ||
+          predecessor.id !== prior?.id
+        ) {
+          throw new Error(
+            "Superseded programme mapping version must be the approved immediate predecessor",
+          );
+        }
+      }
       if (prior && updated.effectiveFrom <= prior.effectiveFrom) {
         throw new Error(
           "Successor effective from must be after prior effective from",
