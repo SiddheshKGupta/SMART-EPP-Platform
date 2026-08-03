@@ -334,6 +334,47 @@ describe("subvention repository", () => {
     }));
   });
 
+  it("invalidates persisted eligibility after a material evidence change until re-evaluation", async () => {
+    const repository = createDemoSubventionRepository();
+    const transactionId = "transaction-eligible-01";
+    const previous = await repository.getLatestEligibilityDecision(transactionId);
+    const [link] = await repository.listEvidenceLinks(transactionId);
+    expect(previous?.version).toBe(1);
+    expect(link).toBeDefined();
+
+    await repository.saveEvidenceLink(
+      {
+        ...link!,
+        eWayBill: { ...link!.eWayBill!, partBPresent: false, movementValid: false },
+      },
+      { userId: "sales-ops-maker", role: "SALES_OPS_MAKER" },
+      "Replace movement evidence",
+    );
+
+    expect(await repository.getLatestEligibilityDecision(transactionId)).toBeUndefined();
+    await expect(repository.createClaimBatch(
+      [transactionId],
+      link!.purchaseOrder.settlementCounterpartyId,
+      { userId: "sales-ops-maker", role: "SALES_OPS_MAKER" },
+      "Attempt claim before re-evaluation",
+    )).rejects.toThrow("CLAIM_PERSISTED_ELIGIBILITY_REQUIRED");
+
+    expect(await repository.listForEntity("EligibilityDecision", previous!.id))
+      .toContainEqual(expect.objectContaining({
+        action: "ELIGIBILITY_INVALIDATED",
+        beforeState: expect.objectContaining({ id: previous!.id }),
+        afterState: null,
+      }));
+
+    const reevaluated = await repository.evaluateTransaction(
+      transactionId,
+      { userId: "sales-ops-maker", role: "SALES_OPS_MAKER" },
+    );
+    expect(reevaluated.version).toBe(2);
+    expect(await repository.getLatestEligibilityDecision(transactionId))
+      .toEqual(expect.objectContaining({ id: reevaluated.id, version: 2 }));
+  });
+
   it("submits and approves with different users and appends audit events", async () => {
     const repository = createRepositoryFixture();
     await repository.submitScheme(

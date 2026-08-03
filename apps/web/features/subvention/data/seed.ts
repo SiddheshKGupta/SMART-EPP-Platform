@@ -650,6 +650,11 @@ const purchaseOrders: PurchaseOrderEvidence[] = transactions.map((purchase) => (
 const vendorInvoices: VendorInvoiceEvidence[] = transactions.map((purchase, index) => {
   const invoiceNumber = controlledInvoiceReferences[index] ?? purchase.invoiceNumber;
   const isDixit = index === 2;
+  const isBillToShipTo = [
+    "reseller-dixit",
+    "reseller-unicorn-post",
+    "reseller-unicorn-info",
+  ].includes(purchase.resellerId);
   return {
     id: `evidence-invoice-${purchase.id}`,
     sourceFileName: `${invoiceNumber.replace(/\//g, "-")}_document.pdf`,
@@ -666,10 +671,13 @@ const vendorInvoices: VendorInvoiceEvidence[] = transactions.map((purchase, inde
     programmeId: purchase.programmeId,
     supplierGstin: `27GSTIN${String(index + 1).padStart(8, "0")}`,
     billToGstin: "27AAECC0000A1Z0",
+    shipToGstin: isBillToShipTo ? `07AAACE${String(index + 1).padStart(4, "0")}A1Z1` : undefined,
+    supplyRoute: isBillToShipTo ? "BILL_TO_SHIP_TO" : "NORMAL_SUPPLY",
     irn: `irn-${purchase.id}`,
     deliveryNoteNumber: isDixit ? "255/MAY/25-26/DC" : undefined,
     totalValuePaise: purchase.invoiceValuePaise,
     recognitionConfidence: 0.98,
+    recognitionStatus: "COMMITTED",
     validationState: "COMMITTED",
     requiresIrn: true,
     requiresEWayBill: true,
@@ -702,7 +710,10 @@ const eWayBills: EWayBillEvidence[] = vendorInvoices
       documentNumber: isDixit ? invoice.deliveryNoteNumber! : invoice.invoiceNumber,
       documentDate: invoice.invoiceDate,
       supplierGstin: invoice.supplierGstin,
-      recipientGstin: invoice.billToGstin,
+      recipientGstin: invoice.supplyRoute === "BILL_TO_SHIP_TO"
+        ? invoice.shipToGstin!
+        : invoice.billToGstin,
+      transactionType: invoice.supplyRoute ?? "NORMAL_SUPPLY",
       hsnOrSac: invoice.lines[0]!.hsnOrSac,
       valuePaise: invoice.totalValuePaise,
       irn: invoice.irn,

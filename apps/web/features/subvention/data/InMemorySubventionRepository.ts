@@ -80,6 +80,7 @@ export class InMemorySubventionRepository
   private alternativePartnerLeaseIds: string[];
   private duplicateDeviceIdentifiers: string[];
   private duplicateLeaseIds: string[];
+  private readonly eligibilityInvalidatedTransactions = new Set<string>();
   private evaluationQueue: Promise<void> = Promise.resolve();
 
   constructor(
@@ -124,7 +125,7 @@ export class InMemorySubventionRepository
       schemes: this.schemes,
       programmeMappings: this.programmeMappings,
       transactions: this.transactions,
-      eligibilityDecisions: this.eligibilityDecisions,
+      eligibilityDecisions: this.activeEligibilityDecisions(),
       claimBatches: this.claimBatches,
       purchaseOrders: this.purchaseOrders,
       vendorInvoices: this.vendorInvoices,
@@ -169,6 +170,60 @@ export class InMemorySubventionRepository
     );
   }
 
+  private activeEligibilityDecisions(): EligibilityDecision[] {
+    return this.eligibilityDecisions.filter(
+      (decision) => !this.eligibilityInvalidatedTransactions.has(decision.transactionId),
+    );
+  }
+
+  private invalidateEligibilityForEvidenceChange(
+    transactionId: string,
+    evidenceLinkKey: string,
+    sourceChecksum: string,
+    actor: Actor,
+    remarks: string,
+  ): void {
+    const previousDecision = this.eligibilityDecisions
+      .filter((decision) => decision.transactionId === transactionId)
+      .reduce<EligibilityDecision | undefined>(
+        (latest, decision) => latest === undefined || decision.version > latest.version
+          ? decision
+          : latest,
+        undefined,
+      );
+    if (!previousDecision || this.eligibilityInvalidatedTransactions.has(transactionId)) {
+      return;
+    }
+
+    this.eligibilityInvalidatedTransactions.add(transactionId);
+    this.auditEvents.push({
+      id: this.nextUniqueId(
+        "audit",
+        "AuditEvent",
+        new Set(this.auditEvents.map((event) => event.id)),
+      ),
+      entityType: "EligibilityDecision",
+      entityId: previousDecision.id,
+      action: "ELIGIBILITY_INVALIDATED",
+      actor: clone(actor),
+      occurredAt: this.dependencies.now(),
+      remarks: `Evidence changed; re-evaluation required. ${remarks}`,
+      beforeState: clone(previousDecision),
+      afterState: null,
+      provenance: {
+        source: "CONTROLLED_IMPORT",
+        sourceEntityId: evidenceLinkKey,
+        sourceChecksum,
+      },
+      metadata: {
+        transactionId,
+        invalidatedDecisionId: previousDecision.id,
+        invalidatedDecisionVersion: previousDecision.version,
+        evidenceLinkKey,
+      },
+    });
+  }
+
   async saveEvidenceLink(
     link: TransactionEvidenceLink,
     actor: Actor,
@@ -186,6 +241,8 @@ export class InMemorySubventionRepository
     );
     const before = currentIndex >= 0 ? this.evidenceLinks[currentIndex]! : null;
     const saved = clone(link);
+    const evidenceMateriallyChanged = before === null ||
+      JSON.stringify(before) !== JSON.stringify(saved);
     const poIndex = this.purchaseOrders.findIndex((candidate) => candidate.id === saved.purchaseOrder.id);
     const invoiceIndex = this.vendorInvoices.findIndex((candidate) => candidate.id === saved.invoice.id);
     if (poIndex >= 0) this.purchaseOrders[poIndex] = clone(saved.purchaseOrder);
@@ -216,6 +273,15 @@ export class InMemorySubventionRepository
       },
       metadata: { validation: validateEvidenceLink(saved, transaction) },
     });
+    if (evidenceMateriallyChanged) {
+      this.invalidateEligibilityForEvidenceChange(
+        saved.transactionId,
+        key,
+        saved.invoice.sourceChecksum,
+        actor,
+        remarks,
+      );
+    }
     return clone(saved);
   }
 
@@ -886,10 +952,11 @@ export class InMemorySubventionRepository
   async listEligibilityDecisions(
     transactionId?: string,
   ): Promise<EligibilityDecision[]> {
+    const active = this.activeEligibilityDecisions();
     return clone(
       transactionId === undefined
-        ? this.eligibilityDecisions
-        : this.eligibilityDecisions.filter(
+        ? active
+        : active.filter(
             (decision) => decision.transactionId === transactionId,
           ),
     );
@@ -898,6 +965,9 @@ export class InMemorySubventionRepository
   async getLatestEligibilityDecision(
     transactionId: string,
   ): Promise<EligibilityDecision | undefined> {
+    if (this.eligibilityInvalidatedTransactions.has(transactionId)) {
+      return undefined;
+    }
     const decisions = this.eligibilityDecisions.filter(
       (decision) => decision.transactionId === transactionId,
     );
@@ -1051,6 +1121,9 @@ export class InMemorySubventionRepository
     });
 
     this.eligibilityDecisions.push(...decisions);
+    decisions.forEach((decision) => {
+      this.eligibilityInvalidatedTransactions.delete(decision.transactionId);
+    });
     this.auditEvents.push(...auditEvents);
     return clone(decisions);
   }
@@ -1140,7 +1213,7 @@ export class InMemorySubventionRepository
       transactionIds,
       settlementCounterpartyId,
       transactions: this.transactions,
-      eligibilityDecisions: this.eligibilityDecisions,
+      eligibilityDecisions: this.activeEligibilityDecisions(),
       existingBatches: this.claimBatches,
       actor,
       occurredAt,
