@@ -1,6 +1,7 @@
 import {
   evaluateEligibility,
   type Actor,
+  type ClaimBatchStatus,
   type EligibilityDecision,
   type PurchaseTransaction,
   type RuleResult,
@@ -22,17 +23,7 @@ export const OPERATIONS_OUTCOMES = [
 
 export type OperationsOutcome = (typeof OPERATIONS_OUTCOMES)[number];
 
-export type TransactionLifecycleStage =
-  | "DRAFT"
-  | "SUBMITTED_FOR_APPROVAL"
-  | "APPROVED_AND_LOCKED"
-  | "SUBMITTED_TO_COUNTERPARTY"
-  | "RESPONDED"
-  | "REJECTED"
-  | "INVOICED"
-  | "COLLECTED"
-  | "ACCOUNTING_RECONCILED"
-  | "CLOSED";
+export type TransactionLifecycleStage = ClaimBatchStatus;
 
 export interface EvidenceReference {
   label: string;
@@ -126,17 +117,17 @@ function lifecycleOutcome(
     case "DRAFT":
       return "In Claim Batch";
     case "SUBMITTED_FOR_APPROVAL":
-    case "SUBMITTED_TO_COUNTERPARTY":
+    case "COUNTERPARTY_SUBMITTED":
+    case "PARTIALLY_RESPONDED":
     case "RESPONDED":
       return "Submitted";
-    case "APPROVED_AND_LOCKED":
+    case "APPROVED_LOCKED":
       return "Approved";
-    case "REJECTED":
-      return "Rejected";
     case "INVOICED":
       return "Invoiced";
+    case "PARTIALLY_COLLECTED":
     case "COLLECTED":
-    case "ACCOUNTING_RECONCILED":
+    case "ACCOUNTED":
     case "CLOSED":
       return "Collected";
   }

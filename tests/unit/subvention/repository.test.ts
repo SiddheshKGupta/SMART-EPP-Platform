@@ -247,6 +247,7 @@ function seedFixture(overrides: Partial<SubventionSeed> = {}): SubventionSeed {
     programmeMappings: [mappingFixture()],
     transactions: [purchaseFixture()],
     eligibilityDecisions: [],
+    claimBatches: [],
     quarantinedImports: [],
     auditEvents: [],
     actors: [

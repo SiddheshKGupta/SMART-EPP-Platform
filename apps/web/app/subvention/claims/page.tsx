@@ -1,18 +1,6 @@
-import {
-  RouteContractPage,
-  type RouteSearchParams,
-} from "@/components/shared/RouteContractPage";
+import { ClaimLifecycleTracker } from "@/features/subvention/claims/ClaimLifecycleTracker";
+import { ClaimPreparation } from "@/features/subvention/claims/ClaimPreparation";
 
-export default async function Page({
-  searchParams,
-}: {
-  searchParams: RouteSearchParams;
-}) {
-  return (
-    <RouteContractPage
-      title="Claims Register"
-      description="Track immutable approved claims through billing, collection and accounting closure."
-      filters={await searchParams}
-    />
-  );
+export default function Page() {
+  return <main className="mx-auto w-full max-w-[1480px] p-5 lg:p-7"><ClaimPreparation /><ClaimLifecycleTracker /></main>;
 }

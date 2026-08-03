@@ -56,7 +56,7 @@ describe("operations read model", () => {
     const snapshot = createDemoSubventionSeed();
     const transactionId = snapshot.transactions[0]!.id;
     const lifecycleByTransaction: Record<string, TransactionLifecycleStage> = {
-      [transactionId]: "APPROVED_AND_LOCKED",
+      [transactionId]: "APPROVED_LOCKED",
     };
 
     const model = buildOperationsReadModel(snapshot, {

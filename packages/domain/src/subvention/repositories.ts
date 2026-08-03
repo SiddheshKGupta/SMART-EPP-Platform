@@ -1,4 +1,5 @@
 import type { OemRuleDefaults } from "./programme-mapping";
+import type { ClaimBatch, ClaimLineResponse } from "./claims";
 import type {
   MasterCatalogue,
   MasterCommand,
@@ -34,7 +35,16 @@ export type AuditAction =
   | "PROGRAMME_MAPPING_REJECTED"
   | "PURCHASE_IMPORTED"
   | "PURCHASE_IMPORT_QUARANTINED"
-  | "ELIGIBILITY_EVALUATED";
+  | "ELIGIBILITY_EVALUATED"
+  | "CLAIM_BATCH_CREATED"
+  | "CLAIM_BATCH_SUBMITTED"
+  | "CLAIM_BATCH_APPROVED"
+  | "CLAIM_SUBMITTED_TO_COUNTERPARTY"
+  | "CLAIM_RESPONSE_RECORDED"
+  | "CLAIM_INVOICE_RECORDED"
+  | "CLAIM_COLLECTION_RECORDED"
+  | "CLAIM_ACCOUNTED"
+  | "CLAIM_CLOSED";
 
 export interface AuditEvent {
   id: string;
@@ -44,7 +54,8 @@ export interface AuditEvent {
     | "EmployerProgrammeMappingVersion"
     | "PurchaseTransaction"
     | "PurchaseImportRow"
-    | "EligibilityDecision";
+    | "EligibilityDecision"
+    | "ClaimBatch";
   entityId: string;
   action: AuditAction;
   actor: Actor;
@@ -81,6 +92,7 @@ export interface SubventionSeed {
   programmeMappings: EmployerProgrammeMappingVersion[];
   transactions: PurchaseTransaction[];
   eligibilityDecisions: EligibilityDecision[];
+  claimBatches: ClaimBatch[];
   quarantinedImports: QuarantinedPurchaseImportRow[];
   auditEvents: AuditEvent[];
   actors: Actor[];
@@ -230,12 +242,31 @@ export interface AuditRepository {
   ): Promise<AuditEvent[]>;
 }
 
+export interface ClaimRepository {
+  listClaimBatches(): Promise<ClaimBatch[]>;
+  createClaimBatch(
+    transactionIds: string[],
+    settlementCounterpartyId: string,
+    actor: Actor,
+    remarks: string,
+  ): Promise<ClaimBatch>;
+  submitClaimBatch(id: string, actor: Actor, remarks: string): Promise<ClaimBatch>;
+  approveClaimBatch(id: string, actor: Actor, remarks: string): Promise<ClaimBatch>;
+  recordClaimSubmission(id: string, reference: string, actor: Actor, remarks: string): Promise<ClaimBatch>;
+  recordClaimResponse(id: string, responses: ClaimLineResponse[], actor: Actor, remarks: string): Promise<ClaimBatch>;
+  recordClaimInvoice(id: string, amountPaise: number, actor: Actor, remarks: string): Promise<ClaimBatch>;
+  recordClaimCollection(id: string, amountPaise: number, actor: Actor, remarks: string): Promise<ClaimBatch>;
+  recordClaimAccounting(id: string, amountPaise: number, actor: Actor, remarks: string): Promise<ClaimBatch>;
+  closeClaimBatch(id: string, actor: Actor, remarks: string): Promise<ClaimBatch>;
+}
+
 export interface SubventionRepository
   extends MasterDataRepository,
     SchemeRepository,
     ProgrammeMappingRepository,
     PurchaseTransactionRepository,
     EligibilityDecisionRepository,
+    ClaimRepository,
     AuditRepository {
   getSnapshot(): Promise<SubventionSnapshot>;
 }

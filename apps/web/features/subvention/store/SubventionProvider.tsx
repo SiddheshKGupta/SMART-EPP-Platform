@@ -9,6 +9,8 @@ import {
 } from "react";
 import type {
   Actor,
+  ClaimBatch,
+  ClaimLineResponse,
   DomainIssue,
   EligibilityDecision,
   EmployerProgrammeMappingVersion,
@@ -101,6 +103,15 @@ export interface SubventionContextValue {
   importTransactions(
     rows: PurchaseTransactionInput[],
   ): Promise<SubventionCommandResult<ImportResult>>;
+  createClaimBatch(transactionIds: string[], settlementCounterpartyId: string, remarks: string): Promise<SubventionCommandResult<ClaimBatch>>;
+  submitClaimBatch(id: string, remarks: string): Promise<SubventionCommandResult<ClaimBatch>>;
+  approveClaimBatch(id: string, remarks: string): Promise<SubventionCommandResult<ClaimBatch>>;
+  recordClaimSubmission(id: string, reference: string, remarks: string): Promise<SubventionCommandResult<ClaimBatch>>;
+  recordClaimResponse(id: string, responses: ClaimLineResponse[], remarks: string): Promise<SubventionCommandResult<ClaimBatch>>;
+  recordClaimInvoice(id: string, amountPaise: number, remarks: string): Promise<SubventionCommandResult<ClaimBatch>>;
+  recordClaimCollection(id: string, amountPaise: number, remarks: string): Promise<SubventionCommandResult<ClaimBatch>>;
+  recordClaimAccounting(id: string, amountPaise: number, remarks: string): Promise<SubventionCommandResult<ClaimBatch>>;
+  closeClaimBatch(id: string, remarks: string): Promise<SubventionCommandResult<ClaimBatch>>;
   issues: DomainIssue[];
   actionError?: SubventionActionError;
   isRefreshing: boolean;
@@ -306,6 +317,44 @@ export function SubventionProvider({ children }: { children: ReactNode }) {
     [activeActor, repository, runCommand],
   );
 
+  const createClaimBatch = useCallback(
+    (transactionIds: string[], settlementCounterpartyId: string, remarks: string) =>
+      runCommand(() => repository.createClaimBatch(transactionIds, settlementCounterpartyId, activeActor, remarks)),
+    [activeActor, repository, runCommand],
+  );
+  const submitClaimBatch = useCallback(
+    (id: string, remarks: string) => runCommand(() => repository.submitClaimBatch(id, activeActor, remarks)),
+    [activeActor, repository, runCommand],
+  );
+  const approveClaimBatch = useCallback(
+    (id: string, remarks: string) => runCommand(() => repository.approveClaimBatch(id, activeActor, remarks)),
+    [activeActor, repository, runCommand],
+  );
+  const recordClaimSubmission = useCallback(
+    (id: string, reference: string, remarks: string) => runCommand(() => repository.recordClaimSubmission(id, reference, activeActor, remarks)),
+    [activeActor, repository, runCommand],
+  );
+  const recordClaimResponse = useCallback(
+    (id: string, responses: ClaimLineResponse[], remarks: string) => runCommand(() => repository.recordClaimResponse(id, responses, activeActor, remarks)),
+    [activeActor, repository, runCommand],
+  );
+  const recordClaimInvoice = useCallback(
+    (id: string, amountPaise: number, remarks: string) => runCommand(() => repository.recordClaimInvoice(id, amountPaise, activeActor, remarks)),
+    [activeActor, repository, runCommand],
+  );
+  const recordClaimCollection = useCallback(
+    (id: string, amountPaise: number, remarks: string) => runCommand(() => repository.recordClaimCollection(id, amountPaise, activeActor, remarks)),
+    [activeActor, repository, runCommand],
+  );
+  const recordClaimAccounting = useCallback(
+    (id: string, amountPaise: number, remarks: string) => runCommand(() => repository.recordClaimAccounting(id, amountPaise, activeActor, remarks)),
+    [activeActor, repository, runCommand],
+  );
+  const closeClaimBatch = useCallback(
+    (id: string, remarks: string) => runCommand(() => repository.closeClaimBatch(id, activeActor, remarks)),
+    [activeActor, repository, runCommand],
+  );
+
   const masterCommand = useCallback(
     (reason: string): MasterCommand => ({
       actor: activeActor,
@@ -352,6 +401,15 @@ export function SubventionProvider({ children }: { children: ReactNode }) {
         evaluateTransaction,
         evaluateTransactions,
         importTransactions,
+        createClaimBatch,
+        submitClaimBatch,
+        approveClaimBatch,
+        recordClaimSubmission,
+        recordClaimResponse,
+        recordClaimInvoice,
+        recordClaimCollection,
+        recordClaimAccounting,
+        closeClaimBatch,
         issues,
         actionError,
         isRefreshing,

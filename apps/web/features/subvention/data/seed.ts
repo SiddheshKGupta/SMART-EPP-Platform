@@ -11,6 +11,7 @@ import type {
   SchemeVersion,
   SubventionSeed,
 } from "@smart-epp/domain";
+import { evaluateEligibility } from "@smart-epp/domain";
 import { InMemorySubventionRepository } from "./InMemorySubventionRepository";
 
 export const DEMO_NOW = "2026-07-28T10:00:00.000Z";
@@ -559,6 +560,24 @@ const transactions = [
   duplicateImportTransaction,
 ];
 
+const eligibilityDecisions = eligibleTransactions.slice(0, 12).map((purchase, index) =>
+  evaluateEligibility({
+    transaction: purchase,
+    schemes,
+    mappings: programmeMappings,
+    oemDefaults: oems.find((oem) => oem.id === purchase.oemId)?.defaults,
+    duplicateDeviceIdentifiers: new Set(),
+    duplicateLeaseIds: new Set(),
+    existingClaimedDeviceIdentifiers: new Set(),
+    existingClaimedLeaseIds: new Set(),
+    evaluationDate: DEMO_NOW.slice(0, 10),
+    evaluatedAt: DEMO_NOW,
+    actor: actors[0]!,
+    decisionId: `eligibility-seed-${String(index + 1).padStart(3, "0")}`,
+    version: 1,
+  }),
+);
+
 const duplicateImportInput: PurchaseTransactionInput = {
   leaseId: duplicateImportTransaction.leaseId,
   lotId: "LOT-DUPLICATE-IMPORT",
@@ -756,6 +775,22 @@ const auditEvents: AuditEvent[] = [
       },
     }),
   ),
+  ...eligibilityDecisions.map((decision) =>
+    historicalAuditEvent({
+      entityType: "EligibilityDecision",
+      entityId: decision.id,
+      action: "ELIGIBILITY_EVALUATED",
+      actor: actors[0]!,
+      occurredAt: decision.evaluatedAt,
+      remarks: "Seeded persisted eligibility decision",
+      beforeState: null,
+      afterState: decision,
+      provenance: {
+        source: "SEED_HISTORY",
+        sourceEntityId: decision.transactionId,
+      },
+    }),
+  ),
   historicalAuditEvent({
     entityType: "PurchaseImportRow",
     entityId: "seed-import-row-1",
@@ -798,7 +833,8 @@ const demoSeed: SubventionSeed = {
   schemes,
   programmeMappings,
   transactions,
-  eligibilityDecisions: [],
+  eligibilityDecisions,
+  claimBatches: [],
   quarantinedImports,
   auditEvents,
   actors,

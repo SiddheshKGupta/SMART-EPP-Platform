@@ -1,20 +1,29 @@
 import {
   assertProgrammeMappingApprovalValid,
+  approveClaimBatch,
   assertMasterMutationAuthorized,
   assertSubventionCommandAuthorized,
   evaluateEligibility,
+  closeClaimBatch,
+  createClaimBatch,
   issue,
   listMasterRecords,
   masterDependencies,
   programmeMappingScopesOverlap,
+  recordClaimResponse,
+  recordClaimSubmission,
   programmeMappingDraftSchema,
   validatePurchaseImport,
   transitionMaster,
+  transitionClaimFinancials,
+  submitClaimBatch,
   validateSchemeOverlap,
   validateMasterRecord,
   schemeDraftSchema,
   type Actor,
   type AuditEvent,
+  type ClaimBatch,
+  type ClaimLineResponse,
   type EligibilityDecision,
   type EmployerProgrammeMappingVersion,
   type ImportResult,
@@ -51,6 +60,7 @@ export class InMemorySubventionRepository
   private transactions: PurchaseTransaction[];
   private quarantinedImports: QuarantinedPurchaseImportRow[];
   private eligibilityDecisions: EligibilityDecision[];
+  private claimBatches: ClaimBatch[];
   private auditEvents: AuditEvent[];
   private actors: Actor[];
   private purchaseImportMasterData: PurchaseImportMasterData;
@@ -74,6 +84,7 @@ export class InMemorySubventionRepository
     this.transactions = copied.transactions;
     this.quarantinedImports = copied.quarantinedImports;
     this.eligibilityDecisions = copied.eligibilityDecisions;
+    this.claimBatches = copied.claimBatches;
     this.auditEvents = copied.auditEvents;
     this.actors = copied.actors;
     this.purchaseImportMasterData = copied.purchaseImportMasterData;
@@ -100,6 +111,7 @@ export class InMemorySubventionRepository
       programmeMappings: this.programmeMappings,
       transactions: this.transactions,
       eligibilityDecisions: this.eligibilityDecisions,
+      claimBatches: this.claimBatches,
       quarantinedImports: this.quarantinedImports,
       auditEvents: this.auditEvents,
       actors: this.actors,
@@ -954,6 +966,95 @@ export class InMemorySubventionRepository
     return clone(decisions);
   }
 
+  async listClaimBatches(): Promise<ClaimBatch[]> {
+    return clone(this.claimBatches);
+  }
+
+  async createClaimBatch(
+    transactionIds: string[],
+    settlementCounterpartyId: string,
+    actor: Actor,
+    remarks: string,
+  ): Promise<ClaimBatch> {
+    this.assertClaimActor(actor, ["SALES_OPS_MAKER"], remarks);
+    const occurredAt = this.dependencies.now();
+    const id = this.nextUniqueId(
+      "claim-batch",
+      "ClaimBatch",
+      new Set(this.claimBatches.map((batch) => batch.id)),
+    );
+    const created = createClaimBatch({
+      id,
+      reference: `CLM-${occurredAt.slice(0, 7).replace("-", "")}-${String(this.claimBatches.length + 1).padStart(3, "0")}`,
+      transactionIds,
+      settlementCounterpartyId,
+      transactions: this.transactions,
+      eligibilityDecisions: this.eligibilityDecisions,
+      existingBatches: this.claimBatches,
+      actor,
+      occurredAt,
+    });
+    this.claimBatches.push(created);
+    this.auditClaimMutation(null, created, "CLAIM_BATCH_CREATED", actor, remarks);
+    return clone(created);
+  }
+
+  async submitClaimBatch(id: string, actor: Actor, remarks: string): Promise<ClaimBatch> {
+    this.assertClaimActor(actor, ["SALES_OPS_MAKER"], remarks);
+    return this.mutateClaim(id, actor, remarks, "CLAIM_BATCH_SUBMITTED", (current) =>
+      submitClaimBatch(current, actor, this.dependencies.now()),
+    );
+  }
+
+  async approveClaimBatch(id: string, actor: Actor, remarks: string): Promise<ClaimBatch> {
+    this.assertClaimActor(actor, ["BUSINESS_HEAD_CHECKER"], remarks);
+    return this.mutateClaim(id, actor, remarks, "CLAIM_BATCH_APPROVED", (current) =>
+      approveClaimBatch(current, actor, this.dependencies.now()),
+    );
+  }
+
+  async recordClaimSubmission(id: string, reference: string, actor: Actor, remarks: string): Promise<ClaimBatch> {
+    this.assertClaimActor(actor, ["SALES_OPS_MAKER"], remarks);
+    return this.mutateClaim(id, actor, remarks, "CLAIM_SUBMITTED_TO_COUNTERPARTY", (current) =>
+      recordClaimSubmission(current, reference, this.dependencies.now()),
+    );
+  }
+
+  async recordClaimResponse(id: string, responses: ClaimLineResponse[], actor: Actor, remarks: string): Promise<ClaimBatch> {
+    this.assertClaimActor(actor, ["SALES_OPS_MAKER", "BUSINESS_HEAD_CHECKER"], remarks);
+    return this.mutateClaim(id, actor, remarks, "CLAIM_RESPONSE_RECORDED", (current) =>
+      recordClaimResponse(current, responses, this.dependencies.now()),
+    );
+  }
+
+  async recordClaimInvoice(id: string, amountPaise: number, actor: Actor, remarks: string): Promise<ClaimBatch> {
+    this.assertClaimActor(actor, ["SALES_OPS_MAKER", "BUSINESS_HEAD_CHECKER"], remarks);
+    return this.mutateClaim(id, actor, remarks, "CLAIM_INVOICE_RECORDED", (current) =>
+      transitionClaimFinancials(current, { invoicedAmountPaise: amountPaise, occurredAt: this.dependencies.now() }),
+    );
+  }
+
+  async recordClaimCollection(id: string, amountPaise: number, actor: Actor, remarks: string): Promise<ClaimBatch> {
+    this.assertClaimActor(actor, ["SALES_OPS_MAKER", "BUSINESS_HEAD_CHECKER"], remarks);
+    return this.mutateClaim(id, actor, remarks, "CLAIM_COLLECTION_RECORDED", (current) =>
+      transitionClaimFinancials(current, { collectedAmountPaise: amountPaise, occurredAt: this.dependencies.now() }),
+    );
+  }
+
+  async recordClaimAccounting(id: string, amountPaise: number, actor: Actor, remarks: string): Promise<ClaimBatch> {
+    this.assertClaimActor(actor, ["BUSINESS_HEAD_CHECKER"], remarks);
+    return this.mutateClaim(id, actor, remarks, "CLAIM_ACCOUNTED", (current) =>
+      transitionClaimFinancials(current, { accountedAmountPaise: amountPaise, occurredAt: this.dependencies.now() }),
+    );
+  }
+
+  async closeClaimBatch(id: string, actor: Actor, remarks: string): Promise<ClaimBatch> {
+    this.assertClaimActor(actor, ["BUSINESS_HEAD_CHECKER"], remarks);
+    return this.mutateClaim(id, actor, remarks, "CLAIM_CLOSED", (current) =>
+      closeClaimBatch(current, this.dependencies.now()),
+    );
+  }
+
   async listForEntity(
     entityType: AuditEvent["entityType"],
     entityId: string,
@@ -1140,6 +1241,61 @@ export class InMemorySubventionRepository
     return duplicates;
   }
 
+  private async mutateClaim(
+    id: string,
+    actor: Actor,
+    remarks: string,
+    action: AuditEvent["action"],
+    mutate: (current: ClaimBatch) => ClaimBatch,
+  ): Promise<ClaimBatch> {
+    const index = this.claimBatches.findIndex((batch) => batch.id === id);
+    if (index < 0) throw new Error(`Claim batch ${id} was not found`);
+    const before = clone(this.claimBatches[index]!);
+    const after = mutate(clone(before));
+    this.claimBatches[index] = after;
+    this.auditClaimMutation(before, after, action, actor, remarks);
+    return clone(after);
+  }
+
+  private auditClaimMutation(
+    before: ClaimBatch | null,
+    after: ClaimBatch,
+    action: AuditEvent["action"],
+    actor: Actor,
+    remarks: string,
+  ): void {
+    const auditIds = new Set(this.auditEvents.map((event) => event.id));
+    this.auditEvents.push({
+      id: this.nextUniqueId("audit", "AuditEvent", auditIds),
+      entityType: "ClaimBatch",
+      entityId: after.id,
+      action,
+      actor: clone(actor),
+      occurredAt: this.dependencies.now(),
+      remarks,
+      beforeState: before ? clone(before) : null,
+      afterState: clone(after),
+      provenance: {
+        source: "SUBVENTION_REPOSITORY_COMMAND",
+        sourceEntityId: after.id,
+      },
+      metadata: {
+        status: after.status,
+        ruleSnapshots: after.lines.map((line) => line.ruleSnapshot),
+      },
+    });
+  }
+
+  private assertClaimActor(actor: Actor, roles: string[], remarks: string): void {
+    if (!roles.includes(actor.role)) {
+      throw new Error(`${actor.role} is not authorized for this claim action`);
+    }
+    if (!this.actors.some((candidate) => candidate.userId === actor.userId && candidate.role === actor.role)) {
+      throw new Error(`Actor ${actor.userId} is not configured`);
+    }
+    if (!remarks.trim()) throw new Error("Remarks are required");
+  }
+
   private assertMasterCommand(
     command: MasterCommand,
     action: "SAVE" | "DEACTIVATE",
@@ -1287,6 +1443,24 @@ export class InMemorySubventionRepository
         JSON.stringify([decision.transactionId, decision.version]),
       (decision) => `${decision.transactionId}:${decision.version}`,
       "EligibilityDecision logical version",
+    );
+    this.assertUniqueIdentity(
+      this.claimBatches,
+      (batch) => batch.id,
+      (batch) => batch.id,
+      "ClaimBatch ID",
+    );
+    this.assertUniqueIdentity(
+      this.claimBatches,
+      (batch) => batch.reference,
+      (batch) => batch.reference,
+      "ClaimBatch reference",
+    );
+    this.assertUniqueIdentity(
+      this.claimBatches.flatMap((batch) => batch.lines),
+      (line) => line.transactionId,
+      (line) => line.transactionId,
+      "claimed transaction",
     );
     this.assertUniqueIdentity(
       this.auditEvents,

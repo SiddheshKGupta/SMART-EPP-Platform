@@ -48,7 +48,15 @@ export function OperationsWorkbench() {
   const [outcome, setOutcome] = useState<OperationsOutcome | undefined>();
   const [selectedId, setSelectedId] = useState<string>();
   const model = useMemo(
-    () => buildOperationsReadModel(snapshot, { actor: activeActor, evaluatedAt: DEMO_NOW }),
+    () => buildOperationsReadModel(snapshot, {
+      actor: activeActor,
+      evaluatedAt: DEMO_NOW,
+      lifecycleByTransaction: Object.fromEntries(
+        snapshot.claimBatches.flatMap((batch) =>
+          batch.lines.map((line) => [line.transactionId, batch.status]),
+        ),
+      ),
+    }),
     [activeActor, snapshot],
   );
   const rows = useMemo(
