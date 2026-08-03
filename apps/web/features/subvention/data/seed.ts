@@ -1126,9 +1126,11 @@ export function createDemoSubventionSeed(): SubventionSeed {
   return structuredClone(demoSeed);
 }
 
-export function createDemoSubventionRepository(): InMemorySubventionRepository {
+export function createDemoSubventionRepository(
+  seed: SubventionSeed = createDemoSubventionSeed(),
+): InMemorySubventionRepository {
   let sequence = 0;
-  return new InMemorySubventionRepository(createDemoSubventionSeed(), {
+  return new InMemorySubventionRepository(seed, {
     now: () => DEMO_NOW,
     nextId: (prefix) =>
       `${prefix}-demo-${String(++sequence).padStart(4, "0")}`,

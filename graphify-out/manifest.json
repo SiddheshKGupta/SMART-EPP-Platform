@@ -1,0 +1,857 @@
+{
+  "apps/web/app/audit/page.tsx": {
+    "mtime": 1785244960.2145832,
+    "ast_hash": "73a1a9af87dbe838e20050f5818b53e9",
+    "semantic_hash": "73a1a9af87dbe838e20050f5818b53e9"
+  },
+  "apps/web/app/foreclosure/page.tsx": {
+    "mtime": 1785207758.0,
+    "ast_hash": "2d1eb46426562760de2aa2c2903708f7",
+    "semantic_hash": "2d1eb46426562760de2aa2c2903708f7"
+  },
+  "apps/web/app/layout.tsx": {
+    "mtime": 1785243455.4251065,
+    "ast_hash": "9273f9dc5f1f721cd2dc0777d825b1c6",
+    "semantic_hash": "9273f9dc5f1f721cd2dc0777d825b1c6"
+  },
+  "apps/web/app/onboarding/page.tsx": {
+    "mtime": 1785207758.0,
+    "ast_hash": "2debf13bba048133684df51282fa7c8d",
+    "semantic_hash": "2debf13bba048133684df51282fa7c8d"
+  },
+  "apps/web/app/page.tsx": {
+    "mtime": 1785313305.7374637,
+    "ast_hash": "a0fbf683a43d354c27296fabd516c60c",
+    "semantic_hash": "a0fbf683a43d354c27296fabd516c60c"
+  },
+  "apps/web/app/subvention/claims/page.tsx": {
+    "mtime": 1785740830.6802113,
+    "ast_hash": "b679457cf610ea2b4098f2bbd4adbafb",
+    "semantic_hash": "b679457cf610ea2b4098f2bbd4adbafb"
+  },
+  "apps/web/app/subvention/eligibility/page.tsx": {
+    "mtime": 1785313034.609362,
+    "ast_hash": "039f8a3bd8cfc136a44f0b1a561d37d0",
+    "semantic_hash": "039f8a3bd8cfc136a44f0b1a561d37d0"
+  },
+  "apps/web/app/subvention/layout.tsx": {
+    "mtime": 1785739848.1861985,
+    "ast_hash": "d44369665466b3a8adb33f4a07dcc26d",
+    "semantic_hash": "d44369665466b3a8adb33f4a07dcc26d"
+  },
+  "apps/web/app/subvention/page.tsx": {
+    "mtime": 1785742392.1465125,
+    "ast_hash": "dc9f8279bd0c25883303e0535e1c62d1",
+    "semantic_hash": "dc9f8279bd0c25883303e0535e1c62d1"
+  },
+  "apps/web/app/subvention/programme-mappings/page.tsx": {
+    "mtime": 1785305632.9584677,
+    "ast_hash": "d553dff6e8f52ff8934a1dbb1a5065a6",
+    "semantic_hash": "d553dff6e8f52ff8934a1dbb1a5065a6"
+  },
+  "apps/web/app/subvention/purchase-imports/page.tsx": {
+    "mtime": 1785244951.4626658,
+    "ast_hash": "6b443c7546e557298e8709fb667358db",
+    "semantic_hash": "6b443c7546e557298e8709fb667358db"
+  },
+  "apps/web/app/subvention/reconciliation/page.tsx": {
+    "mtime": 1785244955.8257666,
+    "ast_hash": "77f8f0dfa81aabc841e9007558496bf6",
+    "semantic_hash": "77f8f0dfa81aabc841e9007558496bf6"
+  },
+  "apps/web/app/subvention/recovery/page.tsx": {
+    "mtime": 1785244958.0375576,
+    "ast_hash": "d75164e126a4df6ea084d5b9c583d8d2",
+    "semantic_hash": "d75164e126a4df6ea084d5b9c583d8d2"
+  },
+  "apps/web/app/subvention/schemes/page.tsx": {
+    "mtime": 1785305632.9554574,
+    "ast_hash": "f6394ba97ede76f7492e731a44a3d59a",
+    "semantic_hash": "f6394ba97ede76f7492e731a44a3d59a"
+  },
+  "apps/web/app/subvention/transactions/page.tsx": {
+    "mtime": 1785308197.08066,
+    "ast_hash": "815412f1f3f622918709fa2b5fe057c8",
+    "semantic_hash": "815412f1f3f622918709fa2b5fe057c8"
+  },
+  "apps/web/components.json": {
+    "mtime": 1785231628.198406,
+    "ast_hash": "a0238eb4ceb9341a82b6e3640ca96743",
+    "semantic_hash": "a0238eb4ceb9341a82b6e3640ca96743"
+  },
+  "apps/web/components/AppShell.tsx": {
+    "mtime": 1785245087.6848938,
+    "ast_hash": "390e10854b6876b60905834e77216fe7",
+    "semantic_hash": "390e10854b6876b60905834e77216fe7"
+  },
+  "apps/web/components/shared/AdaptiveSplitWorkspace.tsx": {
+    "mtime": 1785313041.681309,
+    "ast_hash": "0d80bdd5dbe24b792fe47dec431160b0",
+    "semantic_hash": "0d80bdd5dbe24b792fe47dec431160b0"
+  },
+  "apps/web/components/shared/AttentionLedger.tsx": {
+    "mtime": 1785243687.2367082,
+    "ast_hash": "1a4fa245ae6e561155cddcecd0989d1c",
+    "semantic_hash": "1a4fa245ae6e561155cddcecd0989d1c"
+  },
+  "apps/web/components/shared/AuditTimeline.tsx": {
+    "mtime": 1785245961.086949,
+    "ast_hash": "2d3e2ab427e4a42dedb8f63e5a9eebe6",
+    "semantic_hash": "2d3e2ab427e4a42dedb8f63e5a9eebe6"
+  },
+  "apps/web/components/shared/EmptyState.tsx": {
+    "mtime": 1785245963.422506,
+    "ast_hash": "017665d901fef836dc9518d54857feee",
+    "semantic_hash": "017665d901fef836dc9518d54857feee"
+  },
+  "apps/web/components/shared/Money.tsx": {
+    "mtime": 1785313034.6073606,
+    "ast_hash": "5d7ef28fb5f2e6b751ac4a7db5ae814f",
+    "semantic_hash": "5d7ef28fb5f2e6b751ac4a7db5ae814f"
+  },
+  "apps/web/components/shared/RouteContractPage.tsx": {
+    "mtime": 1785244942.83085,
+    "ast_hash": "7ef3bd7c63b5324fa82f9b4deb4feac4",
+    "semantic_hash": "7ef3bd7c63b5324fa82f9b4deb4feac4"
+  },
+  "apps/web/components/shared/RuleTrace.tsx": {
+    "mtime": 1785313034.608363,
+    "ast_hash": "ec900c92ca77466c883ae7f4ed46e58b",
+    "semantic_hash": "ec900c92ca77466c883ae7f4ed46e58b"
+  },
+  "apps/web/components/shared/StatusBadge.tsx": {
+    "mtime": 1785308014.1665668,
+    "ast_hash": "06f387c940537bce323c9b85f3274018",
+    "semantic_hash": "06f387c940537bce323c9b85f3274018"
+  },
+  "apps/web/components/shell/CommandBar.tsx": {
+    "mtime": 1785742320.2414932,
+    "ast_hash": "c61862de4c598e6b07e717e699262c13",
+    "semantic_hash": "c61862de4c598e6b07e717e699262c13"
+  },
+  "apps/web/components/shell/GlobalRail.tsx": {
+    "mtime": 1785243440.5210836,
+    "ast_hash": "eeae91b69c35b88993a614a1d4662066",
+    "semantic_hash": "eeae91b69c35b88993a614a1d4662066"
+  },
+  "apps/web/components/shell/ModuleNavigation.tsx": {
+    "mtime": 1785742322.0956192,
+    "ast_hash": "aab859ee4bcfa297b40fb04bfe722712",
+    "semantic_hash": "aab859ee4bcfa297b40fb04bfe722712"
+  },
+  "apps/web/components/shell/PlatformShell.tsx": {
+    "mtime": 1785739853.686496,
+    "ast_hash": "bb291006986061838b878a765af8aa93",
+    "semantic_hash": "bb291006986061838b878a765af8aa93"
+  },
+  "apps/web/components/ui/alert-dialog.tsx": {
+    "mtime": 1785231674.4589458,
+    "ast_hash": "65179d610cf06fa925439f4ae7bca908",
+    "semantic_hash": "65179d610cf06fa925439f4ae7bca908"
+  },
+  "apps/web/components/ui/badge.tsx": {
+    "mtime": 1785231672.3172636,
+    "ast_hash": "633c33997e6137921ae433dd2dd0cb31",
+    "semantic_hash": "633c33997e6137921ae433dd2dd0cb31"
+  },
+  "apps/web/components/ui/button.tsx": {
+    "mtime": 1785231644.006034,
+    "ast_hash": "37ff09090166aa7d6fae96e0b081e492",
+    "semantic_hash": "37ff09090166aa7d6fae96e0b081e492"
+  },
+  "apps/web/components/ui/command.tsx": {
+    "mtime": 1785232560.0671306,
+    "ast_hash": "f028177372bd58c0b50707d1630ea7a5",
+    "semantic_hash": "f028177372bd58c0b50707d1630ea7a5"
+  },
+  "apps/web/components/ui/dialog.tsx": {
+    "mtime": 1785231674.3104339,
+    "ast_hash": "e01132db6e9067b7b8cc2e322fdd34ff",
+    "semantic_hash": "e01132db6e9067b7b8cc2e322fdd34ff"
+  },
+  "apps/web/components/ui/input-group.tsx": {
+    "mtime": 1785231674.81304,
+    "ast_hash": "750fe82601c39e80407e4b8d9f77a082",
+    "semantic_hash": "750fe82601c39e80407e4b8d9f77a082"
+  },
+  "apps/web/components/ui/input.tsx": {
+    "mtime": 1785231672.5353017,
+    "ast_hash": "2b0e9e810580f227dd255d9b78a83835",
+    "semantic_hash": "2b0e9e810580f227dd255d9b78a83835"
+  },
+  "apps/web/components/ui/label.tsx": {
+    "mtime": 1785231672.742301,
+    "ast_hash": "e7e0c4ad98f3485ecd3c0ca516d0a8bf",
+    "semantic_hash": "e7e0c4ad98f3485ecd3c0ca516d0a8bf"
+  },
+  "apps/web/components/ui/popover.tsx": {
+    "mtime": 1785231672.899839,
+    "ast_hash": "32bf79a82d9ed7f3256592f7c0ca4a62",
+    "semantic_hash": "32bf79a82d9ed7f3256592f7c0ca4a62"
+  },
+  "apps/web/components/ui/scroll-area.tsx": {
+    "mtime": 1785231673.0693588,
+    "ast_hash": "5a04c269a377e8176ebbf27ee8ac35bf",
+    "semantic_hash": "5a04c269a377e8176ebbf27ee8ac35bf"
+  },
+  "apps/web/components/ui/select.tsx": {
+    "mtime": 1785231673.3353543,
+    "ast_hash": "611b5699ced6aad54c9a0e8cb865da7f",
+    "semantic_hash": "611b5699ced6aad54c9a0e8cb865da7f"
+  },
+  "apps/web/components/ui/sheet.tsx": {
+    "mtime": 1785231674.643946,
+    "ast_hash": "136091919ca01aa135e9413cc05b2d23",
+    "semantic_hash": "136091919ca01aa135e9413cc05b2d23"
+  },
+  "apps/web/components/ui/skeleton.tsx": {
+    "mtime": 1785231673.5038643,
+    "ast_hash": "0e6e825c43d858d98c9903f4da975382",
+    "semantic_hash": "0e6e825c43d858d98c9903f4da975382"
+  },
+  "apps/web/components/ui/table.tsx": {
+    "mtime": 1785231673.7113805,
+    "ast_hash": "44f87727e60080863edb00fdd2fcd8da",
+    "semantic_hash": "44f87727e60080863edb00fdd2fcd8da"
+  },
+  "apps/web/components/ui/tabs.tsx": {
+    "mtime": 1785231673.8503788,
+    "ast_hash": "485d47f9e6f866e564685e6584e1e747",
+    "semantic_hash": "485d47f9e6f866e564685e6584e1e747"
+  },
+  "apps/web/components/ui/textarea.tsx": {
+    "mtime": 1785231674.1339173,
+    "ast_hash": "d448d2a90e48542e51b93a1189127bf2",
+    "semantic_hash": "d448d2a90e48542e51b93a1189127bf2"
+  },
+  "apps/web/components/ui/tooltip.tsx": {
+    "mtime": 1785231673.998891,
+    "ast_hash": "b0b931c1a15ec3924fa5fecebaa15685",
+    "semantic_hash": "b0b931c1a15ec3924fa5fecebaa15685"
+  },
+  "apps/web/eslint.config.mjs": {
+    "mtime": 1785231844.856267,
+    "ast_hash": "849e9dc05a9eda623ee3acf80e51b5a9",
+    "semantic_hash": "849e9dc05a9eda623ee3acf80e51b5a9"
+  },
+  "apps/web/features/subvention/control-desk/ControlDesk.tsx": {
+    "mtime": 1785314714.3835196,
+    "ast_hash": "ae860fd36249bb9c5565f2072f46cfdc",
+    "semantic_hash": "ae860fd36249bb9c5565f2072f46cfdc"
+  },
+  "apps/web/features/subvention/control-desk/controlDeskReadModel.ts": {
+    "mtime": 1785314703.1059597,
+    "ast_hash": "a455aae8bf7e6baa9735eac6075db4ab",
+    "semantic_hash": "a455aae8bf7e6baa9735eac6075db4ab"
+  },
+  "apps/web/features/subvention/data/InMemorySubventionRepository.ts": {
+    "mtime": 1785743865.3024983,
+    "ast_hash": "b39f51f3439be70a85c9661e061f8ab2",
+    "semantic_hash": "b39f51f3439be70a85c9661e061f8ab2"
+  },
+  "apps/web/features/subvention/data/seed.ts": {
+    "mtime": 1785743793.709139,
+    "ast_hash": "57be4c9a110d6d2419952c809aa412c6",
+    "semantic_hash": "57be4c9a110d6d2419952c809aa412c6"
+  },
+  "apps/web/features/subvention/eligibility/EligibilityWorkspace.tsx": {
+    "mtime": 1785315237.0071006,
+    "ast_hash": "ffbc30fca831b4bced3937576ee25e42",
+    "semantic_hash": "ffbc30fca831b4bced3937576ee25e42"
+  },
+  "apps/web/features/subvention/schemes/SchemeProgrammeWorkspace.tsx": {
+    "mtime": 1785315421.3304293,
+    "ast_hash": "c61470191de06bbc14696b0b253e760b",
+    "semantic_hash": "c61470191de06bbc14696b0b253e760b"
+  },
+  "apps/web/features/subvention/store/SubventionProvider.tsx": {
+    "mtime": 1785743695.1787016,
+    "ast_hash": "2bb2504f5c691ff0e78075a24ab8ec0f",
+    "semantic_hash": "2bb2504f5c691ff0e78075a24ab8ec0f"
+  },
+  "apps/web/features/subvention/transactions/PurchaseRepositoryWorkspace.tsx": {
+    "mtime": 1785315237.0081012,
+    "ast_hash": "ea0ef0851743ddb6d31b94c134e484f1",
+    "semantic_hash": "ea0ef0851743ddb6d31b94c134e484f1"
+  },
+  "apps/web/lib/cn.ts": {
+    "mtime": 1785231808.0027823,
+    "ast_hash": "d9837f38cc05303254571985e3164050",
+    "semantic_hash": "d9837f38cc05303254571985e3164050"
+  },
+  "apps/web/lib/motion.ts": {
+    "mtime": 1785308014.1615672,
+    "ast_hash": "4a395c703661f743be7c7b71f4b6eb15",
+    "semantic_hash": "4a395c703661f743be7c7b71f4b6eb15"
+  },
+  "apps/web/lib/seed.ts": {
+    "mtime": 1785207758.0,
+    "ast_hash": "9af2b46efb62d5ef32c4970c586adcc4",
+    "semantic_hash": "9af2b46efb62d5ef32c4970c586adcc4"
+  },
+  "apps/web/lib/utils.ts": {
+    "mtime": 1785231810.6713212,
+    "ast_hash": "3cd9adcbbc5b3dba9c7989f91d28eaba",
+    "semantic_hash": "3cd9adcbbc5b3dba9c7989f91d28eaba"
+  },
+  "apps/web/next-env.d.ts": {
+    "mtime": 1785228305.4358153,
+    "ast_hash": "90426577ad8f38459f3e566411c85589",
+    "semantic_hash": "90426577ad8f38459f3e566411c85589"
+  },
+  "apps/web/next.config.ts": {
+    "mtime": 1785207758.0,
+    "ast_hash": "8e48a1e2f0cece68d8679bf2b388499c",
+    "semantic_hash": "8e48a1e2f0cece68d8679bf2b388499c"
+  },
+  "apps/web/package.json": {
+    "mtime": 1785315256.553411,
+    "ast_hash": "5bb9c3bdcbeaea6321a563ab856d6b07",
+    "semantic_hash": "5bb9c3bdcbeaea6321a563ab856d6b07"
+  },
+  "apps/web/postcss.config.mjs": {
+    "mtime": 1785231875.6669188,
+    "ast_hash": "e09d4170464a4ee9d73df0da73f405a6",
+    "semantic_hash": "e09d4170464a4ee9d73df0da73f405a6"
+  },
+  "apps/web/tsconfig.json": {
+    "mtime": 1785232021.210642,
+    "ast_hash": "9e8a791adbe95cb4821b0e7a4ff5d1c9",
+    "semantic_hash": "9e8a791adbe95cb4821b0e7a4ff5d1c9"
+  },
+  "package.json": {
+    "mtime": 1785237184.2105455,
+    "ast_hash": "48eceed28788611d0e61d3c9fb5b8a3a",
+    "semantic_hash": "48eceed28788611d0e61d3c9fb5b8a3a"
+  },
+  "packages/domain/package.json": {
+    "mtime": 1785237182.2126439,
+    "ast_hash": "46c9228410682bd76b9e25471e12c700",
+    "semantic_hash": "46c9228410682bd76b9e25471e12c700"
+  },
+  "packages/domain/src/controls.ts": {
+    "mtime": 1785307626.3502913,
+    "ast_hash": "17e4241aeb82325264a2f1ba9425c998",
+    "semantic_hash": "17e4241aeb82325264a2f1ba9425c998"
+  },
+  "packages/domain/src/index.ts": {
+    "mtime": 1785741274.3865175,
+    "ast_hash": "3937948d58479ad81ba39e2e0204c4f2",
+    "semantic_hash": "3937948d58479ad81ba39e2e0204c4f2"
+  },
+  "packages/domain/src/subvention/dates.ts": {
+    "mtime": 1785235214.7944787,
+    "ast_hash": "72e13a4103c3c805acc9876274320113",
+    "semantic_hash": "72e13a4103c3c805acc9876274320113"
+  },
+  "packages/domain/src/subvention/eligibility.ts": {
+    "mtime": 1785314574.077208,
+    "ast_hash": "8fb0124dfd237a2d08df38b003528e2e",
+    "semantic_hash": "8fb0124dfd237a2d08df38b003528e2e"
+  },
+  "packages/domain/src/subvention/issues.ts": {
+    "mtime": 1785234591.0570023,
+    "ast_hash": "2d2b2977f040263f5dc2e5f266e98883",
+    "semantic_hash": "2d2b2977f040263f5dc2e5f266e98883"
+  },
+  "packages/domain/src/subvention/master-workflow.ts": {
+    "mtime": 1785314534.1758535,
+    "ast_hash": "6a293dc80a205652880922c5389b85f2",
+    "semantic_hash": "6a293dc80a205652880922c5389b85f2"
+  },
+  "packages/domain/src/subvention/money.ts": {
+    "mtime": 1785237212.3105702,
+    "ast_hash": "c5a1375b8362888cc88b080055f8d27d",
+    "semantic_hash": "c5a1375b8362888cc88b080055f8d27d"
+  },
+  "packages/domain/src/subvention/programme-mapping.ts": {
+    "mtime": 1785315552.5315871,
+    "ast_hash": "0f2880d842eff98f2e62cb483b8d8758",
+    "semantic_hash": "0f2880d842eff98f2e62cb483b8d8758"
+  },
+  "packages/domain/src/subvention/purchase-import.ts": {
+    "mtime": 1785314586.4817774,
+    "ast_hash": "1931a747ba182c5f314456aeec2905b1",
+    "semantic_hash": "1931a747ba182c5f314456aeec2905b1"
+  },
+  "packages/domain/src/subvention/repositories.ts": {
+    "mtime": 1785743647.4668283,
+    "ast_hash": "aab1b5e435bb78be42e536e85d3b996d",
+    "semantic_hash": "aab1b5e435bb78be42e536e85d3b996d"
+  },
+  "packages/domain/src/subvention/schemas.ts": {
+    "mtime": 1785314534.1778514,
+    "ast_hash": "49c25e521f67c024a74d173c320a523e",
+    "semantic_hash": "49c25e521f67c024a74d173c320a523e"
+  },
+  "packages/domain/src/subvention/scheme-rules.ts": {
+    "mtime": 1785235492.7085147,
+    "ast_hash": "1360bf812ce112339bd497830e428547",
+    "semantic_hash": "1360bf812ce112339bd497830e428547"
+  },
+  "packages/domain/src/subvention/types.ts": {
+    "mtime": 1785738847.7724774,
+    "ast_hash": "2278707b64e7cc163e762bbc4f2f7c1e",
+    "semantic_hash": "2278707b64e7cc163e762bbc4f2f7c1e"
+  },
+  "packages/domain/tsconfig.json": {
+    "mtime": 1785237187.3441646,
+    "ast_hash": "6299880c970a1b953bc5de0f03b7fa5d",
+    "semantic_hash": "6299880c970a1b953bc5de0f03b7fa5d"
+  },
+  "packages/ui/package.json": {
+    "mtime": 1785207758.0,
+    "ast_hash": "f5866335de81f80b3035fbd33d4691fc",
+    "semantic_hash": "f5866335de81f80b3035fbd33d4691fc"
+  },
+  "packages/ui/src/index.ts": {
+    "mtime": 1785207758.0,
+    "ast_hash": "93f67374c6d650931648f5c5929e43f9",
+    "semantic_hash": "93f67374c6d650931648f5c5929e43f9"
+  },
+  "playwright.config.ts": {
+    "mtime": 1785306092.5909007,
+    "ast_hash": "a44fd3ec0b542bf91e0248e29f84f2fe",
+    "semantic_hash": "a44fd3ec0b542bf91e0248e29f84f2fe"
+  },
+  "tests/e2e/platform.spec.ts": {
+    "mtime": 1785314883.9370577,
+    "ast_hash": "dd42069eeb59ca56f36135a5f1211d0f",
+    "semantic_hash": "dd42069eeb59ca56f36135a5f1211d0f"
+  },
+  "tests/e2e/subvention-eligibility.spec.ts": {
+    "mtime": 1785312628.6954558,
+    "ast_hash": "7383ff479e4bfb8d69b24d3de18e4142",
+    "semantic_hash": "7383ff479e4bfb8d69b24d3de18e4142"
+  },
+  "tests/e2e/subvention-schemes.spec.ts": {
+    "mtime": 1785315483.8931751,
+    "ast_hash": "8bea7badb698a2fb79c441a6c9df6376",
+    "semantic_hash": "8bea7badb698a2fb79c441a6c9df6376"
+  },
+  "tests/unit/command-input-focus.test.ts": {
+    "mtime": 1785232529.5625765,
+    "ast_hash": "ee565b4815b84b1679250ce2af8bba58",
+    "semantic_hash": "ee565b4815b84b1679250ce2af8bba58"
+  },
+  "tests/unit/controls.test.ts": {
+    "mtime": 1785307868.7508187,
+    "ast_hash": "2f27531529b80de726d255cb3d175f69",
+    "semantic_hash": "2f27531529b80de726d255cb3d175f69"
+  },
+  "tests/unit/subvention/control-desk-read-model.test.ts": {
+    "mtime": 1785743992.947014,
+    "ast_hash": "28ddeea9d641361599ccd2fbaa339f21",
+    "semantic_hash": "28ddeea9d641361599ccd2fbaa339f21"
+  },
+  "tests/unit/subvention/eligibility.test.ts": {
+    "mtime": 1785314796.7598982,
+    "ast_hash": "136cb4a14da1a3896dd64057c66dd628",
+    "semantic_hash": "136cb4a14da1a3896dd64057c66dd628"
+  },
+  "tests/unit/subvention/fixtures.ts": {
+    "mtime": 1785234447.157884,
+    "ast_hash": "e2ebd7ddedcadeeadbf819c35985c768",
+    "semantic_hash": "e2ebd7ddedcadeeadbf819c35985c768"
+  },
+  "tests/unit/subvention/master-workflow.test.ts": {
+    "mtime": 1785248611.2701042,
+    "ast_hash": "0a334efd57eea7fa78d32a9f345b0399",
+    "semantic_hash": "0a334efd57eea7fa78d32a9f345b0399"
+  },
+  "tests/unit/subvention/programme-mapping.test.ts": {
+    "mtime": 1785314437.9705217,
+    "ast_hash": "3b748433f3d58e9c2788a57e6cac6e1c",
+    "semantic_hash": "3b748433f3d58e9c2788a57e6cac6e1c"
+  },
+  "tests/unit/subvention/purchase-evidence.test.ts": {
+    "mtime": 1785312195.8050992,
+    "ast_hash": "5c11275e264086401aa77fdcbbde488b",
+    "semantic_hash": "5c11275e264086401aa77fdcbbde488b"
+  },
+  "tests/unit/subvention/purchase-import.test.ts": {
+    "mtime": 1785312195.802098,
+    "ast_hash": "4c7c829b643bd83d613f75386b9503af",
+    "semantic_hash": "4c7c829b643bd83d613f75386b9503af"
+  },
+  "tests/unit/subvention/repository.test.ts": {
+    "mtime": 1785743795.0674317,
+    "ast_hash": "fa611fa2183f0559c0e8ea62377bac2b",
+    "semantic_hash": "fa611fa2183f0559c0e8ea62377bac2b"
+  },
+  "tests/unit/subvention/schemas-money-dates.test.ts": {
+    "mtime": 1785235218.9903235,
+    "ast_hash": "a34ad27bb919298efdc758bf634fcfaf",
+    "semantic_hash": "a34ad27bb919298efdc758bf634fcfaf"
+  },
+  "tests/unit/subvention/scheme-rules.test.ts": {
+    "mtime": 1785235455.5356727,
+    "ast_hash": "25065c850ba1e2c8b2f475b83a5ac018",
+    "semantic_hash": "25065c850ba1e2c8b2f475b83a5ac018"
+  },
+  "vitest.config.ts": {
+    "mtime": 1785232548.5909276,
+    "ast_hash": "7702f77686529608002c0f290cfbdd42",
+    "semantic_hash": "7702f77686529608002c0f290cfbdd42"
+  },
+  "apps/web/app/subvention/administration/data-model/page.tsx": {
+    "mtime": 1785740047.8446267,
+    "ast_hash": "21c6b4fedeef8396895f91d202e305dc",
+    "semantic_hash": "21c6b4fedeef8396895f91d202e305dc"
+  },
+  "apps/web/app/subvention/masters/page.tsx": {
+    "mtime": 1785740043.2617457,
+    "ast_hash": "6d787adf09471f08149eb960092aa990",
+    "semantic_hash": "6d787adf09471f08149eb960092aa990"
+  },
+  "apps/web/app/subvention/operations/page.tsx": {
+    "mtime": 1785739851.304303,
+    "ast_hash": "52721ba9a0a30b2a2eac5b46d5f03e24",
+    "semantic_hash": "52721ba9a0a30b2a2eac5b46d5f03e24"
+  },
+  "apps/web/features/subvention/claims/ClaimLifecycleTracker.tsx": {
+    "mtime": 1785742451.6009734,
+    "ast_hash": "98958e3e63f1834d752af34b5cfd0d91",
+    "semantic_hash": "98958e3e63f1834d752af34b5cfd0d91"
+  },
+  "apps/web/features/subvention/claims/ClaimPreparation.tsx": {
+    "mtime": 1785740825.7471488,
+    "ast_hash": "c8d1c0406b1be72c3798df08a115d5ab",
+    "semantic_hash": "c8d1c0406b1be72c3798df08a115d5ab"
+  },
+  "apps/web/features/subvention/evidence/EvidenceDrawer.tsx": {
+    "mtime": 1785740705.6242735,
+    "ast_hash": "cbbbff513ba5110fca1462c23eb20a2d",
+    "semantic_hash": "cbbbff513ba5110fca1462c23eb20a2d"
+  },
+  "apps/web/features/subvention/evidence/EvidenceSummary.tsx": {
+    "mtime": 1785740703.7686806,
+    "ast_hash": "04886b3a01ef5228fb75023e44ad3cee",
+    "semantic_hash": "04886b3a01ef5228fb75023e44ad3cee"
+  },
+  "apps/web/features/subvention/management/ManagementDrilldown.tsx": {
+    "mtime": 1785739193.0772817,
+    "ast_hash": "7811a38484f2e0a9794f02f15105e52f",
+    "semantic_hash": "7811a38484f2e0a9794f02f15105e52f"
+  },
+  "apps/web/features/subvention/management/ManagementOverview.tsx": {
+    "mtime": 1785739400.532166,
+    "ast_hash": "af4988bae67ef830366f3792e1813806",
+    "semantic_hash": "af4988bae67ef830366f3792e1813806"
+  },
+  "apps/web/features/subvention/management/managementReadModel.ts": {
+    "mtime": 1785742390.6794136,
+    "ast_hash": "c7df1a31f077881f25ff95009e854512",
+    "semantic_hash": "c7df1a31f077881f25ff95009e854512"
+  },
+  "apps/web/features/subvention/masters/MasterDataWorkbench.tsx": {
+    "mtime": 1785743410.248119,
+    "ast_hash": "e6e9384f90a5c2c10d44fe5fc3d2ec21",
+    "semantic_hash": "e6e9384f90a5c2c10d44fe5fc3d2ec21"
+  },
+  "apps/web/features/subvention/masters/MasterHierarchy.tsx": {
+    "mtime": 1785742304.47882,
+    "ast_hash": "64a97511aa627066d48dfdb869f67f51",
+    "semantic_hash": "64a97511aa627066d48dfdb869f67f51"
+  },
+  "apps/web/features/subvention/masters/MasterHistoryInspector.tsx": {
+    "mtime": 1785743340.5634406,
+    "ast_hash": "b97e2e4dcf031f30ddc363dd6dd2991d",
+    "semantic_hash": "b97e2e4dcf031f30ddc363dd6dd2991d"
+  },
+  "apps/web/features/subvention/masters/MasterRecordForm.tsx": {
+    "mtime": 1785743146.190439,
+    "ast_hash": "77b0a3c7ae7db508e81d36b32f5bbffb",
+    "semantic_hash": "77b0a3c7ae7db508e81d36b32f5bbffb"
+  },
+  "apps/web/features/subvention/masters/masterDefinitions.ts": {
+    "mtime": 1785743100.9050314,
+    "ast_hash": "1a8c46d9bc7c8ee63209a4faf7d1d711",
+    "semantic_hash": "1a8c46d9bc7c8ee63209a4faf7d1d711"
+  },
+  "apps/web/features/subvention/operations/OperationsWorkbench.tsx": {
+    "mtime": 1785740946.62454,
+    "ast_hash": "b8c605134dd84df092f97458bc2f3c74",
+    "semantic_hash": "b8c605134dd84df092f97458bc2f3c74"
+  },
+  "apps/web/features/subvention/operations/TransactionEvidenceDrawer.tsx": {
+    "mtime": 1785742355.5604415,
+    "ast_hash": "a3b256fe2804230dd63f8c245d52f000",
+    "semantic_hash": "a3b256fe2804230dd63f8c245d52f000"
+  },
+  "apps/web/features/subvention/operations/operationsReadModel.ts": {
+    "mtime": 1785741683.8915734,
+    "ast_hash": "2dc0784317c944fcdd4c600136576b38",
+    "semantic_hash": "2dc0784317c944fcdd4c600136576b38"
+  },
+  "apps/web/features/subvention/transactions/transactionCsv.ts": {
+    "mtime": 1785313240.5546787,
+    "ast_hash": "e99db37f5e7089818b62ae655e422b23",
+    "semantic_hash": "e99db37f5e7089818b62ae655e422b23"
+  },
+  "packages/domain/src/subvention/claims.ts": {
+    "mtime": 1785743611.1760285,
+    "ast_hash": "ded0bcf053b98f33a6f58fd954ea45fe",
+    "semantic_hash": "ded0bcf053b98f33a6f58fd954ea45fe"
+  },
+  "packages/domain/src/subvention/evidence.ts": {
+    "mtime": 1785742293.302099,
+    "ast_hash": "6c7becaefa9f5a68a07b81cfe536dfbf",
+    "semantic_hash": "6c7becaefa9f5a68a07b81cfe536dfbf"
+  },
+  "packages/domain/src/subvention/management.ts": {
+    "mtime": 1785739092.847244,
+    "ast_hash": "9b3b457824aa8afa79a75c140bcfe00a",
+    "semantic_hash": "9b3b457824aa8afa79a75c140bcfe00a"
+  },
+  "packages/domain/src/subvention/master-data.ts": {
+    "mtime": 1785742845.837229,
+    "ast_hash": "f6dd63d73e7e1a1713e8e2ba10b24d1c",
+    "semantic_hash": "f6dd63d73e7e1a1713e8e2ba10b24d1c"
+  },
+  "tests/e2e/subvention-management.spec.ts": {
+    "mtime": 1785739330.8188593,
+    "ast_hash": "f4e3d9e8a402ebe3a75f5543e3e75c0f",
+    "semantic_hash": "f4e3d9e8a402ebe3a75f5543e3e75c0f"
+  },
+  "tests/e2e/subvention-masters.spec.ts": {
+    "mtime": 1785743400.1994624,
+    "ast_hash": "931ea8779acf76bf99c53593d0a39738",
+    "semantic_hash": "931ea8779acf76bf99c53593d0a39738"
+  },
+  "tests/e2e/subvention-standalone.spec.ts": {
+    "mtime": 1785739861.4105258,
+    "ast_hash": "33ec93b5f066cacc5d0bc7fe7a216853",
+    "semantic_hash": "33ec93b5f066cacc5d0bc7fe7a216853"
+  },
+  "tests/unit/subvention/claims.test.ts": {
+    "mtime": 1785743636.1688652,
+    "ast_hash": "5c80afe70e25c7a3eaef9233df864fc9",
+    "semantic_hash": "5c80afe70e25c7a3eaef9233df864fc9"
+  },
+  "tests/unit/subvention/evidence.test.ts": {
+    "mtime": 1785742294.7330728,
+    "ast_hash": "e7b9948546ef818ca4f559676ef08d53",
+    "semantic_hash": "e7b9948546ef818ca4f559676ef08d53"
+  },
+  "tests/unit/subvention/management.test.ts": {
+    "mtime": 1785742395.0887346,
+    "ast_hash": "14e31e1aa215b523c3a0ea7802188a11",
+    "semantic_hash": "14e31e1aa215b523c3a0ea7802188a11"
+  },
+  "tests/unit/subvention/master-data.test.ts": {
+    "mtime": 1785743068.7509015,
+    "ast_hash": "da1a09f7f25f6fda39c0896c40953a1d",
+    "semantic_hash": "da1a09f7f25f6fda39c0896c40953a1d"
+  },
+  "tests/unit/subvention/operations-read-model.test.ts": {
+    "mtime": 1785741580.7302516,
+    "ast_hash": "10e9cac49c3c1567098111074ac55677",
+    "semantic_hash": "10e9cac49c3c1567098111074ac55677"
+  },
+  "tests/unit/subvention/transaction-csv.test.ts": {
+    "mtime": 1785313201.0825403,
+    "ast_hash": "c595cf2029ddca95dab8455eb739d3ce",
+    "semantic_hash": "c595cf2029ddca95dab8455eb739d3ce"
+  },
+  "apps/web/features/subvention/claims/ClaimStageCapture.tsx": {
+    "mtime": 1785743705.350813,
+    "ast_hash": "073618af9bbac05b03c414b28cc69f2c",
+    "semantic_hash": "073618af9bbac05b03c414b28cc69f2c"
+  },
+  "tests/e2e/subvention-final-smoke.spec.ts": {
+    "mtime": 1785744680.3389852,
+    "ast_hash": "194bcdd7764b2741f13b0d1cda7e8ab3",
+    "semantic_hash": ""
+  },
+  "AGENTS.md": {
+    "mtime": 1785207758.0,
+    "ast_hash": "0cd8da56254f918b67ec74abb1617bbe",
+    "semantic_hash": ""
+  },
+  "README.md": {
+    "mtime": 1785739859.1442301,
+    "ast_hash": "19a16ddb260ae98a48d5dc8f7662f273",
+    "semantic_hash": ""
+  },
+  "design-system/smart-epp-operating-platform/MASTER.md": {
+    "mtime": 1785308014.167566,
+    "ast_hash": "c15e240eb4d8c5b120f40f17f171de50",
+    "semantic_hash": ""
+  },
+  "docs/acceptance-criteria.md": {
+    "mtime": 1785207758.0,
+    "ast_hash": "559a93036ce68c938f1caa18132ed104",
+    "semantic_hash": ""
+  },
+  "docs/connect-business-context.md": {
+    "mtime": 1785207758.0,
+    "ast_hash": "55d6413a7f8bad3a5bfb8688fe8df4fd",
+    "semantic_hash": ""
+  },
+  "docs/conversation-context.md": {
+    "mtime": 1785207758.0,
+    "ast_hash": "2405780a1973eb1ffdb2969bd1ff2b24",
+    "semantic_hash": ""
+  },
+  "docs/data-dictionary.md": {
+    "mtime": 1785207758.0,
+    "ast_hash": "857b52e56d514e24eceb8b2195731505",
+    "semantic_hash": ""
+  },
+  "docs/design-system.md": {
+    "mtime": 1785207758.0,
+    "ast_hash": "9e62ed67f599cb08420a0bb441a122d2",
+    "semantic_hash": ""
+  },
+  "docs/domain-model.md": {
+    "mtime": 1785207758.0,
+    "ast_hash": "9ea88ed6c4b60dda8aaf47815754c129",
+    "semantic_hash": ""
+  },
+  "docs/foreclosure-business-rules.md": {
+    "mtime": 1785207758.0,
+    "ast_hash": "ab644642177a12af62429f6cfc1ca793",
+    "semantic_hash": ""
+  },
+  "docs/information-architecture.md": {
+    "mtime": 1785207758.0,
+    "ast_hash": "7cc42529b8e30fd139fe516c4c505ff0",
+    "semantic_hash": ""
+  },
+  "docs/onboarding-business-rules.md": {
+    "mtime": 1785207758.0,
+    "ast_hash": "c4f64d599e9d81c23340f9accd27a23b",
+    "semantic_hash": ""
+  },
+  "docs/open-decisions.md": {
+    "mtime": 1785207758.0,
+    "ast_hash": "3cc79053b5e4cc786aa8932e45219be0",
+    "semantic_hash": ""
+  },
+  "docs/platform-vision.md": {
+    "mtime": 1785207758.0,
+    "ast_hash": "36156d00f5406a857a342ac0d275ab68",
+    "semantic_hash": ""
+  },
+  "docs/roles-and-permissions.md": {
+    "mtime": 1785207758.0,
+    "ast_hash": "5b01748d2d32d7838f6ee03f964fd6d2",
+    "semantic_hash": ""
+  },
+  "docs/shared-controls.md": {
+    "mtime": 1785207758.0,
+    "ast_hash": "c3ebc1ff9282f4642fb66ebc3725936f",
+    "semantic_hash": ""
+  },
+  "docs/source-index.md": {
+    "mtime": 1785246745.2831378,
+    "ast_hash": "c946676be8fc0a7e89f1a76950afee7b",
+    "semantic_hash": ""
+  },
+  "docs/source-summaries/approval-april-2026.md": {
+    "mtime": 1785246672.3881836,
+    "ast_hash": "4acfadf36ad6eae0dad31d5c8802cbb9",
+    "semantic_hash": ""
+  },
+  "docs/source-summaries/approval-may-2026.md": {
+    "mtime": 1785246653.0789692,
+    "ast_hash": "a3fc4e9896fbb3910c8d086eb3c24b36",
+    "semantic_hash": ""
+  },
+  "docs/source-summaries/client-onboarding-framework.md": {
+    "mtime": 1785207758.0,
+    "ast_hash": "85444dc3fd36ad906dc1378049ea46a1",
+    "semantic_hash": ""
+  },
+  "docs/source-summaries/credit-policy.md": {
+    "mtime": 1785207758.0,
+    "ast_hash": "65fdf5efd3687623e3731beb11b3c8de",
+    "semantic_hash": ""
+  },
+  "docs/source-summaries/enterprise-rcsa.md": {
+    "mtime": 1785207758.0,
+    "ast_hash": "5c465e0ee0b1d5cc6472918ffbfd0381",
+    "semantic_hash": ""
+  },
+  "docs/source-summaries/final-mis-april-2026.md": {
+    "mtime": 1785246661.7990234,
+    "ast_hash": "22930bb3a1c713fc6787a042c5b07acd",
+    "semantic_hash": ""
+  },
+  "docs/source-summaries/foreclosure-sop.md": {
+    "mtime": 1785207758.0,
+    "ast_hash": "8205de6cea482b7b3ca932b636531838",
+    "semantic_hash": ""
+  },
+  "docs/source-summaries/monthly-governance-tracker.md": {
+    "mtime": 1785207758.0,
+    "ast_hash": "f2ffececea024418883df6d29ea5efcc",
+    "semantic_hash": ""
+  },
+  "docs/source-summaries/prototype-reference.md": {
+    "mtime": 1785207758.0,
+    "ast_hash": "6f90e0ee81c498728d5d9983c6000fc7",
+    "semantic_hash": ""
+  },
+  "docs/source-summaries/radius-subvention-data.md": {
+    "mtime": 1785246667.3862746,
+    "ast_hash": "84f0b4b856d854dd22e6513128fff6ae",
+    "semantic_hash": ""
+  },
+  "docs/source-summaries/subvention-operating-model.md": {
+    "mtime": 1785207758.0,
+    "ast_hash": "b5ae469ef4ff10decf6f45488f5eee71",
+    "semantic_hash": ""
+  },
+  "docs/subvention-client-data-contract.md": {
+    "mtime": 1785246676.423345,
+    "ast_hash": "d1106bead2efdc9a607cd5bc03ea7d0c",
+    "semantic_hash": ""
+  },
+  "docs/subvention-frs.md": {
+    "mtime": 1785207758.0,
+    "ast_hash": "25e46a7910bf13139b7c29857e044a7f",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-07-28-smart-epp-subvention-vertical-slice.md": {
+    "mtime": 1785246834.016722,
+    "ast_hash": "e43b79bc47c8ab9507e545d5633d8fb3",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-08-03-standalone-subvention-smart-merger.md": {
+    "mtime": 1785736708.63241,
+    "ast_hash": "c6d821641d79c10d7e73d785352f7fc5",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-07-28-smart-epp-subvention-vertical-slice-design.md": {
+    "mtime": 1785230409.232923,
+    "ast_hash": "0b4ec0184a1547222f7301b0c56ca02a",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-08-03-subvention-smart-merger-design.md": {
+    "mtime": 1785736411.5167837,
+    "ast_hash": "8b275acef07ce099a3ae6ea45c844a11",
+    "semantic_hash": ""
+  },
+  "docs/workflow-model.md": {
+    "mtime": 1785207758.0,
+    "ast_hash": "84828aa024b5f8ca67a991ce831ddca1",
+    "semantic_hash": ""
+  },
+  "skill-observations/cross-cutting-principles.md": {
+    "mtime": 1785310446.8033113,
+    "ast_hash": "b9acb9f38762ec0ea9bf81b1b5968366",
+    "semantic_hash": ""
+  },
+  "skill-observations/last-review-date.txt": {
+    "mtime": 1785310446.804324,
+    "ast_hash": "dd34e94b95abf02e177b48f0366099d9",
+    "semantic_hash": ""
+  },
+  "skill-observations/log.md": {
+    "mtime": 1785311224.772098,
+    "ast_hash": "79b360ee7141208da3e332a0beb4aba0",
+    "semantic_hash": ""
+  }
+}

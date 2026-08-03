@@ -34,6 +34,48 @@ import {
   createDemoSubventionSeed,
 } from "../data/seed";
 
+export const SUBVENTION_STATE_STORAGE_KEY =
+  "smart-epp-subvention-standalone-v1";
+
+export function serializeSubventionState(value: unknown): string {
+  return JSON.stringify(value, (_key, item) => {
+    if (item instanceof Set) return { __smartEppType: "Set", values: [...item] };
+    if (item instanceof Map) return { __smartEppType: "Map", values: [...item.entries()] };
+    return item;
+  });
+}
+
+export function parseSubventionState(value: string): SubventionSnapshot {
+  const parsed = JSON.parse(value, (_key, item) => {
+    if (item?.__smartEppType === "Set") return new Set(item.values);
+    if (item?.__smartEppType === "Map") return new Map(item.values);
+    return item;
+  }) as SubventionSnapshot;
+  if (
+    !parsed ||
+    !Array.isArray(parsed.schemes) ||
+    !Array.isArray(parsed.programmeMappings) ||
+    !Array.isArray(parsed.transactions) ||
+    !parsed.masters
+  ) {
+    throw new Error("The selected file is not a compatible Smart EPP Subvention state export.");
+  }
+  return parsed;
+}
+
+function loadInitialSnapshot(): SubventionSnapshot {
+  const fallback = createDemoSubventionSeed();
+  if (typeof window === "undefined") return fallback;
+  const stored = window.localStorage.getItem(SUBVENTION_STATE_STORAGE_KEY);
+  if (!stored) return fallback;
+  try {
+    return parseSubventionState(stored);
+  } catch {
+    window.localStorage.removeItem(SUBVENTION_STATE_STORAGE_KEY);
+    return fallback;
+  }
+}
+
 export interface SubventionActionError {
   message: string;
 }
@@ -169,10 +211,11 @@ function actionErrorFrom(error: unknown): SubventionActionError {
 }
 
 export function SubventionProvider({ children }: { children: ReactNode }) {
-  const [repository] = useState(createDemoSubventionRepository);
-  const [snapshot, setSnapshot] = useState<SubventionSnapshot>(
-    createDemoSubventionSeed,
+  const [initialSnapshot] = useState(loadInitialSnapshot);
+  const [repository] = useState(() =>
+    createDemoSubventionRepository(initialSnapshot),
   );
+  const [snapshot, setSnapshot] = useState<SubventionSnapshot>(initialSnapshot);
   const [activeActorId, setActiveActorId] = useState<string>(
     () =>
       (typeof window === "undefined"
@@ -195,7 +238,14 @@ export function SubventionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refresh = useCallback(async () => {
-    setSnapshot(await repository.getSnapshot());
+    const nextSnapshot = await repository.getSnapshot();
+    setSnapshot(nextSnapshot);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(
+        SUBVENTION_STATE_STORAGE_KEY,
+        serializeSubventionState(nextSnapshot),
+      );
+    }
   }, [repository]);
 
   const runCommand = useCallback(
