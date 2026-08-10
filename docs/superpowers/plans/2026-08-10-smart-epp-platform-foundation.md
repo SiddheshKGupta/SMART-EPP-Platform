@@ -511,9 +511,10 @@ test("every approved capability is visible and navigable", async ({ page }) => {
   await expect(navigation.getByRole("link", { name: "Employer Programmes" })).toBeVisible();
   await expect(navigation.getByRole("link", { name: "Foreclosure" })).toBeVisible();
   await expect(navigation.getByRole("link", { name: "Admin" })).toBeVisible();
-  await navigation.getByRole("link", { name: "Employees" }).click();
-  await expect(page).toHaveURL(/\/employees/);
-  await expect(page.getByRole("heading", { name: "Employees" })).toBeVisible();
+  await expect(navigation.getByRole("link", { name: "Employees" })).toHaveAttribute(
+    "href",
+    "/employees",
+  );
 });
 
 test("subvention keeps its workspace inside the common shell", async ({ page }) => {
@@ -527,7 +528,7 @@ test("subvention keeps its workspace inside the common shell", async ({ page }) 
 
 Run: `npx playwright test tests/e2e/platform-navigation.spec.ts`
 
-Expected: FAIL because the current rail exposes only four modules and hides itself on Subvention.
+Expected: FAIL because the current rail exposes only four modules and hides itself on Subvention. Dynamic module route rendering is verified in Task 6, after the route exists.
 
 - [ ] **Step 3: Build `CapabilitySidebar`**
 
