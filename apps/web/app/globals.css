@@ -2720,6 +2720,8 @@ th.selection-column {
 
 @media (max-width: 1023px) {
   .platform-shell, .platform-shell[data-has-module="true"] { grid-template-columns: minmax(0, 1fr); }
+  .platform-shell[data-capability-collapsed="true"],
+  .platform-shell[data-has-module="true"][data-capability-collapsed="true"] { grid-template-columns: minmax(0, 1fr); }
   .capability-sidebar { position: relative; width: auto; height: auto; min-height: 54px; }
   .capability-sidebar[data-collapsed="true"] { width: auto; }
   .capability-sidebar-header { min-height: 54px; }
@@ -2730,11 +2732,13 @@ th.selection-column {
   .module-navigation { position: relative; width: auto; height: auto; }
   .module-links { flex-direction: row; overflow-x: auto; overflow-y: hidden; }
   .module-link { flex: 0 0 auto; }
+  .command-bar { height: auto; min-height: 56px; }
   .command-actions { display: flex; }
+  .command-actions [data-slot="button"] { min-height: 44px; }
 }
 
 @media (max-width: 760px) {
-  .command-bar { min-height: 52px; flex-wrap: wrap; align-items: center; padding-block: 6px; }
+  .command-bar { height: auto; min-height: 52px; flex-wrap: wrap; align-items: center; padding-block: 6px; }
   .command-actions { order: 3; width: 100%; flex: 0 0 100%; overflow-x: auto; padding-block: 2px; }
   .command-actions [data-slot="button"] { min-height: 44px; flex: 0 0 auto; padding-inline: 10px; }
   .actor-control { margin-inline-start: auto; }

@@ -51,10 +51,29 @@ for (const width of [768, 375]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/");
     for (const name of ["Start Demo Journey", "Work queue", "Alerts", "Integration health"]) {
-      await expect(page.getByRole("button", { name })).toBeVisible();
+      const control = page.getByRole("button", { name });
+      await expect(control).toBeVisible();
+      expect((await control.boundingBox())?.height).toBeGreaterThanOrEqual(44);
     }
+    const commandBar = await page.locator(".command-bar").boundingBox();
+    const main = await page.locator("#main-content").boundingBox();
+    expect(commandBar?.y! + commandBar?.height!).toBeLessThanOrEqual(main?.y!);
+    const documentWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+    expect(documentWidth).toBeLessThanOrEqual(width);
   });
 }
+
+test("collapsed capability shell remains one column on narrow screens", async ({ page }) => {
+  await page.setViewportSize({ width: 768, height: 900 });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Collapse capability navigation" }).click();
+  const columns = await page.locator(".platform-shell").evaluate((element) =>
+    getComputedStyle(element).gridTemplateColumns,
+  );
+  expect(columns.split(" ")).toHaveLength(1);
+  const dimensions = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }));
+  expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth);
+});
 
 test("command palette preserves the Subvention control desk route", async ({ page }) => {
   await page.goto("/");
