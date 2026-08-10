@@ -2662,6 +2662,11 @@ th.selection-column {
   grid-template-columns: 224px 224px minmax(0, 1fr);
 }
 
+.platform-shell[data-capability-collapsed="true"],
+.platform-shell[data-has-module="true"][data-capability-collapsed="true"] {
+  grid-template-columns: 64px 224px minmax(0, 1fr);
+}
+
 .capability-sidebar {
   position: sticky;
   z-index: 40;
@@ -2725,7 +2730,14 @@ th.selection-column {
   .module-navigation { position: relative; width: auto; height: auto; }
   .module-links { flex-direction: row; overflow-x: auto; overflow-y: hidden; }
   .module-link { flex: 0 0 auto; }
-  .command-actions { display: none; }
+  .command-actions { display: flex; }
+}
+
+@media (max-width: 760px) {
+  .command-bar { min-height: 52px; flex-wrap: wrap; align-items: center; padding-block: 6px; }
+  .command-actions { order: 3; width: 100%; flex: 0 0 100%; overflow-x: auto; padding-block: 2px; }
+  .command-actions [data-slot="button"] { min-height: 44px; flex: 0 0 auto; padding-inline: 10px; }
+  .actor-control { margin-inline-start: auto; }
 }
 
 .subvention-landing {

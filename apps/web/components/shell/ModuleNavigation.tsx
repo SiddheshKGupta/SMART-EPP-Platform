@@ -29,7 +29,7 @@ function activeModule(pathname: string): PlatformModuleDefinition | undefined {
   return slug ? moduleBySlug(slug) : PLATFORM_MODULES[0];
 }
 
-function hrefFor(module: PlatformModuleDefinition, submodule: PlatformSubmoduleDefinition) {
+export function platformSubmoduleHref(module: PlatformModuleDefinition, submodule: PlatformSubmoduleDefinition) {
   return module.slug === "subvention"
     ? SUBVENTION_PATHS[submodule.slug] ?? `/subvention/${submodule.slug}`
     : `/${module.slug}/${submodule.slug}`;
@@ -52,7 +52,7 @@ export function ModuleNavigation() {
       </div>
       <nav aria-label={`${module.label} navigation`} className="module-links">
         {module.submodules.map((submodule) => {
-          const href = hrefFor(module, submodule);
+          const href = platformSubmoduleHref(module, submodule);
           const current = isCurrent(pathname, href);
           const Icon: LucideIcon = CircleDot;
           return (

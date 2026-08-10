@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandShortcut } from "@/components/ui/command";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { usePlatform } from "@/features/platform/store/PlatformProvider";
+import { platformSubmoduleHref } from "./ModuleNavigation";
 
 function actorLabel(roleKeys: readonly string[]) {
   return roleKeys[0]?.toLowerCase().split("_").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ") ?? "Profile";
@@ -21,7 +22,7 @@ export function CommandBar() {
     const root = module.slug === "command-centre" ? "/" : `/${module.slug}`;
     return [
       { label: module.label, href: root },
-      ...module.submodules.map((submodule) => ({ label: `${module.label}: ${submodule.label}`, href: `${root === "/" ? "" : root}/${submodule.slug}` })),
+      ...module.submodules.map((submodule) => ({ label: `${module.label}: ${submodule.label}`, href: platformSubmoduleHref(module, submodule) })),
     ];
   }), []);
 

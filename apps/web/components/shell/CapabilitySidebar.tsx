@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PLATFORM_MODULES, type PlatformModuleDefinition } from "@smart-epp/domain";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -79,6 +79,11 @@ export function CapabilitySidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const primary = PLATFORM_MODULES.filter((module) => module.key !== "ADMIN");
   const admin = PLATFORM_MODULES.find((module) => module.key === "ADMIN");
+
+  useEffect(() => {
+    document.querySelector(".platform-shell")?.setAttribute("data-capability-collapsed", String(collapsed));
+    return () => document.querySelector(".platform-shell")?.removeAttribute("data-capability-collapsed");
+  }, [collapsed]);
 
   return (
     <aside className="capability-sidebar" data-collapsed={collapsed}>
