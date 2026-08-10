@@ -61,6 +61,26 @@ test("workspace filters and inspector preserve operational context", async ({ pa
   await expect(page.getByText("All records")).toBeVisible();
 });
 
+test("mobile workspace inspector is a contained full-height sheet with accessible controls", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/applications/register");
+  const inspect = page.getByRole("button", { name: "Inspect Application 01" });
+  await expect(inspect).toBeVisible();
+  expect((await inspect.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+  await inspect.click();
+  const inspector = page.getByRole("dialog", { name: "Application 01 inspector" });
+  await expect(inspector).toBeVisible();
+  const inspectorBox = await inspector.boundingBox();
+  expect(inspectorBox?.width).toBeLessThanOrEqual(375);
+  expect(inspectorBox?.height).toBeGreaterThanOrEqual(800);
+  const close = inspector.getByRole("button", { name: "Close inspector" });
+  expect((await close.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+  await close.click();
+  await expect(inspector).toHaveCount(0);
+  await expect(inspect).toBeFocused();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+});
+
 test("every approved capability is visible and navigable", async ({ page }) => {
   await page.goto("/");
   const navigation = page.getByRole("navigation", {
