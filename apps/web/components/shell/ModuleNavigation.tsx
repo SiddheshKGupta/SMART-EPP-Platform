@@ -1,115 +1,69 @@
 "use client";
 
-import {
-  BadgeIndianRupee,
-  ClipboardCheck,
-  Database,
-  FileClock,
-  FileInput,
-  GitBranch,
-  LibraryBig,
-  LayoutDashboard,
-  Scale,
-  ScrollText,
-  SlidersHorizontal,
-} from "lucide-react";
+import { CircleDot, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ComponentType } from "react";
+import { PLATFORM_MODULES, moduleBySlug, type PlatformModuleDefinition, type PlatformSubmoduleDefinition } from "@smart-epp/domain";
 
-interface ModuleItem {
-  label: string;
-  href: string;
-  icon: ComponentType<{ "aria-hidden"?: boolean; className?: string }>;
+const SUBVENTION_PATHS: Record<string, string> = {
+  "control-desk": "/subvention",
+  schemes: "/subvention/schemes",
+  "programme-mappings": "/subvention/programme-mappings",
+  "purchase-repository": "/subvention/transactions",
+  "import-quarantine": "/subvention/purchase-imports",
+  "purchase-evidence": "/subvention/transactions",
+  eligibility: "/subvention/eligibility",
+  "claim-preparation": "/subvention/claims",
+  "claim-batching": "/subvention/claims",
+  "claim-reconciliation": "/subvention/reconciliation",
+  rejections: "/subvention/eligibility",
+  representation: "/subvention/recovery",
+  invoicing: "/subvention/claims",
+  "receipts-allocation": "/subvention/reconciliation",
+  "accounting-closure": "/subvention/reconciliation",
+  mis: "/subvention/operations",
+};
+
+function activeModule(pathname: string): PlatformModuleDefinition | undefined {
+  const [slug] = pathname.split("/").filter(Boolean);
+  return slug ? moduleBySlug(slug) : PLATFORM_MODULES[0];
 }
 
-interface ModuleGroup {
-  label: string;
-  items: ModuleItem[];
+function hrefFor(module: PlatformModuleDefinition, submodule: PlatformSubmoduleDefinition) {
+  return module.slug === "subvention"
+    ? SUBVENTION_PATHS[submodule.slug] ?? `/subvention/${submodule.slug}`
+    : `/${module.slug}/${submodule.slug}`;
 }
 
-const subventionGroups: ModuleGroup[] = [
-  {
-    label: "Control centre",
-    items: [
-      { label: "Overview", href: "/subvention", icon: LayoutDashboard },
-      { label: "Operations workbench", href: "/subvention/operations", icon: ClipboardCheck },
-    ],
-  },
-  {
-    label: "Daily process",
-    items: [
-      { label: "Upload documents", href: "/subvention/purchase-imports", icon: FileInput },
-      { label: "Transactions", href: "/subvention/transactions", icon: LibraryBig },
-      { label: "Exception review", href: "/subvention/eligibility", icon: SlidersHorizontal },
-      { label: "Claims & tracking", href: "/subvention/claims", icon: ScrollText },
-    ],
-  },
-  {
-    label: "Configuration",
-    items: [
-      { label: "Master data", href: "/subvention/masters", icon: Database },
-      { label: "Scheme versions", href: "/subvention/schemes", icon: FileClock },
-      { label: "Programme mappings", href: "/subvention/programme-mappings", icon: GitBranch },
-      { label: "Data model", href: "/subvention/administration/data-model", icon: GitBranch },
-    ],
-  },
-  {
-    label: "Finance controls",
-    items: [
-      { label: "Reconciliation", href: "/subvention/reconciliation", icon: Scale },
-      { label: "Recovery", href: "/subvention/recovery", icon: BadgeIndianRupee },
-    ],
-  },
-];
-
-function isCurrent(pathname: string, href: string): boolean {
-  return href === "/subvention"
-    ? pathname === href
-    : pathname.startsWith(href);
+function isCurrent(pathname: string, href: string) {
+  return href === "/subvention" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
 }
 
 export function ModuleNavigation() {
   const pathname = usePathname();
+  const module = activeModule(pathname);
+  if (!module?.submodules.length) return null;
 
   return (
     <aside className="module-navigation">
       <div className="module-heading">
-        <span className="module-product-mark" aria-hidden="true">SE</span>
-        <span>
-          <span className="module-kicker">Smart EPP</span>
-          <strong>Subvention</strong>
-        </span>
+        <span className="module-kicker">Capability</span>
+        <strong>{module.label}</strong>
       </div>
-      <nav aria-label="Subvention navigation" className="module-links">
-        {subventionGroups.map((group) => (
-          <div className="module-link-group" key={group.label}>
-            <span className="module-group-label">{group.label}</span>
-            {group.items.map((item) => {
-              const Icon = item.icon;
-              const active = isCurrent(pathname, item.href);
-              return (
-                <Link
-                  key={item.href}
-                  className="module-link"
-                  data-active={active}
-                  href={item.href}
-                  aria-current={active ? "page" : undefined}
-                  aria-label={item.label}
-                  title={item.label}
-                >
-                  <Icon aria-hidden />
-                  <span>{item.label}</span>
-                </Link>
-              );
-            })}
-          </div>
-        ))}
+      <nav aria-label={`${module.label} navigation`} className="module-links">
+        {module.submodules.map((submodule) => {
+          const href = hrefFor(module, submodule);
+          const current = isCurrent(pathname, href);
+          const Icon: LucideIcon = CircleDot;
+          return (
+            <Link key={submodule.key} className="module-link" data-active={current} href={href} aria-current={current ? "page" : undefined}>
+              <Icon aria-hidden />
+              <span>{submodule.label}</span>
+            </Link>
+          );
+        })}
       </nav>
-      <div className="module-footnote">
-        <span>Controlled operations</span>
-        <p>Developed by <strong>V L &amp; CO</strong></p>
-      </div>
+      <div className="module-footnote">Operational workspace</div>
     </aside>
   );
 }

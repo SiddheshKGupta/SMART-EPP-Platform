@@ -2,12 +2,13 @@
 
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, type ReactNode } from "react";
+import { PLATFORM_MODULES, moduleBySlug } from "@smart-epp/domain";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useSubvention } from "@/features/subvention/store/SubventionProvider";
 import { SubventionProvider } from "@/features/subvention/store/SubventionProvider";
 import { PlatformProvider } from "@/features/platform/store/PlatformProvider";
 import { CommandBar } from "./CommandBar";
-import { GlobalRail } from "./GlobalRail";
+import { CapabilitySidebar } from "./CapabilitySidebar";
 import { ModuleNavigation } from "./ModuleNavigation";
 
 function ActionAnnouncements() {
@@ -29,8 +30,9 @@ function ActionAnnouncements() {
 function ShellFrame({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const hasMounted = useRef(false);
-  const isStandaloneSubvention = pathname.startsWith("/subvention");
-  const hasModuleNavigation = isStandaloneSubvention;
+  const [slug] = pathname.split("/").filter(Boolean);
+  const activeModule = slug ? moduleBySlug(slug) : PLATFORM_MODULES[0];
+  const hasModuleNavigation = Boolean(activeModule?.submodules.length);
 
   useEffect(() => {
     if (!hasMounted.current) {
@@ -58,9 +60,8 @@ function ShellFrame({ children }: { children: ReactNode }) {
       <div
         className="platform-shell"
         data-has-module={hasModuleNavigation}
-        data-standalone-subvention={isStandaloneSubvention}
       >
-        {isStandaloneSubvention ? null : <GlobalRail />}
+        <CapabilitySidebar />
         {hasModuleNavigation ? <ModuleNavigation /> : null}
         <div className="shell-stage">
           <CommandBar />
