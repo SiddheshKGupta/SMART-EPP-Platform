@@ -5,6 +5,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useSubvention } from "@/features/subvention/store/SubventionProvider";
 import { SubventionProvider } from "@/features/subvention/store/SubventionProvider";
+import { PlatformProvider } from "@/features/platform/store/PlatformProvider";
 import { CommandBar } from "./CommandBar";
 import { GlobalRail } from "./GlobalRail";
 import { ModuleNavigation } from "./ModuleNavigation";
@@ -78,10 +79,12 @@ function ShellFrame({ children }: { children: ReactNode }) {
 
 export function PlatformShell({ children }: { children: ReactNode }) {
   return (
-    <SubventionProvider>
-      <TooltipProvider>
-        <ShellFrame>{children}</ShellFrame>
-      </TooltipProvider>
-    </SubventionProvider>
+    <PlatformProvider>
+      <SubventionProvider>
+        <TooltipProvider>
+          <ShellFrame>{children}</ShellFrame>
+        </TooltipProvider>
+      </SubventionProvider>
+    </PlatformProvider>
   );
 }
