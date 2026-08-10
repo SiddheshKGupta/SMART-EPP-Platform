@@ -35,4 +35,19 @@ describe("buildWorkspaceView", () => {
     expect(bre.records[0]?.source).toMatch(/audit|profile/i);
     expect(management.records[0]?.title).not.toBe(bre.records[0]?.title);
   });
+
+  test("does not invent operating states for asset, audit or IAM evidence", () => {
+    const assets = PLATFORM_MODULES.find((module) => module.slug === "assets")!;
+    const admin = PLATFORM_MODULES.find((module) => module.slug === "admin")!;
+    expect(buildWorkspaceView(assets, assets.submodules[0], snapshot, {}).records.every((record) => record.state === null)).toBe(true);
+    expect(buildWorkspaceView(admin, admin.submodules.find((item) => item.slug === "bre-engine"), snapshot, {}).records.every((record) => record.state === null)).toBe(true);
+    expect(buildWorkspaceView(admin, admin.submodules.find((item) => item.slug === "iam"), snapshot, {}).records.every((record) => record.state === null)).toBe(true);
+  });
+
+  test("keeps integration source status exact without mapping it to an operating state", () => {
+    const admin = PLATFORM_MODULES.find((module) => module.slug === "admin")!;
+    const view = buildWorkspaceView(admin, admin.submodules.find((item) => item.slug === "integrations"), snapshot, {});
+    expect(view.records[0]?.state).toBeNull();
+    expect(view.records[0]?.sourceStatus).toBe(snapshot.integrations.find((item) => item.id === view.records[0]?.id)?.status);
+  });
 });

@@ -2939,9 +2939,10 @@ th.selection-column {
 .workspace-kpi > span, .workspace-kpi small { color: var(--muted); font-size: 11px; font-weight: 650; }
 .workspace-kpi > strong { align-self: end; color: var(--navy-strong); font-size: 25px; letter-spacing: -0.035em; }
 .workspace-filter-actions { display: flex; align-items: center; gap: 8px; }
-.workspace-filter-actions button, .workspace-filter-actions a, .workspace-inspect-trigger, .workspace-inspector-panel button { min-height: 38px; border: 1px solid var(--border-strong); border-radius: var(--radius-control); background: #fff; color: var(--navy); padding: 7px 10px; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.workspace-filter-actions button, .workspace-filter-actions a, .workspace-inspect-trigger, .workspace-inspector-panel button { min-height: 44px; border: 1px solid var(--border-strong); border-radius: var(--radius-control); background: #fff; color: var(--navy); padding: 7px 10px; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
 .workspace-filter-actions button { border-color: var(--primary); background: var(--primary); color: #fff; }
-.workspace-inspector-panel { position: fixed; z-index: 80; inset-block: 56px 0; inset-inline-end: 0; display: flex; width: min(420px, 38vw); flex-direction: column; border-inline-start: 1px solid var(--border); background: var(--surface); box-shadow: -16px 0 38px #132a4f1a; }
+.workspace-inspector-panel { position: fixed; z-index: 80; inset-block: 56px 0; inset-inline-end: 0; display: flex; width: min(420px, 38vw); max-width: none; max-height: none; margin: 0; flex-direction: column; border: 0; border-inline-start: 1px solid var(--border); background: var(--surface); box-shadow: -16px 0 38px #132a4f1a; }
+.workspace-inspector-panel::backdrop { background: #132a4f42; }
 .workspace-inspector-panel header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; border-block-end: 1px solid var(--border); padding: 18px; }
 .workspace-inspector-panel h2 { margin: 3px 0 0; color: var(--navy-strong); font-size: 18px; }
 .workspace-inspector-panel dl { display: flex; flex-direction: column; margin: 0; padding: 8px 18px; }

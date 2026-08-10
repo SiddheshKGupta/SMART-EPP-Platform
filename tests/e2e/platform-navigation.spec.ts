@@ -46,15 +46,19 @@ test("module overview, onboarding redirect and foreclosure share the workspace c
 });
 
 test("workspace filters and inspector preserve operational context", async ({ page }) => {
-  await page.goto("/applications/register?status=OVERDUE");
+  await page.goto("/applications/register");
+  await page.getByLabel("Filter by operating state").selectOption("OVERDUE");
+  await page.getByRole("button", { name: "Apply filters" }).click();
   await expect(page.getByText("1 active filter")).toBeVisible();
   await expect(page.getByRole("row")).toHaveCount(2);
-  await page.getByRole("button", { name: /Inspect Application 5/ }).click();
-  const inspector = page.getByRole("dialog", { name: /Application 5 inspector/ });
+  await page.getByRole("button", { name: "Inspect Application 05" }).click();
+  const inspector = page.getByRole("dialog", { name: "Application 05 inspector" });
   await expect(inspector).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(inspector).toHaveCount(0);
-  await expect(page.getByRole("button", { name: /Inspect Application 5/ })).toBeFocused();
+  await expect(page.getByRole("button", { name: "Inspect Application 05" })).toBeFocused();
+  await page.getByRole("link", { name: "Reset" }).click();
+  await expect(page.getByText("All records")).toBeVisible();
 });
 
 test("every approved capability is visible and navigable", async ({ page }) => {
