@@ -58,6 +58,24 @@ describe("platform IAM", () => {
     expect(decision.requiresBreakGlass).toBe(true);
   });
 
+  it("denies a regular user from approving their own action even with a grant", () => {
+    const decision = evaluateAccess({
+      profile: {
+        ...baseProfile,
+        grants: [{ module: "ALL", actions: ["APPROVE"] }],
+      },
+      module: "APPLICATIONS_ELIGIBILITY",
+      action: "APPROVE",
+      initiatedBy: baseProfile.userId,
+    });
+
+    expect(decision).toMatchObject({
+      allowed: false,
+      requiresBreakGlass: false,
+      reason: expect.stringMatching(/separation/i),
+    });
+  });
+
   it("allows an admin self-approval only with a trimmed break-glass reason of at least 20 characters", () => {
     const profile: AccessProfile = {
       ...baseProfile,
@@ -80,6 +98,23 @@ describe("platform IAM", () => {
         breakGlassReason: "  twenty characters!!!  ",
       }),
     ).toMatchObject({ allowed: true, requiresBreakGlass: true });
+  });
+
+  it("allows a granted non-self approval without break-glass", () => {
+    const decision = evaluateAccess({
+      profile: {
+        ...baseProfile,
+        grants: [{ module: "ALL", actions: ["APPROVE"] }],
+      },
+      module: "APPLICATIONS_ELIGIBILITY",
+      action: "APPROVE",
+      initiatedBy: "user-maker-02",
+    });
+
+    expect(decision).toMatchObject({
+      allowed: true,
+      requiresBreakGlass: false,
+    });
   });
 
   it("asserts approval separation when a self-approval lacks a valid break-glass reason", () => {

@@ -49,18 +49,23 @@ export interface ApprovalSeparationInput {
   breakGlassReason?: string;
 }
 
-const requiresBreakGlassApproval = ({
+const isSelfApproval = ({
   profile,
   action,
   initiatedBy,
 }: ApprovalSeparationInput): boolean =>
-  action === "APPROVE" &&
-  initiatedBy === profile.userId &&
-  (profile.isAdmin || profile.isManagement);
+  action === "APPROVE" && initiatedBy === profile.userId;
+
+const requiresBreakGlassApproval = (input: ApprovalSeparationInput): boolean =>
+  isSelfApproval(input) && (input.profile.isAdmin || input.profile.isManagement);
 
 export const assertApprovalSeparation = (
   input: ApprovalSeparationInput,
 ): void => {
+  if (isSelfApproval(input) && !requiresBreakGlassApproval(input)) {
+    throw new Error("Approval separation prohibits self-approval.");
+  }
+
   if (
     requiresBreakGlassApproval(input) &&
     (input.breakGlassReason?.trim().length ?? 0) < 20
@@ -86,7 +91,9 @@ export const evaluateAccess = (input: AccessEvaluationInput): AccessDecision => 
   } catch {
     return {
       allowed: false,
-      reason: "Break-glass approval requires a reason of at least 20 characters.",
+      reason: requiresBreakGlass
+        ? "Break-glass approval requires a reason of at least 20 characters."
+        : "Approval separation prohibits self-approval.",
       requiresBreakGlass,
       maskedFields: input.profile.maskedFields,
     };
