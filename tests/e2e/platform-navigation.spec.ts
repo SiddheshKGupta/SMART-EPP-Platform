@@ -30,6 +30,33 @@ test("unknown platform workspace returns 404", async ({ page }) => {
   await expect(page.getByText("404", { exact: true })).toBeVisible();
 });
 
+test("unknown platform module returns 404", async ({ page }) => {
+  await page.goto("/not-a-module");
+  await expect(page.getByText("404", { exact: true })).toBeVisible();
+});
+
+test("module overview, onboarding redirect and foreclosure share the workspace contract", async ({ page }) => {
+  await page.goto("/programmes");
+  await expect(page.getByRole("heading", { name: "Employer Programmes" })).toBeVisible();
+  await page.goto("/onboarding");
+  await expect(page).toHaveURL(/\/programmes\/readiness$/);
+  await page.goto("/foreclosure");
+  await expect(page.getByRole("heading", { name: "Foreclosure" })).toBeVisible();
+  await expect(page.getByText("Read only", { exact: true })).toBeVisible();
+});
+
+test("workspace filters and inspector preserve operational context", async ({ page }) => {
+  await page.goto("/applications/register?status=OVERDUE");
+  await expect(page.getByText("1 active filter")).toBeVisible();
+  await expect(page.getByRole("row")).toHaveCount(2);
+  await page.getByRole("button", { name: /Inspect Application 5/ }).click();
+  const inspector = page.getByRole("dialog", { name: /Application 5 inspector/ });
+  await expect(inspector).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(inspector).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Inspect Application 5/ })).toBeFocused();
+});
+
 test("every approved capability is visible and navigable", async ({ page }) => {
   await page.goto("/");
   const navigation = page.getByRole("navigation", {

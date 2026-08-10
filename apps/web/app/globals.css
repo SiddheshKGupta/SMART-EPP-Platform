@@ -2918,7 +2918,7 @@ th.selection-column {
   gap: 8px;
 }
 
-.operations-result-summary span {
+.operations-result-summary > span {
   display: inline-flex;
   min-height: 34px;
   align-items: center;
@@ -2930,6 +2930,25 @@ th.selection-column {
   color: var(--muted);
   font-size: 12px;
 }
+
+/* Workspace inspection keeps dense register context visible while exposing evidence. */
+.workspace-summary { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.workspace-summary > span { display: inline-flex; min-height: 34px; align-items: center; gap: 5px; border: 1px solid var(--border); border-radius: 10px; background: #fff; padding: 6px 10px; color: var(--muted); font-size: 12px; }
+.workspace-kpi { display: grid; min-height: 136px; grid-template-rows: auto 1fr auto; gap: 7px; border-inline-end: 1px solid var(--border); padding: 15px; }
+.workspace-kpi:last-child { border-inline-end: 0; }
+.workspace-kpi > span, .workspace-kpi small { color: var(--muted); font-size: 11px; font-weight: 650; }
+.workspace-kpi > strong { align-self: end; color: var(--navy-strong); font-size: 25px; letter-spacing: -0.035em; }
+.workspace-filter-actions { display: flex; align-items: center; gap: 8px; }
+.workspace-filter-actions button, .workspace-filter-actions a, .workspace-inspect-trigger, .workspace-inspector-panel button { min-height: 38px; border: 1px solid var(--border-strong); border-radius: var(--radius-control); background: #fff; color: var(--navy); padding: 7px 10px; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.workspace-filter-actions button { border-color: var(--primary); background: var(--primary); color: #fff; }
+.workspace-inspector-panel { position: fixed; z-index: 80; inset-block: 56px 0; inset-inline-end: 0; display: flex; width: min(420px, 38vw); flex-direction: column; border-inline-start: 1px solid var(--border); background: var(--surface); box-shadow: -16px 0 38px #132a4f1a; }
+.workspace-inspector-panel header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; border-block-end: 1px solid var(--border); padding: 18px; }
+.workspace-inspector-panel h2 { margin: 3px 0 0; color: var(--navy-strong); font-size: 18px; }
+.workspace-inspector-panel dl { display: flex; flex-direction: column; margin: 0; padding: 8px 18px; }
+.workspace-inspector-panel dl div { border-block-end: 1px solid var(--border); padding: 12px 0; }
+.workspace-inspector-panel dt { color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; }
+.workspace-inspector-panel dd { margin: 3px 0 0; overflow-wrap: anywhere; font-size: 13px; }
+@media (max-width: 760px) { .workspace-summary { justify-content: flex-start; } .workspace-kpi { min-height: 104px; } .workspace-filter-actions { grid-column: 1 / -1; } .workspace-filter-actions button, .workspace-filter-actions a, .workspace-inspect-trigger, .workspace-inspector-panel button { min-height: 44px; } .workspace-inspector-panel { inset: 0; width: 100vw; } }
 
 .operations-result-summary strong {
   color: var(--text);
