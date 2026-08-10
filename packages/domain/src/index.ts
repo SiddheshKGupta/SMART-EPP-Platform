@@ -18,6 +18,7 @@ export {
   assertUniqueDeviceIdentifier,
   assertWithinClaimTimeline,
 } from "./controls";
+export * from "./platform/module-registry";
 export * from "./subvention/dates";
 export * from "./subvention/claims";
 export * from "./subvention/eligibility";
