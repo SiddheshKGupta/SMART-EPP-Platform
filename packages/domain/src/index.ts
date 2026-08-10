@@ -20,6 +20,8 @@ export {
 } from "./controls";
 export * from "./platform/module-registry";
 export * from "./platform/iam";
+export * from "./platform/types";
+export * from "./platform/repositories";
 export * from "./subvention/dates";
 export * from "./subvention/claims";
 export * from "./subvention/eligibility";
