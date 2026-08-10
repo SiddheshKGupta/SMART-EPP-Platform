@@ -1,9 +1,13 @@
 # SMART EPP Full Clickable Prototype Design
 
-**Date:** 10 August 2026  
-**Status:** Approved design baseline pending written-spec review  
-**Product:** SMART EPP Platform  
-**Architecture:** Configurable Asset Finance Core  
+**Date:** 10 August 2026
+
+**Status:** Approved design baseline pending written-spec review
+
+**Product:** SMART EPP Platform
+
+**Architecture:** Configurable Asset Finance Core
+
 **Reference implementation:** Connect SMART EPP
 
 ## 1. Objective
