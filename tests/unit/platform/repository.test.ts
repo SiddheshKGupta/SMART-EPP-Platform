@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { PlatformRepository } from "@smart-epp/domain";
 import { InMemoryPlatformRepository } from "@/features/platform/data/InMemoryPlatformRepository";
 import { createPlatformDemoSeed } from "@/features/platform/data/seed";
 import {
@@ -6,40 +7,49 @@ import {
   transitionJourneyStep,
 } from "@/features/platform/store/PlatformProvider";
 
+const repositoryContract: PlatformRepository = new InMemoryPlatformRepository();
+void repositoryContract;
+
 describe("InMemoryPlatformRepository", () => {
-  it("isolates constructor input from later caller mutation", async () => {
+  it("isolates constructor input from later caller mutation", () => {
     const seed = createPlatformDemoSeed();
     const repository = new InMemoryPlatformRepository(seed);
 
     seed.employers[0]!.name = "Changed outside repository";
 
-    expect((await repository.getSnapshot()).employers[0]!.name).toBe(
+    expect(repository.getSnapshot().employers[0]!.name).toBe(
       "Northstar Consulting Private Limited",
     );
   });
 
-  it("returns a fresh snapshot for every read", async () => {
+  it("returns a fresh snapshot for every read", () => {
     const repository = new InMemoryPlatformRepository(createPlatformDemoSeed());
-    const first = await repository.getSnapshot();
+    const first = repository.getSnapshot();
     first.guidedJourneys[0]!.steps[0]!.label = "Changed returned value";
 
-    expect((await repository.getSnapshot()).guidedJourneys[0]!.steps[0]!.label).toBe(
+    expect(repository.getSnapshot().guidedJourneys[0]!.steps[0]!.label).toBe(
       "Employer programme active",
     );
   });
 
-  it("clones replacement snapshots on input and output", async () => {
+  it("clones replacement snapshots on input and output", () => {
     const repository = new InMemoryPlatformRepository(createPlatformDemoSeed());
     const replacement = createPlatformDemoSeed();
     replacement.integrations[0]!.status = "FAILED";
 
-    repository.replace(replacement);
+    repository.replaceSnapshot(replacement);
     replacement.integrations[0]!.status = "HEALTHY";
 
-    const stored = await repository.getSnapshot();
+    const stored = repository.getSnapshot();
     expect(stored.integrations[0]!.status).toBe("FAILED");
     stored.integrations[0]!.status = "PARTIAL";
-    expect((await repository.getSnapshot()).integrations[0]!.status).toBe("FAILED");
+    expect(repository.getSnapshot().integrations[0]!.status).toBe("FAILED");
+  });
+
+  it("uses the deterministic platform demo seed by default", () => {
+    expect(new InMemoryPlatformRepository().getSnapshot().generatedAt).toBe(
+      "2026-08-10T09:00:00.000Z",
+    );
   });
 });
 

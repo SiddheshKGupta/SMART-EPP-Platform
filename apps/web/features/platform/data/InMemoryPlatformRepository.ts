@@ -1,17 +1,18 @@
-import type { PlatformSnapshot } from "@smart-epp/domain";
+import type { PlatformRepository, PlatformSnapshot } from "@smart-epp/domain";
+import { createPlatformDemoSeed } from "./seed";
 
-export class InMemoryPlatformRepository {
+export class InMemoryPlatformRepository implements PlatformRepository {
   private snapshot: PlatformSnapshot;
 
-  constructor(snapshot: PlatformSnapshot) {
+  constructor(snapshot: PlatformSnapshot = createPlatformDemoSeed()) {
     this.snapshot = structuredClone(snapshot);
   }
 
-  async getSnapshot(): Promise<PlatformSnapshot> {
+  getSnapshot(): PlatformSnapshot {
     return structuredClone(this.snapshot);
   }
 
-  replace(snapshot: PlatformSnapshot): void {
+  replaceSnapshot(snapshot: PlatformSnapshot): void {
     this.snapshot = structuredClone(snapshot);
   }
 }
