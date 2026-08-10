@@ -1,5 +1,35 @@
 import { expect, test } from "@playwright/test";
 
+const destinations = [
+  ["/programmes/credit-handoff", "Credit Handoff"],
+  ["/employees/enrolment", "Employee Enrolment"],
+  ["/applications/exposure-lifecycle", "Reservation, Utilisation and Release"],
+  ["/assets/device-identifiers", "Serial/IMEI Identification"],
+  ["/orders/lease-handoff", "Lease-Execution Handoff"],
+  ["/portfolio/sanction-utilisation", "Sanction and Exposure Utilisation"],
+  ["/billing/tally-handoff", "Tally Handoff and Status"],
+  ["/foreclosure/checker-validation", "Checker Validation"],
+  ["/documents/evidence-links", "Evidence Links"],
+  ["/exceptions/reconciliation-breaks", "Reconciliation Breaks"],
+  ["/reports/management", "Management Dashboard"],
+  ["/admin/bre-engine", "BRE Engine"],
+] as const;
+
+for (const [href, heading] of destinations) {
+  test(`${href} resolves to its read-only workspace`, async ({ page }) => {
+    await page.goto(href);
+    await expect(page.getByRole("heading", { name: heading })).toBeVisible();
+    await expect(page.getByText("Read only", { exact: true })).toBeVisible();
+    await expect(page.getByText(/Source freshness:/)).toBeVisible();
+    await expect(page.getByText("404", { exact: true })).toHaveCount(0);
+  });
+}
+
+test("unknown platform workspace returns 404", async ({ page }) => {
+  await page.goto("/programmes/not-a-workspace");
+  await expect(page.getByText("404", { exact: true })).toBeVisible();
+});
+
 test("every approved capability is visible and navigable", async ({ page }) => {
   await page.goto("/");
   const navigation = page.getByRole("navigation", {
