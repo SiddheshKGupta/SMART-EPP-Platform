@@ -14,6 +14,7 @@ import type {
   IntegrationAdapterDemo,
   PlatformSnapshot,
 } from "@smart-epp/domain";
+import { evaluateAccess } from "@smart-epp/domain";
 import { createPlatformDemoSeed } from "../data/seed";
 
 type IntegrationOutcome = "SUCCESS" | "PARTIAL" | "FAILURE";
@@ -209,6 +210,17 @@ export function simulateIntegrationSnapshot(
   };
 }
 
+export function simulateIntegrationForProfile(
+  snapshot: PlatformSnapshot,
+  profile: AccessProfile,
+  adapterId: string,
+  outcome: IntegrationOutcome,
+): PlatformSnapshot {
+  return evaluateAccess({ profile, module: "ADMIN", action: "CONFIGURE" }).allowed
+    ? simulateIntegrationSnapshot(snapshot, adapterId, outcome, profile.userId)
+    : snapshot;
+}
+
 const PlatformContext = createContext<PlatformContextValue | undefined>(undefined);
 
 export function PlatformProvider({ children }: { children: ReactNode }) {
@@ -268,7 +280,8 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
   const simulateIntegration = useCallback(
     (adapterId: string, outcome: IntegrationOutcome) => {
       setSnapshot((current) => {
-        return simulateIntegrationSnapshot(current, adapterId, outcome, activeProfileId);
+        const profile = current.profiles.find((candidate) => candidate.userId === activeProfileId);
+        return profile ? simulateIntegrationForProfile(current, profile, adapterId, outcome) : current;
       });
     },
     [activeProfileId],

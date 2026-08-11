@@ -6,19 +6,21 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { usePlatform } from "@/features/platform/store/PlatformProvider";
 import { IntegrationSimulator } from "./IntegrationSimulator";
 
-const governance: Record<string, { state: string; approval: string; evidence: string }> = {
-  iam: { state: "Configuration controlled", approval: "IAM permission and maker-checker separation apply to approvals.", evidence: "Profile and explicit-grant snapshot" },
-  masters: { state: "Configuration controlled", approval: "Master changes are effective-dated and versioned.", evidence: "No new changes in fixed demo snapshot" },
-  "bre-engine": { state: "Configuration controlled", approval: "Rule changes require approved configuration workflow.", evidence: "No new rule version in fixed demo snapshot" },
-  "workflow-configuration": { state: "Configuration controlled", approval: "Maker cannot approve own work.", evidence: "No new workflow version in fixed demo snapshot" },
-  integrations: { state: "Demo configuration", approval: "Explicit IAM CONFIGURE grant required for simulation.", evidence: "Seven fixed MOCK adapters; fixed snapshot" },
-  "audit-logs": { state: "Read only", approval: "Audit events are evidence, not editable controls.", evidence: "Fixed snapshot plus local demo events" },
-  "platform-settings": { state: "Configuration controlled", approval: "Configuration change approval is required by workflow.", evidence: "No new changes in fixed demo snapshot" },
-};
+export const ADMIN_CONTROL_ROWS = [
+  ["iam", "IAM permission and maker-checker separation apply to approvals.", "Profile and explicit-grant snapshot"],
+  ["masters", "Master changes are effective-dated and versioned.", "Master-version evidence"],
+  ["bre-engine", "Rule changes require approved configuration workflow.", "Rule-version evidence"],
+  ["workflow-configuration", "Maker cannot approve own work.", "Workflow-version evidence"],
+  ["integrations", "Explicit IAM CONFIGURE grant required for simulation.", "Seven fixed MOCK adapters"],
+  ["audit-logs", "Audit events are evidence, not editable controls.", "Audit-event evidence"],
+  ["platform-settings", "Configuration change approval is required by workflow.", "Platform configuration evidence"],
+].map(([slug, approval, evidence]) => ({ slug, readOnly: "Read only", approval, evidence, lastChange: "No recorded change in demo snapshot" }));
+
+const governance = Object.fromEntries(ADMIN_CONTROL_ROWS.map((row) => [row.slug, row]));
 
 function ControlRow({ submodule }: { submodule: PlatformSubmoduleDefinition }) {
   const item = governance[submodule.slug]!;
-  return <li className="admin-control-row"><div><Link href={`/admin/${submodule.slug}`}><strong>{submodule.label}</strong></Link><p>{submodule.description}</p></div><div><StatusBadge status="INFO" label={item.state} /></div><div><span className="admin-label">Control</span><p>{item.approval}</p></div><div><span className="admin-label">Evidence freshness</span><p>{item.evidence}</p></div><Link className="admin-drilldown" href={`/admin/${submodule.slug}`}>Open {submodule.label}</Link></li>;
+  return <li className="admin-control-row"><div><Link href={`/admin/${submodule.slug}`}><strong>{submodule.label}</strong></Link><p>{submodule.description}</p></div><div><StatusBadge status="INFO" label={item.readOnly} /></div><div><span className="admin-label">Control</span><p>{item.approval}</p></div><div><span className="admin-label">Last change</span><p>{item.lastChange}</p><span className="admin-label">Evidence freshness</span><p>{item.evidence} · fixed demo snapshot</p></div><Link className="admin-drilldown" href={`/admin/${submodule.slug}`}>Open {submodule.label}</Link></li>;
 }
 
 export function AdminWorkspace({ submodule }: { submodule?: PlatformSubmoduleDefinition }) {
