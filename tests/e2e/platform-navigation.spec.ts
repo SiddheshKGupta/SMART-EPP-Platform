@@ -1,4 +1,57 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
+
+async function tabTo(
+  page: Page,
+  target: Locator,
+  options: { reverse?: boolean; limit?: number } = {},
+) {
+  const key = options.reverse ? "Shift+Tab" : "Tab";
+  for (let index = 0; index <= (options.limit ?? 80); index += 1) {
+    if (await target.evaluate((element) => element === document.activeElement)) return;
+    await page.keyboard.press(key);
+  }
+  throw new Error(`Keyboard traversal did not reach ${await target.getAttribute("aria-label") ?? await target.textContent()}`);
+}
+
+async function expectNoPageOverflow(page: Page) {
+  const dimensions = await page.evaluate(() => ({
+    clientWidth: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+  }));
+  expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth);
+}
+
+async function expectContainedOrScrollable(region: Locator) {
+  const state = await region.evaluate((element) => {
+    const style = getComputedStyle(element);
+    const before = { left: element.scrollLeft, top: element.scrollTop };
+    const horizontal = element.scrollWidth > element.clientWidth;
+    const vertical = element.scrollHeight > element.clientHeight;
+    if (horizontal) element.scrollLeft = element.scrollWidth;
+    if (vertical) element.scrollTop = element.scrollHeight;
+    return {
+      before,
+      after: { left: element.scrollLeft, top: element.scrollTop },
+      clientHeight: element.clientHeight,
+      clientWidth: element.clientWidth,
+      overflowX: style.overflowX,
+      overflowY: style.overflowY,
+      scrollHeight: element.scrollHeight,
+      scrollWidth: element.scrollWidth,
+    };
+  });
+
+  if (state.scrollWidth > state.clientWidth) {
+    expect(["auto", "scroll"]).toContain(state.overflowX);
+    expect(state.after.left).toBeGreaterThan(state.before.left);
+  } else {
+    expect(state.scrollWidth).toBeLessThanOrEqual(state.clientWidth);
+  }
+  if (state.scrollHeight > state.clientHeight) {
+    expect(["auto", "scroll"]).toContain(state.overflowY);
+    expect(state.after.top).toBeGreaterThanOrEqual(state.before.top);
+  }
+}
 
 const responsiveViewports = [
   { width: 375, height: 812 },
@@ -12,12 +65,46 @@ for (const viewport of responsiveViewports) {
     await page.setViewportSize(viewport);
     await page.goto("/");
 
-    const dimensions = await page.evaluate(() => ({
-      clientWidth: document.documentElement.clientWidth,
-      scrollWidth: document.documentElement.scrollWidth,
-    }));
+    await expectNoPageOverflow(page);
+  });
+}
 
-    expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth);
+for (const viewport of responsiveViewports) {
+  test(`data workspace contains subnavigation, table, and inspector at ${viewport.width}px`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await page.goto("/applications/register");
+    await expectNoPageOverflow(page);
+    await expectContainedOrScrollable(page.locator(".module-links"));
+    await expectContainedOrScrollable(page.locator(".operations-table-scroll"));
+
+    const inspect = page.getByRole("button", { name: "Inspect Application 01" });
+    await inspect.scrollIntoViewIfNeeded();
+    await expect(inspect).toBeVisible();
+    await inspect.click();
+
+    const inspector = page.getByRole("dialog", { name: "Application 01 inspector" });
+    const box = await inspector.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width + 1);
+    await expect(inspector.getByRole("button", { name: "Close inspector" })).toBeVisible();
+    await expectNoPageOverflow(page);
+  });
+
+  test(`admin integrations retain usable controls and contained data at ${viewport.width}px`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await page.goto("/admin/integrations");
+    await expectNoPageOverflow(page);
+    await expectContainedOrScrollable(page.locator(".integration-simulator .operations-table-scroll"));
+
+    const tally = page.getByRole("row", { name: /Tally/ });
+    const denied = tally.getByText("Requires IAM permission", { exact: true });
+    await denied.scrollIntoViewIfNeeded();
+    await expect(denied).toBeVisible();
+    const deniedBox = await denied.boundingBox();
+    expect(deniedBox).not.toBeNull();
+    expect(deniedBox!.x).toBeGreaterThanOrEqual(0);
+    expect(deniedBox!.x + deniedBox!.width).toBeLessThanOrEqual(viewport.width + 1);
   });
 }
 
@@ -30,18 +117,36 @@ test("keyboard users can reach shell controls and the workspace inspector with v
   await expect(skipLink).toHaveCSS("outline-width", "3px");
 
   const capability = page.getByRole("link", { name: "Employer Programmes" });
-  await capability.focus();
+  await tabTo(page, capability, { limit: 24 });
   await expect(capability).toBeFocused();
   expect(await capability.evaluate((element) => element.matches(":focus-visible"))).toBe(true);
 
+  const submodule = page.getByRole("link", { name: "New Applications" });
+  await tabTo(page, submodule, { limit: 30 });
+  await expect(submodule).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/applications\/new$/);
+
+  const commandAction = page.getByRole("button", { name: "Work queue" });
+  await tabTo(page, commandAction, { reverse: true, limit: 12 });
+  await expect(commandAction).toBeFocused();
+  expect(await commandAction.evaluate((element) => element.matches(":focus-visible"))).toBe(true);
+  await page.keyboard.press("Space");
+  await expect(page).toHaveURL(/\/workbench\/my-tasks$/);
+
+  await page.goto("/applications/register");
   const commandMenu = page.getByRole("button", { name: "Open command menu" });
-  await commandMenu.focus();
+  await tabTo(page, commandMenu, { limit: 50 });
+  await expect(commandMenu).toBeFocused();
+  expect(await commandMenu.evaluate((element) => element.matches(":focus-visible"))).toBe(true);
   await page.keyboard.press("Enter");
   await expect(page.getByRole("dialog", { name: "Platform navigation" })).toBeVisible();
   await page.keyboard.press("Escape");
 
   const inspect = page.getByRole("button", { name: "Inspect Application 01" });
-  await inspect.focus();
+  await tabTo(page, inspect, { limit: 50 });
+  await expect(inspect).toBeFocused();
+  expect(await inspect.evaluate((element) => element.matches(":focus-visible"))).toBe(true);
   await page.keyboard.press("Enter");
   await expect(page.getByRole("dialog", { name: "Application 01 inspector" })).toBeVisible();
 });
@@ -95,7 +200,7 @@ test("command and workbench tabs implement roving keyboard activation", async ({
   await expect(page.locator("#command-panel-operations")).not.toHaveAttribute("hidden");
   await expect(page.locator("#command-panel-executive")).toHaveAttribute("hidden", "");
   const operations = page.getByRole("tab", { name: "Operations" });
-  await operations.focus();
+  await tabTo(page, operations, { limit: 50 });
   await page.keyboard.press("ArrowRight");
   const executive = page.getByRole("tab", { name: "Executive" });
   await expect(executive).toBeFocused();
@@ -104,7 +209,7 @@ test("command and workbench tabs implement roving keyboard activation", async ({
   await page.goto("/workbench");
   await expect(page.locator('[role="tabpanel"][id^="workbench-panel-"]')).toHaveCount(9);
   const first = page.getByRole("tab", { name: "My Tasks" });
-  await first.focus();
+  await tabTo(page, first, { limit: 50 });
   await page.keyboard.press("End");
   await expect(page.getByRole("tab", { name: "Recently Viewed" })).toBeFocused();
 });

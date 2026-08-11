@@ -2661,9 +2661,21 @@ th.selection-column {
 .platform-shell,
 .platform-shell[data-has-module="true"] {
   width: 100%;
-  max-width: 100vw;
+  min-width: 0;
+  max-width: 100%;
   grid-template-columns: 224px 224px minmax(0, 1fr);
-  overflow-x: clip;
+}
+
+.shell-stage,
+.shell-main,
+.command-bar,
+.capability-links,
+.module-navigation,
+.module-links,
+.command-actions,
+.operations-table-scroll {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .platform-shell[data-capability-collapsed="true"],

@@ -1,4 +1,12 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
+
+async function tabTo(page: Page, target: Locator, limit = 40) {
+  for (let index = 0; index <= limit; index += 1) {
+    if (await target.evaluate((element) => element === document.activeElement)) return;
+    await page.keyboard.press("Tab");
+  }
+  throw new Error(`Keyboard traversal did not reach ${await target.textContent()}`);
+}
 
 function luminance(hex: string): number {
   const channels = hex
@@ -138,7 +146,7 @@ test("opaque focus tokens meet contrast and keyboard focus is visible on capabil
   await page.keyboard.press("Tab");
   await expect(page.getByRole("link", { name: "Skip to main content" })).toBeFocused();
   const capabilityLink = page.getByRole("link", { name: "Employer Programmes" });
-  await capabilityLink.focus();
+  await tabTo(page, capabilityLink);
   await expect(capabilityLink).toBeFocused();
   expect(await capabilityLink.evaluate((element) => element.matches(":focus-visible"))).toBe(true);
   await expect(capabilityLink).toHaveCSS("outline-color", "rgb(255, 255, 255)");
