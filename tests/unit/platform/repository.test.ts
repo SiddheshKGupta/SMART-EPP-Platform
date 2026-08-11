@@ -11,43 +11,45 @@ const repositoryContract: PlatformRepository = new InMemoryPlatformRepository();
 void repositoryContract;
 
 describe("InMemoryPlatformRepository", () => {
-  it("isolates constructor input from later caller mutation", () => {
+  it("isolates constructor input from later caller mutation", async () => {
     const seed = createPlatformDemoSeed();
     const repository = new InMemoryPlatformRepository(seed);
 
     seed.employers[0]!.name = "Changed outside repository";
 
-    expect(repository.getSnapshot().employers[0]!.name).toBe(
+    expect((await repository.readSnapshot()).employers[0]!.name).toBe(
       "Northstar Consulting Private Limited",
     );
   });
 
-  it("returns a fresh snapshot for every read", () => {
+  it("returns a fresh snapshot for every asynchronous read", async () => {
     const repository = new InMemoryPlatformRepository(createPlatformDemoSeed());
-    const first = repository.getSnapshot();
+    const first = await repository.readSnapshot();
     first.guidedJourneys[0]!.steps[0]!.label = "Changed returned value";
 
-    expect(repository.getSnapshot().guidedJourneys[0]!.steps[0]!.label).toBe(
+    expect(
+      (await repository.readSnapshot()).guidedJourneys[0]!.steps[0]!.label,
+    ).toBe(
       "Employer readiness",
     );
   });
 
-  it("clones replacement snapshots on input and output", () => {
+  it("returns an isolated snapshot from a targeted command", async () => {
     const repository = new InMemoryPlatformRepository(createPlatformDemoSeed());
-    const replacement = createPlatformDemoSeed();
-    replacement.integrations[0]!.status = "FAILED";
+    const result = await repository.execute({
+      type: "ADVANCE_GUIDED_JOURNEY",
+      journeyId: "journey-northstar-01",
+      stepId: "journey-step-02",
+    });
 
-    repository.replaceSnapshot(replacement);
-    replacement.integrations[0]!.status = "HEALTHY";
-
-    const stored = repository.getSnapshot();
-    expect(stored.integrations[0]!.status).toBe("FAILED");
-    stored.integrations[0]!.status = "PARTIAL";
-    expect(repository.getSnapshot().integrations[0]!.status).toBe("FAILED");
+    result.snapshot.guidedJourneys[0]!.steps[0]!.label = "Changed command result";
+    expect(
+      (await repository.readSnapshot()).guidedJourneys[0]!.steps[0]!.label,
+    ).toBe("Employer readiness");
   });
 
-  it("uses the deterministic platform demo seed by default", () => {
-    expect(new InMemoryPlatformRepository().getSnapshot().generatedAt).toBe(
+  it("uses the deterministic platform demo seed by default", async () => {
+    expect((await new InMemoryPlatformRepository().readSnapshot()).generatedAt).toBe(
       "2026-08-10T09:00:00.000Z",
     );
   });

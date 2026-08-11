@@ -1,9 +1,10 @@
 import { moduleBySlug } from "@smart-epp/domain";
 import { ModuleWorkspace } from "@/features/platform/workspaces/ModuleWorkspace";
-import { createPlatformDemoSeed } from "@/features/platform/data/seed";
+import { createPlatformApplication } from "@/features/platform/server/platformApplication";
 
-export default function Page() {
+export default async function Page() {
   const module = moduleBySlug("foreclosure");
   if (!module) return null;
-  return <ModuleWorkspace module={module} snapshot={createPlatformDemoSeed()} filters={{}} />;
+  const snapshot = await createPlatformApplication().loadSnapshot();
+  return <ModuleWorkspace module={module} snapshot={snapshot} filters={{}} />;
 }

@@ -1,7 +1,7 @@
 import { moduleBySlug, submoduleByPath } from "@smart-epp/domain";
 import { notFound } from "next/navigation";
 import { ModuleWorkspace } from "@/features/platform/workspaces/ModuleWorkspace";
-import { createPlatformDemoSeed } from "@/features/platform/data/seed";
+import { createPlatformApplication } from "@/features/platform/server/platformApplication";
 import type { RouteFilters } from "@/components/shared/RouteContractPage";
 
 export default async function Page({ params, searchParams }: { params: Promise<{ module: string; submodule?: string[] }>; searchParams: Promise<RouteFilters> }) {
@@ -16,5 +16,6 @@ export default async function Page({ params, searchParams }: { params: Promise<{
     notFound();
     return null;
   }
-  return <ModuleWorkspace module={module} submodule={submodule} snapshot={createPlatformDemoSeed()} filters={await searchParams} />;
+  const snapshot = await createPlatformApplication().loadSnapshot();
+  return <ModuleWorkspace module={module} submodule={submodule} snapshot={snapshot} filters={await searchParams} />;
 }
