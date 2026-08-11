@@ -1,5 +1,65 @@
 import { expect, test } from "@playwright/test";
 
+const responsiveViewports = [
+  { width: 375, height: 812 },
+  { width: 768, height: 1024 },
+  { width: 1024, height: 768 },
+  { width: 1440, height: 900 },
+] as const;
+
+for (const viewport of responsiveViewports) {
+  test(`platform has no page overflow at ${viewport.width}px`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await page.goto("/");
+
+    const dimensions = await page.evaluate(() => ({
+      clientWidth: document.documentElement.clientWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+    }));
+
+    expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth);
+  });
+}
+
+test("keyboard users can reach shell controls and the workspace inspector with visible focus", async ({ page }) => {
+  await page.goto("/applications/register");
+
+  await page.keyboard.press("Tab");
+  const skipLink = page.getByRole("link", { name: "Skip to main content" });
+  await expect(skipLink).toBeFocused();
+  await expect(skipLink).toHaveCSS("outline-width", "3px");
+
+  const capability = page.getByRole("link", { name: "Employer Programmes" });
+  await capability.focus();
+  await expect(capability).toBeFocused();
+  expect(await capability.evaluate((element) => element.matches(":focus-visible"))).toBe(true);
+
+  const commandMenu = page.getByRole("button", { name: "Open command menu" });
+  await commandMenu.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("dialog", { name: "Platform navigation" })).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  const inspect = page.getByRole("button", { name: "Inspect Application 01" });
+  await inspect.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("dialog", { name: "Application 01 inspector" })).toBeVisible();
+});
+
+test("operational metadata never renders below twelve pixels", async ({ page }) => {
+  await page.goto("/applications/register");
+  await page.getByRole("button", { name: "Inspect Application 01" }).click();
+
+  const sizes = await page
+    .locator(".workspace-kpi small, .workspace-inspector-panel dt")
+    .evaluateAll((elements) =>
+      elements.map((element) => Number.parseFloat(getComputedStyle(element).fontSize)),
+    );
+
+  expect(sizes.length).toBeGreaterThan(0);
+  expect(Math.min(...sizes)).toBeGreaterThanOrEqual(12);
+});
+
 test("command centre exposes operations and executive lenses to every profile", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Command Centre" })).toBeVisible();

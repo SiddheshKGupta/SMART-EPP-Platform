@@ -21,10 +21,10 @@ function contrastRatio(first: string, second: string): number {
   return (brighter + 0.05) / (darker + 0.05);
 }
 
-test("role-aware home drills attention into source work", async ({ page }) => {
+test("command centre preserves the Subvention drill-down journey", async ({ page }) => {
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "My Workbench" }),
+    page.getByRole("heading", { name: "Command Centre" }),
   ).toBeVisible();
   await page.getByRole("link", { name: "Subvention" }).click();
   await expect(
@@ -116,7 +116,7 @@ test("every exposed route contract renders its heading and active filter", async
   }
 });
 
-test("opaque focus tokens meet contrast and keyboard focus is visible on the rail", async ({
+test("opaque focus tokens meet contrast and keyboard focus is visible on capability navigation", async ({
   page,
 }) => {
   await page.goto("/");
@@ -137,11 +137,19 @@ test("opaque focus tokens meet contrast and keyboard focus is visible on the rai
 
   await page.keyboard.press("Tab");
   await expect(page.getByRole("link", { name: "Skip to main content" })).toBeFocused();
-  await page.keyboard.press("Tab");
-  await page.keyboard.press("Tab");
+  const capabilityLink = page.getByRole("link", { name: "Employer Programmes" });
+  await capabilityLink.focus();
+  await expect(capabilityLink).toBeFocused();
+  expect(await capabilityLink.evaluate((element) => element.matches(":focus-visible"))).toBe(true);
+  await expect(capabilityLink).toHaveCSS("outline-color", "rgb(255, 255, 255)");
+  await expect(capabilityLink).toHaveCSS("outline-width", "3px");
+});
 
-  const railLink = page.getByRole("link", { name: "My Workbench" });
-  await expect(railLink).toBeFocused();
-  await expect(railLink).toHaveCSS("outline-color", "rgb(255, 255, 255)");
-  await expect(railLink).toHaveCSS("outline-width", "3px");
+test("permission-denied mutations retain a textual explanation", async ({ page }) => {
+  await page.goto("/admin/integrations");
+  const tally = page.getByRole("row", { name: /Tally/ });
+  await expect(
+    tally.getByRole("button", { name: "Simulate partial failure" }),
+  ).toBeDisabled();
+  await expect(tally.getByText("Requires IAM permission", { exact: true })).toBeVisible();
 });

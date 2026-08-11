@@ -28,7 +28,7 @@ describe("InMemoryPlatformRepository", () => {
     first.guidedJourneys[0]!.steps[0]!.label = "Changed returned value";
 
     expect(repository.getSnapshot().guidedJourneys[0]!.steps[0]!.label).toBe(
-      "Employer programme active",
+      "Employer readiness",
     );
   });
 
@@ -66,6 +66,10 @@ describe("platform state transitions", () => {
       "COMPLETE",
       "COMPLETE",
       "CURRENT",
+      "UPCOMING",
+      "UPCOMING",
+      "UPCOMING",
+      "UPCOMING",
       "UPCOMING",
     ]);
     expect(
