@@ -8,6 +8,8 @@ import type {
   PlatformModuleKey,
   PlatformSnapshot,
   WorkItem,
+  WorkQueueKey,
+  PlatformAction,
 } from "@smart-epp/domain";
 
 const generatedAt = "2026-08-10T09:00:00.000Z";
@@ -16,7 +18,7 @@ const employee = (id: string, employerId: string, name: string, payrollId: strin
 const asset = (id: string, oem: string, model: string, category: string, serialNumber: string, invoiceValuePaise: number): AssetRecord => ({ id, oem, model, category, serialNumber, invoiceValuePaise });
 const application = (id: string, employeeId: string, assetId: string, requestedPaise: number, reservedPaise: number, status: OperatingState): ApplicationRecord => ({ id, employeeId, assetId, requestedPaise, reservedPaise, status });
 const lease = (id: string, applicationId: string, lotId: string, tenureMonths: number, rentalPaise: number, residualValuePaise: number, status: OperatingState): LeaseRecord => ({ id, applicationId, lotId, tenureMonths, rentalPaise, residualValuePaise, status });
-const workItem = (id: string, module: PlatformModuleKey, title: string, owner: string, dueDate: string, state: OperatingState, financialImpactPaise: number, href: string): WorkItem => ({ id, module, title, owner, dueDate, state, financialImpactPaise, href });
+const workItem = (id: string, module: PlatformModuleKey, title: string, owner: string, dueDate: string, state: OperatingState, financialImpactPaise: number, href: string, queueKeys: WorkQueueKey[], provenance: { assignedUserId?: string; initiatedBy?: string; requestedAction?: PlatformAction } = {}): WorkItem => ({ id, module, title, owner, dueDate, state, financialImpactPaise, href, queueKeys, ...provenance });
 const integration = (id: string, name: string, status: IntegrationAdapterDemo["status"], accepted: number, rejected: number, pending: number): IntegrationAdapterDemo => ({ id, name, mode: "MOCK", status, lastSyncAt: generatedAt, accepted, rejected, pending });
 
 const employees: EmployeeRecord[] = [
@@ -37,8 +39,16 @@ const leases: LeaseRecord[] = [
   lease("lease-04", "application-05", "lot-pinnacle-02", 24, 270_500, 1_298_000, "OVERDUE"), lease("lease-05", "application-06", "lot-harbour-01", 36, 371_000, 2_360_000, "HEALTHY"), lease("lease-06", "application-07", "lot-harbour-01", 24, 291_500, 1_399_900, "RECONCILED"),
 ];
 const workItems: WorkItem[] = [
-  workItem("work-01", "APPLICATIONS_ELIGIBILITY", "Review Northstar application", "ops-lead", "2026-08-10", "HEALTHY", 12_490_000, "/applications/application-01"), workItem("work-02", "ORDERS_APPROVALS", "Approve Northstar iPhone order", "ops-lead", "2026-08-11", "PENDING", 7_990_000, "/orders/application-02"), workItem("work-03", "EXCEPTIONS_RECONCILIATIONS", "Resolve Pinnacle rental arrears", "collections-analyst", "2026-08-05", "OVERDUE", 6_490_000, "/exceptions/lease-04"), workItem("work-04", "APPLICATIONS_ELIGIBILITY", "Notify rejected asset request", "ops-lead", "2026-08-09", "REJECTED", 7_499_900, "/applications/application-03"), workItem("work-05", "BILLING_COLLECTIONS", "Reconcile Harbour receipt", "finance-billing", "2026-08-10", "RECONCILED", 6_999_900, "/billing/lease-06"),
-  workItem("work-06", "EMPLOYEES", "Validate Pinnacle payroll feed", "hrms-operator", "2026-08-12", "PENDING", 0, "/employees/employee-pinnacle-01"), workItem("work-07", "LEASES_PORTFOLIO", "Activate Harbour laptop lease", "portfolio-manager", "2026-08-10", "HEALTHY", 11_800_000, "/portfolio/lease-05"), workItem("work-08", "DOCUMENTS_EVIDENCE", "Obtain acceptance certificate", "ops-lead", "2026-08-06", "OVERDUE", 14_250_000, "/documents/application-04"), workItem("work-09", "EMPLOYER_PROGRAMMES", "Review Pinnacle utilisation", "relationship-manager", "2026-08-13", "PENDING", 13_100_000, "/programmes/employer-pinnacle"), workItem("work-10", "EXCEPTIONS_RECONCILIATIONS", "Close Harbour sync variance", "finance-billing", "2026-08-09", "RECONCILED", 0, "/exceptions/harbour-sync"),
+  workItem("work-01", "APPLICATIONS_ELIGIBILITY", "Review Northstar application", "ops-lead", "2026-08-10", "HEALTHY", 12_490_000, "/applications/application-01", ["MY_TASKS", "TEAM_QUEUES", "RECENTLY_VIEWED"], { assignedUserId: "operations-demo", initiatedBy: "relationship-manager", requestedAction: "EDIT" }),
+  workItem("work-02", "ORDERS_APPROVALS", "Approve Northstar iPhone order", "ops-lead", "2026-08-11", "PENDING", 7_990_000, "/orders/application-02", ["MY_APPROVALS", "TEAM_QUEUES"], { initiatedBy: "ops-lead", requestedAction: "APPROVE" }),
+  workItem("work-03", "EXCEPTIONS_RECONCILIATIONS", "Resolve Pinnacle rental arrears", "collections-analyst", "2026-08-05", "OVERDUE", 6_490_000, "/exceptions/lease-04", ["MY_EXCEPTIONS", "TEAM_QUEUES", "ESCALATIONS"]),
+  workItem("work-04", "APPLICATIONS_ELIGIBILITY", "Notify rejected asset request", "ops-lead", "2026-08-09", "REJECTED", 7_499_900, "/applications/application-03", ["MY_TASKS", "MY_EXCEPTIONS", "TEAM_QUEUES", "NOTIFICATIONS"], { assignedUserId: "operations-demo" }),
+  workItem("work-05", "BILLING_COLLECTIONS", "Reconcile Harbour receipt", "finance-billing", "2026-08-10", "RECONCILED", 6_999_900, "/billing/lease-06", ["TEAM_QUEUES", "RECENTLY_VIEWED"]),
+  workItem("work-06", "EMPLOYEES", "Validate Pinnacle payroll feed", "Unassigned", "2026-08-12", "PENDING", 0, "/employees/employee-pinnacle-01", ["TEAM_QUEUES", "UNASSIGNED_WORK"]),
+  workItem("work-07", "LEASES_PORTFOLIO", "Activate Harbour laptop lease", "portfolio-manager", "2026-08-10", "HEALTHY", 11_800_000, "/portfolio/lease-05", ["TEAM_QUEUES", "DELEGATIONS"], { assignedUserId: "portfolio-manager", initiatedBy: "ops-lead", requestedAction: "EDIT" }),
+  workItem("work-08", "DOCUMENTS_EVIDENCE", "Obtain acceptance certificate", "ops-lead", "2026-08-06", "OVERDUE", 14_250_000, "/documents/application-04", ["MY_EXCEPTIONS", "TEAM_QUEUES", "ESCALATIONS"]),
+  workItem("work-09", "EMPLOYER_PROGRAMMES", "Review Pinnacle utilisation", "relationship-manager", "2026-08-13", "PENDING", 13_100_000, "/programmes/employer-pinnacle", ["TEAM_QUEUES"]),
+  workItem("work-10", "EXCEPTIONS_RECONCILIATIONS", "Close Harbour sync variance", "finance-billing", "2026-08-09", "RECONCILED", 0, "/exceptions/harbour-sync", ["TEAM_QUEUES", "RECENTLY_VIEWED"]),
 ];
 const integrations: IntegrationAdapterDemo[] = [
   integration("integration-master-hub", "Master Hub", "HEALTHY", 1_240, 0, 0), integration("integration-leasing-platform", "Existing Leasing Platform", "PARTIAL", 982, 3, 5), integration("integration-tally", "Tally", "HEALTHY", 426, 0, 0), integration("integration-employer-hrms", "Employer HRMS", "PARTIAL", 355, 2, 4), integration("integration-gst-einvoicing", "GST/E-invoicing", "HEALTHY", 188, 0, 0), integration("integration-bank", "Bank", "HEALTHY", 92, 0, 0), integration("integration-oem-vendor", "OEM/Vendor", "FAILED", 0, 6, 8),
@@ -52,9 +62,9 @@ const demoSeed: PlatformSnapshot = {
     { userId: "platform-admin", roleKeys: ["ADMIN"], grants: [{ module: "ALL", actions: ["READ", "CONFIGURE", "APPROVE"] }], dataScopes: ["ALL"], maskedFields: [], isAdmin: true, isManagement: false },
   ],
   employers: [
-    { id: "employer-northstar", name: "Northstar Consulting Private Limited", programmeId: "programme-northstar-epp", sanctionPaise: 50_000_000, utilisedPaise: 28_400_000, status: "HEALTHY" },
-    { id: "employer-pinnacle", name: "Pinnacle Manufacturing Limited", programmeId: "programme-pinnacle-epp", sanctionPaise: 75_000_000, utilisedPaise: 61_900_000, status: "PENDING" },
-    { id: "employer-harbour", name: "Harbour Retail Services Limited", programmeId: "programme-harbour-epp", sanctionPaise: 30_000_000, utilisedPaise: 12_600_000, status: "RECONCILED" },
+    { id: "employer-northstar", name: "Northstar Consulting Private Limited", programmeId: "programme-northstar-epp", programmeStage: "ACTIVE", sanctionPaise: 50_000_000, utilisedPaise: 28_400_000, status: "HEALTHY" },
+    { id: "employer-pinnacle", name: "Pinnacle Manufacturing Limited", programmeId: "programme-pinnacle-epp", programmeStage: "IMPLEMENTATION", sanctionPaise: 75_000_000, utilisedPaise: 61_900_000, status: "PENDING" },
+    { id: "employer-harbour", name: "Harbour Retail Services Limited", programmeId: "programme-harbour-epp", programmeStage: "ONBOARDING", sanctionPaise: 30_000_000, utilisedPaise: 12_600_000, status: "RECONCILED" },
   ],
   employees,
   applications,

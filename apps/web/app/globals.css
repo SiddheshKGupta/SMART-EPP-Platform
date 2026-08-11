@@ -2719,6 +2719,7 @@ th.selection-column {
 .command-actions svg { width: 15px; height: 15px; }
 
 @media (max-width: 1023px) {
+  .command-metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .platform-shell, .platform-shell[data-has-module="true"] { grid-template-columns: minmax(0, 1fr); }
   .platform-shell[data-capability-collapsed="true"],
   .platform-shell[data-has-module="true"][data-capability-collapsed="true"] { grid-template-columns: minmax(0, 1fr); }

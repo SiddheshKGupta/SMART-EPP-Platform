@@ -18,7 +18,7 @@ function sourceRecords(module: PlatformModuleDefinition, submodule: PlatformSubm
   const key = submodule?.slug ?? "overview";
   const offset = [...key].reduce((sum, char) => sum + char.charCodeAt(0), 0);
   const labelled = (source: string, records: Array<Omit<WorkspaceRecord, "source">>) => records.map((record) => ({ ...record, context: `${record.context} · ${submodule?.label ?? module.label}`, source }));
-  const employers = () => labelled("Employer programme master", first(snapshot.employers, offset).map((item) => ({ id: item.id, title: item.name, context: item.programmeId, owner: "relationship-manager", state: item.status, amountPaise: item.utilisedPaise })));
+  const employers = () => labelled("Employer programme master", first(snapshot.employers, offset).map((item) => ({ id: item.id, title: item.name, context: `${item.programmeId} · ${item.programmeStage}`, owner: "relationship-manager", state: item.status, amountPaise: item.utilisedPaise })));
   const employees = () => labelled("Employer HRMS feed", first(snapshot.employees, offset).map((item) => ({ id: item.id, title: item.name, context: item.payrollId, owner: "hrms-operator", state: item.status, amountPaise: 0 })));
   const applications = () => labelled("Application register", first(snapshot.applications, offset).map((item) => ({ id: item.id, title: item.id.replace("application-", "Application "), context: `Reserved ${item.reservedPaise / 100}`, owner: "ops-lead", state: item.status, amountPaise: item.requestedPaise })));
   const assets = () => labelled("Asset and vendor registry", first(snapshot.assets, offset).map((item) => ({ id: item.id, title: `${item.oem} ${item.model}`, context: `${item.category} · ${item.serialNumber}`, owner: "vendor-operations", state: null, amountPaise: item.invoiceValuePaise })));
@@ -56,8 +56,19 @@ export function buildWorkspaceView(module: PlatformModuleDefinition, submodule: 
   return { records, totalPaise: records.reduce((sum, record) => sum + record.amountPaise, 0), pending: records.filter((record) => record.state === "PENDING" || record.state === "OVERDUE").length, filters: { q, status } };
 }
 
+export function buildSanctionUtilisationView(snapshot: PlatformSnapshot) {
+  const rows = snapshot.employers.map((employer) => ({ id: employer.id, name: employer.name, programmeId: employer.programmeId, stage: employer.programmeStage, status: employer.status, sanctionPaise: employer.sanctionPaise, utilisedPaise: employer.utilisedPaise }));
+  return { rows, sanctionPaise: rows.reduce((sum, row) => sum + row.sanctionPaise, 0), utilisedPaise: rows.reduce((sum, row) => sum + row.utilisedPaise, 0) };
+}
+
+function SanctionUtilisationWorkspace({ snapshot }: { snapshot: PlatformSnapshot }) {
+  const view = buildSanctionUtilisationView(snapshot);
+  return <section className="operations-workbench" aria-labelledby="sanction-title"><header className="page-heading"><div><span className="eyebrow">Employer programme evidence</span><h1 id="sanction-title">Sanction and Exposure Utilisation</h1><p>Exact employer sanction and utilised balances from the fixed platform snapshot.</p></div><div className="workspace-summary"><StatusBadge status="INFO" label="Read only" /><span>Source freshness: <strong>{new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(snapshot.generatedAt))}</strong></span></div></header><div className="signal-board" aria-label="Sanction and utilisation totals"><div className="signal-grid"><div className="workspace-kpi"><span>Total sanction</span><strong><Money paise={view.sanctionPaise} /></strong><small>Sum of employer sanction evidence</small></div><div className="workspace-kpi"><span>Total utilised</span><strong><Money paise={view.utilisedPaise} /></strong><small>Sum of employer utilisation evidence</small></div></div></div><section className="operations-queue" aria-labelledby="sanction-register-title"><div className="workspace-heading"><h2 id="sanction-register-title">Employer programme balances</h2><span className="ledger-count">{view.rows.length} records</span></div><div className="operations-table-scroll"><table><thead><tr><th>Employer programme</th><th>Stage</th><th className="align-right">Sanction</th><th className="align-right">Utilised</th><th>Status</th></tr></thead><tbody>{view.rows.map((row) => <tr key={row.id}><td><strong>{row.name}</strong><br /><span className="text-muted">{row.programmeId}</span></td><td>{row.stage}</td><td className="align-right"><Money paise={row.sanctionPaise} /></td><td className="align-right"><Money paise={row.utilisedPaise} /></td><td><StatusBadge status={statusTone[row.status]} label={row.status} /></td></tr>)}</tbody></table></div></section></section>;
+}
+
 export function ModuleWorkspace({ module, submodule, snapshot, filters }: { module: PlatformModuleDefinition; submodule?: PlatformSubmoduleDefinition; snapshot: PlatformSnapshot; filters: RouteFilters }) {
-  if (module.key === "WORKBENCH") return <Workbench initialQueue={submodule?.slug} />;
+  if (module.key === "WORKBENCH") return <Workbench initialQueue={submodule?.slug} filters={filters} />;
+  if (module.key === "LEASES_PORTFOLIO" && submodule?.slug === "sanction-utilisation") return <SanctionUtilisationWorkspace snapshot={snapshot} />;
   const view = buildWorkspaceView(module, submodule, snapshot, filters);
   const [selected, setSelected] = useState<WorkspaceRecord | null>(null);
   const trigger = useRef<HTMLButtonElement | null>(null);

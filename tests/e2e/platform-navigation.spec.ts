@@ -17,6 +17,42 @@ test("workbench retains all queue types without hiding modules", async ({ page }
   await expect(page.getByRole("link", { name: "Employer Programmes" })).toBeVisible();
 });
 
+test("workbench consumes KPI queue and status filters exactly", async ({ page }) => {
+  await page.goto("/workbench?queue=team-queues&status=OVERDUE");
+  await expect(page.getByRole("tab", { name: "Team Queues" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByText("2 records · OVERDUE")).toBeVisible();
+  await expect(page.getByRole("row")).toHaveCount(3);
+  await page.goto("/workbench?queue=my-approvals");
+  await expect(page.getByRole("tab", { name: "My Approvals" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByText("1 record", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Approve" })).toBeDisabled();
+  await expect(page.getByText(/Requires IAM permission/)).toBeAttached();
+});
+
+test("command and workbench tabs implement roving keyboard activation", async ({ page }) => {
+  await page.goto("/");
+  const operations = page.getByRole("tab", { name: "Operations" });
+  await operations.focus();
+  await page.keyboard.press("ArrowRight");
+  const executive = page.getByRole("tab", { name: "Executive" });
+  await expect(executive).toBeFocused();
+  await expect(executive).toHaveAttribute("aria-selected", "true");
+  await expect(executive).toHaveAttribute("aria-controls", "command-panel-executive");
+  await page.goto("/workbench");
+  const first = page.getByRole("tab", { name: "My Tasks" });
+  await first.focus();
+  await page.keyboard.press("End");
+  await expect(page.getByRole("tab", { name: "Recently Viewed" })).toBeFocused();
+});
+
+test("sanction and utilisation destination renders employer evidence totals", async ({ page }) => {
+  await page.goto("/portfolio/sanction-utilisation");
+  await expect(page.getByRole("heading", { name: "Sanction and Exposure Utilisation" })).toBeVisible();
+  await expect(page.getByText("₹15,50,000.00", { exact: true })).toBeVisible();
+  await expect(page.getByText("₹10,29,000.00", { exact: true })).toBeVisible();
+  await expect(page.getByRole("row")).toHaveCount(4);
+});
+
 const destinations = [
   ["/programmes/credit-handoff", "Credit Handoff"],
   ["/employees/enrolment", "Employee Enrolment"],
