@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { moduleBySlug, submoduleByPath } from "@smart-epp/domain";
 import { createPlatformDemoSeed } from "@/features/platform/data/seed";
 
 const requiredStates = new Set([
@@ -87,5 +88,25 @@ describe("platform demo seed", () => {
     const second = createPlatformDemoSeed();
     expect(second.employers[0]!.name).toBe("Northstar Consulting Private Limited");
     expect(second.guidedJourneys[0]!.steps[0]!.label).toBe("Employer readiness");
+  });
+
+  it("routes every work item through a registered submodule with record context in q", () => {
+    const workItems = createPlatformDemoSeed().workItems;
+
+    for (const item of workItems) {
+      const destination = new URL(item.href, "https://smart-epp.test");
+      const [moduleSlug, submoduleSlug, ...extraSegments] = destination.pathname
+        .split("/")
+        .filter(Boolean);
+
+      expect(moduleBySlug(moduleSlug), `${item.id} module`).toBeDefined();
+      expect(
+        submoduleByPath(moduleSlug, submoduleSlug ? [submoduleSlug] : []),
+        `${item.id} submodule`,
+      ).toBeDefined();
+      expect(extraSegments, `${item.id} path depth`).toEqual([]);
+      expect(destination.searchParams.get("q"), `${item.id} record context`).toBeTruthy();
+      expect([...destination.searchParams.keys()], `${item.id} supported query parameters`).toEqual(["q"]);
+    }
   });
 });

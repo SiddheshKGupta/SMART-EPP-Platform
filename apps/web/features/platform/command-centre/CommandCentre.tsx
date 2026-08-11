@@ -51,8 +51,8 @@ export function buildCommandCentreMetrics(snapshot: PlatformSnapshot) {
   const utilised = snapshot.employers.reduce((sum, item) => sum + item.utilisedPaise, 0);
   const exposure = snapshot.leases.reduce((sum, item) => sum + item.rentalPaise * item.tenureMonths, 0);
   const common = { freshness: snapshot.generatedAt, period: `Fixed snapshot at ${snapshot.generatedAt}`, targetComparison: "Not configured for Lighthouse; no comparison available.", access: "All authenticated employees have read access." };
-  const countMetric = (input: Omit<CentreMetric, "unit" | "freshness" | "access" | "value"> & { items: WorkItem[] }): CentreMetric => ({ ...input, ...common, unit: "Records", value: input.items.length });
-  const moneyMetric = (input: Omit<CentreMetric, "unit" | "freshness" | "access" | "value" | "valuePaise"> & { valuePaise: number }): CentreMetric => ({ ...input, ...common, unit: "INR", value: input.valuePaise, valuePaise: input.valuePaise });
+  const countMetric = (input: Omit<CentreMetric, "unit" | "freshness" | "access" | "period" | "targetComparison" | "value"> & { items: WorkItem[] }): CentreMetric => ({ ...input, ...common, unit: "Records", value: input.items.length });
+  const moneyMetric = (input: Omit<CentreMetric, "unit" | "freshness" | "access" | "period" | "targetComparison" | "value" | "valuePaise"> & { valuePaise: number }): CentreMetric => ({ ...input, ...common, unit: "INR", value: input.valuePaise, valuePaise: input.valuePaise });
   return {
     operations: {
       workItems: countMetric({ label: "Open work queue", meaning: "All records classified into the team operating queue.", formula: "Count of work items with TEAM_QUEUES provenance.", source: "PlatformSnapshot.workItems.queueKeys", filters: "Queue classification: Team Queues; all states.", breakdown: ["All source-backed team work"], drilldown: "/workbench?queue=team-queues", owner: "Operations control", reconciliation: `${team.length} headline records = ${team.length} destination rows.`, exception: "No exception applied." , items: team }),

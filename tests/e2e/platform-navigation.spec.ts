@@ -392,3 +392,40 @@ test("command palette preserves the Subvention control desk route", async ({ pag
   await page.getByRole("option", { name: "Subvention: Control Desk" }).click();
   await expect(page).toHaveURL(/\/subvention$/);
 });
+
+test("generic and specialised workspaces can share client navigation without hook-order errors", async ({ page }) => {
+  const reactErrors: string[] = [];
+  page.on("pageerror", (error) => reactErrors.push(error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error" && /rendered (more|fewer) hooks|order of hooks/i.test(message.text())) {
+      reactErrors.push(message.text());
+    }
+  });
+
+  await page.goto("/applications/register");
+  await page.getByRole("navigation", { name: "SMART EPP capabilities" }).getByRole("link", { name: "Workbench" }).click();
+  await expect(page.getByRole("heading", { name: "Workbench" })).toBeVisible();
+  await page.getByRole("navigation", { name: "SMART EPP capabilities" }).getByRole("link", { name: "Admin" }).click();
+  await expect(page.getByRole("heading", { name: "Admin" })).toBeVisible();
+  await page.getByRole("navigation", { name: "SMART EPP capabilities" }).getByRole("link", { name: "Applications & Eligibility" }).click();
+  await expect(page.getByRole("heading", { name: "Applications & Eligibility" })).toBeVisible();
+
+  expect(reactErrors).toEqual([]);
+});
+
+test("workbench task, approval and exception links open filtered registered workspaces", async ({ page }) => {
+  const destinations = [
+    ["My Tasks", "Review Northstar application", /\/applications\/register\?q=application-01$/, "Application Register"],
+    ["My Approvals", "Approve Northstar iPhone order", /\/orders\/approval-queues\?q=application-02$/, "Approval Queues"],
+    ["My Exceptions", "Resolve Pinnacle rental arrears", /\/exceptions\/reconciliation-breaks\?q=lease-04$/, "Reconciliation Breaks"],
+  ] as const;
+
+  for (const [queue, record, href, heading] of destinations) {
+    await page.goto("/workbench");
+    await page.getByRole("tab", { name: queue }).click();
+    await page.getByRole("link", { name: record }).click();
+    await expect(page).toHaveURL(href);
+    await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible();
+    await expect(page.getByText("1 active filter")).toBeVisible();
+  }
+});
