@@ -9,6 +9,7 @@ import type { RouteFilters } from "@/components/shared/RouteContractPage";
 import { Workbench } from "@/features/platform/workbench/Workbench";
 import { AdminWorkspace } from "@/features/platform/admin/AdminWorkspace";
 import { usePlatform } from "@/features/platform/store/PlatformProvider";
+import { OriginationWorkspace } from "@/features/platform/origination/OriginationWorkspace";
 
 export type WorkspaceRecord = { id: string; title: string; context: string; owner: string; state: OperatingState | null; sourceStatus?: string; amountPaise: number; source: string };
 export type WorkspaceView = { records: WorkspaceRecord[]; totalPaise: number; pending: number; filters: { q: string; status: OperatingState | "" } };
@@ -88,10 +89,11 @@ function GenericModuleWorkspace({ module, submodule, snapshot, filters }: { modu
 }
 
 export function ModuleWorkspace({ module, submodule, snapshot: serverSnapshot, filters }: { module: PlatformModuleDefinition; submodule?: PlatformSubmoduleDefinition; snapshot: PlatformSnapshot; filters: RouteFilters }) {
-  const { snapshot } = usePlatform();
+  const { snapshot, activeProfile } = usePlatform();
   void serverSnapshot;
   if (module.key === "WORKBENCH") return <Workbench initialQueue={submodule?.slug} filters={filters} />;
   if (module.key === "ADMIN") return <AdminWorkspace submodule={submodule} />;
   if (module.key === "LEASES_PORTFOLIO" && submodule?.slug === "sanction-utilisation") return <SanctionUtilisationWorkspace snapshot={snapshot} />;
+  if (["EMPLOYER_PROGRAMMES", "EMPLOYEES", "APPLICATIONS_ELIGIBILITY"].includes(module.key)) return <OriginationWorkspace module={module} submodule={submodule} snapshot={snapshot} filters={filters} profile={activeProfile} />;
   return <GenericModuleWorkspace module={module} submodule={submodule} snapshot={snapshot} filters={filters} />;
 }
