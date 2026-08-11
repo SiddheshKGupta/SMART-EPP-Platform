@@ -185,6 +185,7 @@ export function simulateIntegrationSnapshot(
   snapshot: PlatformSnapshot,
   adapterId: string,
   outcome: IntegrationOutcome,
+  actorId = "platform-demo",
 ): PlatformSnapshot {
   if (!snapshot.integrations.some((adapter) => adapter.id === adapterId)) {
     return snapshot;
@@ -196,6 +197,15 @@ export function simulateIntegrationSnapshot(
         ? simulatedAdapter(adapter, outcome, snapshot.generatedAt)
         : adapter,
     ),
+    auditEvents: [...snapshot.auditEvents, {
+      id: `audit-mock-${adapterId}-${outcome.toLowerCase()}`,
+      entityType: "IntegrationAdapter",
+      entityId: adapterId,
+      action: `MOCK_INTEGRATION_${outcome}`,
+      actorId,
+      reason: "Synthetic local demo outcome; no external data used.",
+      occurredAt: snapshot.generatedAt,
+    }],
   };
 }
 
@@ -258,10 +268,10 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
   const simulateIntegration = useCallback(
     (adapterId: string, outcome: IntegrationOutcome) => {
       setSnapshot((current) => {
-        return simulateIntegrationSnapshot(current, adapterId, outcome);
+        return simulateIntegrationSnapshot(current, adapterId, outcome, activeProfileId);
       });
     },
-    [],
+    [activeProfileId],
   );
 
   const contextValue = useMemo<PlatformContextValue>(() => {

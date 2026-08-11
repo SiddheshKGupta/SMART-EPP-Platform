@@ -67,7 +67,7 @@ export function CommandBar() {
             const profile = snapshot.profiles.find((candidate) => candidate.userId === userId);
             if (profile) setActiveProfile(profile);
           }}>
-            <SelectTrigger aria-label="Active profile" role="button"><SelectValue>{actorLabel(activeProfile.roleKeys)}</SelectValue></SelectTrigger>
+            <SelectTrigger aria-label="Active role" role="button"><SelectValue>{actorLabel(activeProfile.roleKeys)}</SelectValue></SelectTrigger>
             <SelectContent align="end">{snapshot.profiles.map((profile) => <SelectItem key={profile.userId} value={profile.userId}>{actorLabel(profile.roleKeys)}</SelectItem>)}</SelectContent>
           </Select>
         </div>

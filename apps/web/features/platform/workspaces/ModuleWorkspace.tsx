@@ -7,6 +7,7 @@ import { Money } from "@/components/shared/Money";
 import { StatusBadge, type SemanticStatus } from "@/components/shared/StatusBadge";
 import type { RouteFilters } from "@/components/shared/RouteContractPage";
 import { Workbench } from "@/features/platform/workbench/Workbench";
+import { AdminWorkspace } from "@/features/platform/admin/AdminWorkspace";
 
 export type WorkspaceRecord = { id: string; title: string; context: string; owner: string; state: OperatingState | null; sourceStatus?: string; amountPaise: number; source: string };
 export type WorkspaceView = { records: WorkspaceRecord[]; totalPaise: number; pending: number; filters: { q: string; status: OperatingState | "" } };
@@ -68,6 +69,7 @@ function SanctionUtilisationWorkspace({ snapshot }: { snapshot: PlatformSnapshot
 
 export function ModuleWorkspace({ module, submodule, snapshot, filters }: { module: PlatformModuleDefinition; submodule?: PlatformSubmoduleDefinition; snapshot: PlatformSnapshot; filters: RouteFilters }) {
   if (module.key === "WORKBENCH") return <Workbench initialQueue={submodule?.slug} filters={filters} />;
+  if (module.key === "ADMIN") return <AdminWorkspace submodule={submodule} />;
   if (module.key === "LEASES_PORTFOLIO" && submodule?.slug === "sanction-utilisation") return <SanctionUtilisationWorkspace snapshot={snapshot} />;
   const view = buildWorkspaceView(module, submodule, snapshot, filters);
   const [selected, setSelected] = useState<WorkspaceRecord | null>(null);

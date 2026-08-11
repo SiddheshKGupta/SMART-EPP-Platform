@@ -3430,3 +3430,18 @@ th.selection-column {
     @apply font-sans;
   }
 }
+
+.admin-workspace { display: grid; gap: 1.25rem; }
+.admin-control-list { display: grid; gap: .75rem; margin: 0; padding: 0; list-style: none; }
+.admin-control-row { display: grid; grid-template-columns: minmax(13rem, 1.2fr) minmax(9rem, .7fr) minmax(14rem, 1fr) minmax(14rem, 1fr) auto; align-items: center; gap: 1rem; padding: 1rem; border: 1px solid var(--border); background: var(--card); }
+.admin-control-row p, .admin-evidence { margin: .3rem 0 0; color: var(--muted-foreground); font-size: .875rem; }
+.admin-label { color: var(--muted-foreground); font-size: .75rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.admin-drilldown, .integration-actions button { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; padding: .5rem .75rem; border: 1px solid var(--border); background: var(--background); color: var(--foreground); font-weight: 650; }
+.demo-notice { display: flex; gap: .75rem; align-items: center; padding: .75rem 1rem; border-left: 4px solid var(--accent); background: var(--muted); }
+.integration-actions { display: grid; gap: .4rem; min-width: 11rem; }
+.integration-actions button:disabled { cursor: not-allowed; opacity: .65; }
+.permission-denied { font-size: .75rem; font-weight: 700; }
+.integration-simulator code { display: block; max-width: 18rem; overflow-wrap: anywhere; white-space: normal; }
+.admin-audit ul { margin: .5rem 0 0; padding-left: 1.25rem; }
+@media (max-width: 1000px) { .admin-control-row { grid-template-columns: minmax(12rem, 1fr) 1fr; } }
+@media (max-width: 640px) { .admin-control-row { grid-template-columns: 1fr; } .admin-drilldown { width: 100%; } .demo-notice { align-items: flex-start; flex-direction: column; gap: .25rem; } }
