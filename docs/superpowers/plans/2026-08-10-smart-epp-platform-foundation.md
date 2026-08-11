@@ -928,3 +928,43 @@ The next plan deepens Employer Programmes, Employees, Applications & Eligibility
 - [ ] **Step 5: Close the review gate truthfully**
 
 If the review reports no confirmed findings, make no correction commit and record that outcome with the verification evidence. If it reports a confirmed finding, stop this plan, add a numbered correction task containing that finding's exact file paths and failing test, then execute and commit that correction task before preparing the next milestone plan.
+
+### Task 11.1: Correct build typing, hook order, and Workbench destinations
+
+**Confirmed findings:** P1 findings 1–3 in `task-11-review.md`.
+
+**Files:** `CommandCentre.tsx`, `ModuleWorkspace.tsx`, `Workbench.tsx`, `seed.ts`, focused unit tests, and representative E2E route-transition/navigation tests.
+
+- [ ] Reproduce the Command Centre helper type error, the conditional hook path, and invalid record-as-submodule links.
+- [ ] Supply the governed reporting metadata contract, isolate generic-workspace hooks in an unconditional child boundary, and encode record context as query parameters on registered submodules.
+- [ ] Verify every seeded Workbench href resolves and generic → Workbench/Admin → generic transitions have no React hook error.
+
+### Task 11.2: Make Workbench commands auditable and enforce read projections
+
+**Confirmed findings:** P2 findings 1–2 in `task-11-review.md`.
+
+**Files:** IAM/read-projection domain contracts, `PlatformProvider.tsx`, `Workbench.tsx`, workspace data projection, and focused permission/audit tests.
+
+- [ ] Reproduce local-only actions, missing audit events, unfiltered scopes, and unmasked sensitive fields.
+- [ ] Route commands through a provider/application boundary that rechecks IAM and emits unique actor/action/reason/outcome audit evidence.
+- [ ] Enforce employer scope and field masking before records reach representative UI projections; preserve universal module visibility.
+
+### Task 11.3: Establish asynchronous provider-portable repository ports
+
+**Confirmed finding:** P2 repository-boundary finding in `task-11-review.md`.
+
+**Files:** `repositories.ts`, in-memory adapter, provider/application bootstrap, and contract tests.
+
+- [ ] Replace synchronous whole-snapshot replacement as the advertised portability boundary with asynchronous query/command ports.
+- [ ] Inject the in-memory adapter through the application/server boundary; keep Supabase/Vercel SDKs outside domain/UI code.
+- [ ] Prove adapter isolation and command/read contracts without introducing a schema or credential.
+
+### Task 11.4: Harden audit identity, exception evidence, and INR presentation
+
+**Confirmed findings:** remaining P2 and P3 findings in `task-11-review.md`.
+
+**Files:** platform types/seed/provider, integration tests, workspace presentation, and regression tests.
+
+- [ ] Reproduce duplicate integration audit identities and add deterministic unique event sequencing.
+- [ ] Model and seed connected returned, duplicated, and mismatched exception scenarios with recovery assertions.
+- [ ] Replace the raw reserved amount with the shared exact INR formatter.
