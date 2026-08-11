@@ -724,7 +724,7 @@ test("guided demo follows one connected case across modules", async ({ page }) =
   await page.goto("/");
   await page.getByRole("button", { name: "Start Demo Journey" }).click();
   await expect(page.getByRole("dialog", { name: "Guided Demo Journey" })).toBeVisible();
-  await expect(page.getByText("Apex Manufacturing")).toBeVisible();
+  await expect(page.getByText("Northstar Consulting Private Limited")).toBeVisible();
   await page.getByRole("button", { name: "Open current step" }).click();
   await expect(page).toHaveURL(/\/programmes\/readiness/);
   await page.getByRole("button", { name: "Next journey step" }).click();
@@ -743,6 +743,8 @@ Expected: FAIL because the start control has no journey behavior.
 - [ ] **Step 3: Implement the drawer**
 
 Show the seeded employer, employee, application, asset, and lease identifiers; the full lifecycle step list; current-step explanation; `Open current step`, `Previous journey step`, `Next journey step`, and `Exit Demo` controls. Route changes must open real module workspaces and preserve the drawer.
+
+Use the connected Northstar case and eight registered workspace destinations covering employer programme readiness, employee enrolment, eligibility/credit, asset identification, approval, lease handoff/activation, servicing, and foreclosure. Encode record context through supported query filters; do not route to record IDs as if they were registry submodules.
 
 - [ ] **Step 4: Add accessible and responsive behavior**
 
