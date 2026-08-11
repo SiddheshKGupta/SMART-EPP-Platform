@@ -17,6 +17,10 @@ describe("command centre models", () => {
     expect(metrics.executive.sanction.valuePaise).toBe(snapshot.employers.reduce((sum, employer) => sum + employer.sanctionPaise, 0));
     expect(metrics.executive.utilised.valuePaise).toBe(snapshot.employers.reduce((sum, employer) => sum + employer.utilisedPaise, 0));
     expect(metrics.executive.pipeline.breakdown).toEqual(["ACTIVE: 1", "IMPLEMENTATION: 1", "ONBOARDING: 1"]);
+    for (const metric of [...Object.values(metrics.operations), ...Object.values(metrics.executive)]) {
+      expect(metric.period).toBe("Fixed snapshot at 2026-08-10T09:00:00.000Z");
+      expect(metric.targetComparison).toBe("Not configured for Lighthouse; no comparison available.");
+    }
   });
 
   it("reconciles every operations KPI to its consumed destination population", () => {

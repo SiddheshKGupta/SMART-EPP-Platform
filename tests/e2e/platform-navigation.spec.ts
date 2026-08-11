@@ -31,6 +31,9 @@ test("workbench consumes KPI queue and status filters exactly", async ({ page })
 
 test("command and workbench tabs implement roving keyboard activation", async ({ page }) => {
   await page.goto("/");
+  await expect(page.locator('[role="tabpanel"][id^="command-panel-"]')).toHaveCount(2);
+  await expect(page.locator("#command-panel-operations")).not.toHaveAttribute("hidden");
+  await expect(page.locator("#command-panel-executive")).toHaveAttribute("hidden", "");
   const operations = page.getByRole("tab", { name: "Operations" });
   await operations.focus();
   await page.keyboard.press("ArrowRight");
@@ -39,10 +42,19 @@ test("command and workbench tabs implement roving keyboard activation", async ({
   await expect(executive).toHaveAttribute("aria-selected", "true");
   await expect(executive).toHaveAttribute("aria-controls", "command-panel-executive");
   await page.goto("/workbench");
+  await expect(page.locator('[role="tabpanel"][id^="workbench-panel-"]')).toHaveCount(9);
   const first = page.getByRole("tab", { name: "My Tasks" });
   await first.focus();
   await page.keyboard.press("End");
   await expect(page.getByRole("tab", { name: "Recently Viewed" })).toBeFocused();
+});
+
+test("command metrics use two tablet columns and one mobile column", async ({ page }) => {
+  await page.setViewportSize({ width: 768, height: 900 });
+  await page.goto("/");
+  await expect.poll(() => page.locator(".command-metric-grid:not([hidden])").evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length)).toBe(2);
+  await page.setViewportSize({ width: 760, height: 900 });
+  await expect.poll(() => page.locator(".command-metric-grid:not([hidden])").evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length)).toBe(1);
 });
 
 test("sanction and utilisation destination renders employer evidence totals", async ({ page }) => {

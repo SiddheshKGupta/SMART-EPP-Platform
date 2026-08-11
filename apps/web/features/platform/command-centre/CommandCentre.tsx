@@ -13,6 +13,8 @@ export type CentreMetric = {
   unit: "Records" | "INR";
   source: string;
   freshness: string;
+  period: string;
+  targetComparison: string;
   filters: string;
   breakdown: string[];
   drilldown: string;
@@ -48,7 +50,7 @@ export function buildCommandCentreMetrics(snapshot: PlatformSnapshot) {
   const sanction = snapshot.employers.reduce((sum, item) => sum + item.sanctionPaise, 0);
   const utilised = snapshot.employers.reduce((sum, item) => sum + item.utilisedPaise, 0);
   const exposure = snapshot.leases.reduce((sum, item) => sum + item.rentalPaise * item.tenureMonths, 0);
-  const common = { freshness: snapshot.generatedAt, access: "All authenticated employees have read access." };
+  const common = { freshness: snapshot.generatedAt, period: `Fixed snapshot at ${snapshot.generatedAt}`, targetComparison: "Not configured for Lighthouse; no comparison available.", access: "All authenticated employees have read access." };
   const countMetric = (input: Omit<CentreMetric, "unit" | "freshness" | "access" | "value"> & { items: WorkItem[] }): CentreMetric => ({ ...input, ...common, unit: "Records", value: input.items.length });
   const moneyMetric = (input: Omit<CentreMetric, "unit" | "freshness" | "access" | "value" | "valuePaise"> & { valuePaise: number }): CentreMetric => ({ ...input, ...common, unit: "INR", value: input.valuePaise, valuePaise: input.valuePaise });
   return {
@@ -70,7 +72,7 @@ export function buildCommandCentreMetrics(snapshot: PlatformSnapshot) {
 
 function Metric({ metric }: { metric: CentreMetric }) {
   return <article className="command-metric"><Link href={metric.drilldown}><span>{metric.label}</span><strong>{metric.valuePaise === undefined ? metric.value : formatIndianAggregate(metric.valuePaise)}</strong></Link><details><summary>Metric evidence</summary><dl>{[
-    ["Meaning", metric.meaning], ["Formula", metric.formula], ["Unit", metric.unit], ["Source", metric.source], ["Freshness", metric.freshness], ["Filters", metric.filters], ["Breakdown", metric.breakdown.join("; ")], ["Owner", metric.owner], ["Access", metric.access], ["Reconciliation", metric.reconciliation], ["Exception", metric.exception],
+    ["Meaning", metric.meaning], ["Formula", metric.formula], ["Unit", metric.unit], ["Source", metric.source], ["Freshness", metric.freshness], ["Period", metric.period], ["Target / comparison", metric.targetComparison], ["Filters", metric.filters], ["Breakdown", metric.breakdown.join("; ")], ["Owner", metric.owner], ["Access", metric.access], ["Reconciliation", metric.reconciliation], ["Exception", metric.exception],
   ].map(([term, value]) => <div key={term}><dt>{term}</dt><dd>{value}</dd></div>)}<div><dt>Drill-down</dt><dd><Link href={metric.drilldown}>Open reconciling evidence</Link></dd></div></dl></details></article>;
 }
 
@@ -79,7 +81,7 @@ export function CommandCentre() {
   const [lens, setLens] = useState<"operations" | "executive">("operations");
   const metrics = buildCommandCentreMetrics(snapshot);
   const lenses = ["operations", "executive"] as const;
-  const selected = lens === "operations" ? Object.values(metrics.operations) : Object.values(metrics.executive);
+  const panels = { operations: Object.values(metrics.operations), executive: Object.values(metrics.executive) };
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => { const next = nextTabIndex(index, event.key, lenses.length); if (next !== index || ["Home", "End"].includes(event.key)) { event.preventDefault(); const tabs = event.currentTarget.parentElement?.querySelectorAll<HTMLElement>("[role=tab]"); setLens(lenses[next]!); requestAnimationFrame(() => tabs?.[next]?.focus()); } };
-  return <section className="command-centre" aria-labelledby="command-centre-title"><header className="page-heading"><div><span className="eyebrow">Fixed operating snapshot</span><h1 id="command-centre-title">Command Centre</h1><p>Snapshot period ending {new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(snapshot.generatedAt))}. No target, trend, or comparison is implied.</p></div><StatusBadge status="INFO" label="Source-backed snapshot" /></header><div role="tablist" aria-label="Command Centre lenses" className="command-tabs">{lenses.map((item, index) => <button key={item} id={`command-tab-${item}`} role="tab" aria-selected={lens === item} aria-controls={`command-panel-${item}`} tabIndex={lens === item ? 0 : -1} onClick={() => setLens(item)} onKeyDown={(event) => onKeyDown(event, index)}>{item === "operations" ? "Operations" : "Executive"}</button>)}</div><div id={`command-panel-${lens}`} role="tabpanel" aria-labelledby={`command-tab-${lens}`} className="command-metric-grid">{selected.map((metric) => <Metric key={metric.label} metric={metric} />)}</div><p className="command-freshness">Freshness: generated {snapshot.generatedAt}; every headline links to its registered reconciling evidence.</p></section>;
+  return <section className="command-centre" aria-labelledby="command-centre-title"><header className="page-heading"><div><span className="eyebrow">Fixed operating snapshot</span><h1 id="command-centre-title">Command Centre</h1><p>Snapshot period ending {new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(snapshot.generatedAt))}. No target, trend, or comparison is implied.</p></div><StatusBadge status="INFO" label="Source-backed snapshot" /></header><div role="tablist" aria-label="Command Centre lenses" className="command-tabs">{lenses.map((item, index) => <button key={item} id={`command-tab-${item}`} role="tab" aria-selected={lens === item} aria-controls={`command-panel-${item}`} tabIndex={lens === item ? 0 : -1} onClick={() => setLens(item)} onKeyDown={(event) => onKeyDown(event, index)}>{item === "operations" ? "Operations" : "Executive"}</button>)}</div>{lenses.map((item) => <div key={item} id={`command-panel-${item}`} role="tabpanel" aria-labelledby={`command-tab-${item}`} className="command-metric-grid" hidden={lens !== item}>{panels[item].map((metric) => <Metric key={metric.label} metric={metric} />)}</div>)}<p className="command-freshness">Freshness: generated {snapshot.generatedAt}; every headline links to its registered reconciling evidence.</p></section>;
 }

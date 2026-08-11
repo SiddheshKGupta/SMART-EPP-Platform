@@ -84,7 +84,7 @@ export function Workbench({ initialQueue, filters = {} }: { initialQueue?: strin
   return <section className="operations-workbench" aria-labelledby="workbench-title">
     <header className="page-heading"><div><span className="eyebrow">Source-backed operational queues</span><h1 id="workbench-title">Workbench</h1><p>Profile changes permitted actions and personal assignment only; every registered queue remains available.</p></div><StatusBadge status="INFO" label={activeProfile.roleKeys.join(", ")} /></header>
     <div role="tablist" aria-label="Workbench queues" className="command-tabs">{queues.map((item, index) => <button key={item.slug} id={`workbench-tab-${item.slug}`} role="tab" aria-selected={active === index} aria-controls={`workbench-panel-${item.slug}`} tabIndex={active === index ? 0 : -1} onClick={() => setActive(index)} onKeyDown={(event) => onTabKeyDown(event, index)}>{item.label}</button>)}</div>
-    <div id={`workbench-panel-${queue.slug}`} role="tabpanel" aria-labelledby={`workbench-tab-${queue.slug}`} className="operations-table-scroll">
+    {queues.map((panelQueue, panelIndex) => <div key={panelQueue.slug} id={`workbench-panel-${panelQueue.slug}`} role="tabpanel" aria-labelledby={`workbench-tab-${panelQueue.slug}`} className="operations-table-scroll" hidden={active !== panelIndex}>{active === panelIndex && <>
       <div className="workspace-heading"><span className="ledger-count">{items.length} record{items.length === 1 ? "" : "s"}{status ? ` · ${status}` : ""}</span><strong><Money paise={items.reduce((sum, item) => sum + item.financialImpactPaise, 0)} /></strong></div>
       {items.length > 0 && <table><thead><tr><th>Work item</th><th>Owner / due</th><th className="align-right">Impact (INR)</th><th>State</th><th>Action</th></tr></thead><tbody>{items.map((item) => {
         const decision = getWorkItemAction(item, activeProfile);
@@ -95,6 +95,6 @@ export function Workbench({ initialQueue, filters = {} }: { initialQueue?: strin
       })}</tbody></table>}
       {items.length === 0 && <div className="operations-empty-state"><h2>No source-backed records in this queue</h2><p>This deterministic snapshot has no qualifying records for the selected queue and status.</p></div>}
       <p className="sr-only" aria-live="polite">{announcement}</p>
-    </div>
+    </>}</div>)}
   </section>;
 }
