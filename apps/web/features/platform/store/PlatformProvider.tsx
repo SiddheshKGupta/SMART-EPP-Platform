@@ -26,6 +26,7 @@ export interface PlatformContextValue {
   startJourney(journeyId: string): void;
   stopJourney(): void;
   setJourneyStep(stepId: string): void;
+  registerJourneyTrigger(element: HTMLElement | null): void;
   simulateIntegration(adapterId: string, outcome: IntegrationOutcome): void;
 }
 
@@ -203,6 +204,7 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
   const [activeProfileId, setActiveProfileId] = useState("operations-demo");
   const [activeJourneyId, setActiveJourneyId] = useState<string | null>(null);
   const activeJourneyRef = useRef<string | null>(activeJourneyId);
+  const journeyTriggerRef = useRef<HTMLElement | null>(null);
   activeJourneyRef.current = activeJourneyId;
 
   const setActiveProfile = useCallback((profile: AccessProfile) => {
@@ -229,6 +231,11 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
   const stopJourney = useCallback(() => {
     activeJourneyRef.current = null;
     setActiveJourneyId(null);
+    requestAnimationFrame(() => journeyTriggerRef.current?.focus());
+  }, []);
+
+  const registerJourneyTrigger = useCallback((element: HTMLElement | null) => {
+    journeyTriggerRef.current = element;
   }, []);
 
   const setJourneyStep = useCallback((stepId: string) => {
@@ -260,6 +267,7 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
       startJourney,
       stopJourney,
       setJourneyStep,
+      registerJourneyTrigger,
       simulateIntegration,
     };
   }, [
@@ -267,6 +275,7 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
     activeProfileId,
     setActiveProfile,
     setJourneyStep,
+    registerJourneyTrigger,
     simulateIntegration,
     snapshot,
     startJourney,

@@ -3343,6 +3343,33 @@ th.selection-column {
   .operations-evidence-drawer { width: 100vw; }
   .operations-evidence-summary,
   .operations-technical-details dl { grid-template-columns: minmax(0, 1fr); }
+  .guided-demo-drawer { width: 100vw; max-width: none; }
+  .guided-demo-actions > div { grid-template-columns: minmax(0, 1fr); }
+}
+
+.guided-demo-drawer { width: min(100vw, 440px); overflow-y: auto; padding: 0; }
+.guided-demo-header { border-bottom: 1px solid var(--border); padding: 24px; }
+.guided-demo-content { display: grid; gap: 20px; padding: 20px 24px 24px; }
+.guided-demo-case { display: grid; gap: 8px; margin: 0; }
+.guided-demo-case div { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 8px; }
+.guided-demo-case dt { color: var(--text-secondary); font-size: 12px; }
+.guided-demo-case dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.guided-demo-case dd span { display: block; color: var(--text-secondary); font-size: 12px; font-weight: 400; }
+.guided-demo-steps { display: grid; gap: 10px; list-style: none; margin: 0; padding: 0; }
+.guided-demo-steps li { display: flex; align-items: center; gap: 10px; border-left: 2px solid var(--border); padding: 8px 10px; }
+.guided-demo-steps li[data-status="CURRENT"] { border-left-color: var(--primary); background: var(--muted); }
+.guided-demo-steps li svg { flex: 0 0 auto; width: 16px; }
+.guided-demo-steps li div { display: flex; flex: 1; justify-content: space-between; gap: 12px; }
+.guided-demo-steps span { color: var(--text-secondary); font-size: 11px; font-weight: 700; letter-spacing: .06em; }
+.guided-demo-current { border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+.guided-demo-current h3 { margin: 4px 0; font-size: 16px; }
+.guided-demo-current p { margin: 0; color: var(--text-secondary); font-size: 13px; line-height: 1.5; }
+.guided-demo-actions { display: grid; gap: 10px; }
+.guided-demo-actions > div { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.guided-demo-actions button { min-height: 44px; white-space: normal; }
+
+@media (prefers-reduced-motion: reduce) {
+  .guided-demo-drawer, .guided-demo-drawer * { transition-duration: 0ms !important; animation-duration: 0ms !important; }
 }
 
 @theme inline {

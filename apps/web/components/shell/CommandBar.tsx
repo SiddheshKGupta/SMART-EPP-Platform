@@ -2,7 +2,7 @@
 
 import { ArrowRight, Play, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { PLATFORM_MODULES } from "@smart-epp/domain";
 import { Button } from "@/components/ui/button";
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandShortcut } from "@/components/ui/command";
@@ -16,7 +16,8 @@ function actorLabel(roleKeys: readonly string[]) {
 
 export function CommandBar() {
   const router = useRouter();
-  const { activeProfile, setActiveProfile, snapshot, startJourney } = usePlatform();
+  const { activeProfile, setActiveProfile, snapshot, startJourney, registerJourneyTrigger } = usePlatform();
+  const demoTrigger = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const routes = useMemo(() => PLATFORM_MODULES.flatMap((module) => {
     const root = module.slug === "command-centre" ? "/" : `/${module.slug}`;
@@ -40,6 +41,7 @@ export function CommandBar() {
   const navigate = (href: string) => { setOpen(false); router.push(href); };
   const startDemoJourney = () => {
     const journey = snapshot.guidedJourneys[0];
+    registerJourneyTrigger(demoTrigger.current);
     if (journey) startJourney(journey.id);
     router.push("/");
   };
@@ -51,7 +53,7 @@ export function CommandBar() {
           <Search aria-hidden /><span>Go to a workspace</span><kbd>Ctrl K</kbd>
         </Button>
         <div className="command-actions" aria-label="Command shortcuts">
-          <Button variant="outline" size="sm" onClick={startDemoJourney}><Play aria-hidden />Start Demo Journey</Button>
+          <Button ref={demoTrigger} variant="outline" size="sm" onClick={startDemoJourney}><Play aria-hidden />Start Demo Journey</Button>
           <Button variant="ghost" size="sm" onClick={() => router.push("/workbench/my-tasks")}>Work queue</Button>
           <Button variant="ghost" size="sm" onClick={() => router.push("/command-centre/control-alerts")}>Alerts</Button>
           <Button variant="ghost" size="sm" onClick={() => router.push("/command-centre/integration-health")}>Integration health</Button>

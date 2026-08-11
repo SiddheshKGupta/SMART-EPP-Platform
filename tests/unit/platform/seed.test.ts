@@ -86,6 +86,6 @@ describe("platform demo seed", () => {
 
     const second = createPlatformDemoSeed();
     expect(second.employers[0]!.name).toBe("Northstar Consulting Private Limited");
-    expect(second.guidedJourneys[0]!.steps[0]!.label).toBe("Employer programme active");
+    expect(second.guidedJourneys[0]!.steps[0]!.label).toBe("Employer readiness");
   });
 });

@@ -10,6 +10,7 @@ import { PlatformProvider } from "@/features/platform/store/PlatformProvider";
 import { CommandBar } from "./CommandBar";
 import { CapabilitySidebar } from "./CapabilitySidebar";
 import { ModuleNavigation } from "./ModuleNavigation";
+import { GuidedDemoDrawer } from "@/features/platform/guided-demo/GuidedDemoDrawer";
 
 function ActionAnnouncements() {
   const { actionError, issues } = useSubvention();
@@ -84,6 +85,7 @@ export function PlatformShell({ children }: { children: ReactNode }) {
       <SubventionProvider>
         <TooltipProvider>
           <ShellFrame>{children}</ShellFrame>
+          <GuidedDemoDrawer />
         </TooltipProvider>
       </SubventionProvider>
     </PlatformProvider>

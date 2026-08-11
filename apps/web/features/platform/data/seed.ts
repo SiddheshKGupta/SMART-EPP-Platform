@@ -71,7 +71,16 @@ const demoSeed: PlatformSnapshot = {
   assets,
   leases,
   workItems,
-  guidedJourneys: [{ id: "journey-northstar-01", employerId: "employer-northstar", employeeId: "employee-northstar-01", applicationId: "application-01", leaseId: "lease-01", steps: [{ id: "journey-step-01", label: "Employer programme active", href: "/programmes/employer-northstar", status: "COMPLETE" }, { id: "journey-step-02", label: "Employee eligible", href: "/employees/employee-northstar-01", status: "COMPLETE" }, { id: "journey-step-03", label: "Application approved", href: "/applications/application-01", status: "COMPLETE" }, { id: "journey-step-04", label: "Lease active", href: "/portfolio/lease-01", status: "CURRENT" }] }],
+  guidedJourneys: [{ id: "journey-northstar-01", employerId: "employer-northstar", employeeId: "employee-northstar-01", applicationId: "application-01", leaseId: "lease-01", steps: [
+    { id: "journey-step-01", label: "Employer readiness", href: "/programmes/readiness?q=Northstar", status: "CURRENT" },
+    { id: "journey-step-02", label: "Employee enrolment", href: "/employees/enrolment?q=Aarav", status: "UPCOMING" },
+    { id: "journey-step-03", label: "Eligibility and credit", href: "/applications/eligibility?q=application-01", status: "UPCOMING" },
+    { id: "journey-step-04", label: "Asset identification", href: "/assets/device-identifiers?q=C02X000001", status: "UPCOMING" },
+    { id: "journey-step-05", label: "Approval", href: "/orders/approval-queues?q=application-01", status: "UPCOMING" },
+    { id: "journey-step-06", label: "Lease handoff and activation", href: "/portfolio/activation?q=lease-01", status: "UPCOMING" },
+    { id: "journey-step-07", label: "Servicing", href: "/billing/collection-queue?q=lease-01", status: "UPCOMING" },
+    { id: "journey-step-08", label: "Foreclosure", href: "/foreclosure/intake?q=lease-01", status: "UPCOMING" },
+  ] }],
   integrations,
   auditEvents: [
     { id: "audit-01", entityType: "Employer", entityId: "employer-northstar", action: "PROGRAMME_ACTIVATED", actorId: "platform-admin", reason: "Approved programme go-live", occurredAt: "2026-08-01T09:00:00.000Z" },
