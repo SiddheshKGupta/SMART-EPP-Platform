@@ -6,6 +6,7 @@ import type { OperatingState, PlatformModuleDefinition, PlatformSnapshot, Platfo
 import { Money } from "@/components/shared/Money";
 import { StatusBadge, type SemanticStatus } from "@/components/shared/StatusBadge";
 import type { RouteFilters } from "@/components/shared/RouteContractPage";
+import { Workbench } from "@/features/platform/workbench/Workbench";
 
 export type WorkspaceRecord = { id: string; title: string; context: string; owner: string; state: OperatingState | null; sourceStatus?: string; amountPaise: number; source: string };
 export type WorkspaceView = { records: WorkspaceRecord[]; totalPaise: number; pending: number; filters: { q: string; status: OperatingState | "" } };
@@ -56,6 +57,7 @@ export function buildWorkspaceView(module: PlatformModuleDefinition, submodule: 
 }
 
 export function ModuleWorkspace({ module, submodule, snapshot, filters }: { module: PlatformModuleDefinition; submodule?: PlatformSubmoduleDefinition; snapshot: PlatformSnapshot; filters: RouteFilters }) {
+  if (module.key === "WORKBENCH") return <Workbench initialQueue={submodule?.slug} />;
   const view = buildWorkspaceView(module, submodule, snapshot, filters);
   const [selected, setSelected] = useState<WorkspaceRecord | null>(null);
   const trigger = useRef<HTMLButtonElement | null>(null);

@@ -1,5 +1,22 @@
 import { expect, test } from "@playwright/test";
 
+test("command centre exposes operations and executive lenses to every profile", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Command Centre" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Operations" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Executive" })).toBeVisible();
+  await page.getByRole("tab", { name: "Executive" }).click();
+  await expect(page.getByText("Exposure and utilisation")).toBeVisible();
+});
+
+test("workbench retains all queue types without hiding modules", async ({ page }) => {
+  await page.goto("/workbench");
+  await expect(page.getByRole("tab", { name: "My Tasks" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "My Approvals" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "My Exceptions" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Employer Programmes" })).toBeVisible();
+});
+
 const destinations = [
   ["/programmes/credit-handoff", "Credit Handoff"],
   ["/employees/enrolment", "Employee Enrolment"],

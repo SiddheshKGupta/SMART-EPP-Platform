@@ -1,0 +1,28 @@
+"use client";
+
+import Link from "next/link";
+import { useState } from "react";
+import type { PlatformSnapshot, WorkItem } from "@smart-epp/domain";
+import { Money } from "@/components/shared/Money";
+import { StatusBadge } from "@/components/shared/StatusBadge";
+import { usePlatform } from "@/features/platform/store/PlatformProvider";
+
+export type CentreMetric = { label: string; value: number; valuePaise?: number; href: string; formula: string; source: string; owner: string; freshness: string };
+export const formatIndianAggregate = (paise: number) => {
+  const rupees = paise / 100;
+  if (Math.abs(rupees) >= 10_000_000) return `₹${(rupees / 10_000_000).toFixed(2)} Cr`;
+  if (Math.abs(rupees) >= 100_000) return `₹${(rupees / 100_000).toFixed(2)} Lakh`;
+  return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(rupees);
+};
+export function buildCommandCentreMetrics(snapshot: PlatformSnapshot) {
+  const workItems = snapshot.workItems;
+  const byState = (state: WorkItem["state"]) => workItems.filter((item) => item.state === state);
+  const sanction = snapshot.employers.reduce((sum, item) => sum + item.sanctionPaise, 0);
+  const utilised = snapshot.employers.reduce((sum, item) => sum + item.utilisedPaise, 0);
+  const metric = (label: string, items: WorkItem[], href: string, formula: string): CentreMetric => ({ label, value: items.length, href, formula, source: "PlatformSnapshot.workItems", owner: "Operations control", freshness: snapshot.generatedAt });
+  const executive = (metric: Omit<CentreMetric, "freshness">): CentreMetric => ({ ...metric, freshness: snapshot.generatedAt });
+  const exposure = snapshot.leases.reduce((sum, item) => sum + item.rentalPaise * item.tenureMonths, 0);
+  return { operations: { workItems: metric("Open work queue", workItems, "/workbench?queue=my-tasks", "Count of all source-backed work items"), overdue: metric("Overdue items", byState("OVERDUE"), "/workbench?queue=my-tasks&status=OVERDUE", "Count where state = OVERDUE"), approvals: metric("Pending approvals", byState("PENDING"), "/workbench?queue=my-approvals&status=PENDING", "Count where state = PENDING"), alerts: metric("Control alerts", workItems.filter((item) => item.state === "OVERDUE" || item.state === "REJECTED"), "/exceptions/inbox?status=OVERDUE", "Count where state is OVERDUE or REJECTED") }, executive: { health: executive({ label: "Portfolio health", value: snapshot.leases.filter((item) => item.status === "HEALTHY").length, href: "/command-centre/portfolio-health?status=HEALTHY", formula: "Count of leases where state = HEALTHY", source: "PlatformSnapshot.leases", owner: "Portfolio management" }), sanction: executive({ label: "Sanction", value: snapshot.employers.length, valuePaise: sanction, href: "/portfolio/sanction-utilisation", formula: "Sum of employer sanction paise", source: "PlatformSnapshot.employers", owner: "Portfolio management" }), utilised: executive({ label: "Exposure and utilisation", value: snapshot.employers.length, valuePaise: utilised, href: "/portfolio/sanction-utilisation", formula: "Sum of employer utilised paise", source: "PlatformSnapshot.employers", owner: "Portfolio management" }), exposure: executive({ label: "Financial exposure", value: snapshot.leases.length, valuePaise: exposure, href: "/portfolio/leases", formula: "Sum of lease rental paise × tenure months", source: "PlatformSnapshot.leases", owner: "Finance control" }), pipeline: executive({ label: "Programme pipeline", value: snapshot.employers.length, href: "/programmes", formula: "Count of employer programmes", source: "PlatformSnapshot.employers", owner: "Programme management" }) } };
+}
+function Metric({ metric }: { metric: CentreMetric }) { return <article className="command-metric"><Link href={metric.href}><span>{metric.label}</span><strong>{metric.valuePaise === undefined ? metric.value : formatIndianAggregate(metric.valuePaise)}</strong></Link><details><summary>Metric evidence</summary><dl><div><dt>Meaning / formula</dt><dd>{metric.formula}</dd></div><div><dt>Unit / source</dt><dd>{metric.valuePaise === undefined ? "Records" : "INR (paise source)"} · {metric.source}</dd></div><div><dt>Freshness / filter</dt><dd>{metric.freshness} · {metric.href}</dd></div><div><dt>Owner</dt><dd>{metric.owner}</dd></div></dl></details></article>; }
+export function CommandCentre() { const { snapshot } = usePlatform(); const [lens, setLens] = useState<"operations" | "executive">("operations"); const metrics = buildCommandCentreMetrics(snapshot); const selected = lens === "operations" ? Object.values(metrics.operations) : Object.values(metrics.executive); return <section className="command-centre" aria-labelledby="command-centre-title"><header className="page-heading"><div><span className="eyebrow">Fixed operating snapshot</span><h1 id="command-centre-title">Command Centre</h1><p>Snapshot period ending {new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(snapshot.generatedAt))}. No target or trend comparison is implied.</p></div><StatusBadge status="INFO" label="Source-backed snapshot" /></header><div role="tablist" aria-label="Command Centre lenses" className="command-tabs"><button role="tab" aria-selected={lens === "operations"} onClick={() => setLens("operations")}>Operations</button><button role="tab" aria-selected={lens === "executive"} onClick={() => setLens("executive")}>Executive</button></div><div role="tabpanel" className="command-metric-grid">{selected.map((metric) => <Metric key={metric.label} metric={metric} />)}</div><p className="command-freshness">Freshness: generated {snapshot.generatedAt}; drill-down links retain source filters.</p></section>; }
