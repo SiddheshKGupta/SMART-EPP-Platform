@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -297,12 +298,12 @@ export function PlatformProvider({ children, initialSnapshot }: { children: Reac
     () => initialSnapshot ? structuredClone(initialSnapshot) : createDefaultPlatformSnapshot(),
   );
   const snapshotRef = useRef(snapshot);
-  snapshotRef.current = snapshot;
+  useEffect(() => { snapshotRef.current = snapshot; }, [snapshot]);
   const [activeProfileId, setActiveProfileId] = useState("operations-demo");
   const [activeJourneyId, setActiveJourneyId] = useState<string | null>(null);
   const activeJourneyRef = useRef<string | null>(activeJourneyId);
   const journeyTriggerRef = useRef<HTMLElement | null>(null);
-  activeJourneyRef.current = activeJourneyId;
+  useEffect(() => { activeJourneyRef.current = activeJourneyId; }, [activeJourneyId]);
 
   const setActiveProfile = useCallback((profile: AccessProfile) => {
     if (

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   evaluateAccess,
   type AccessProfile,
@@ -142,8 +142,8 @@ export function OriginationWorkspace({ module, submodule, snapshot, filters, pro
 }) {
   const model = buildOriginationWorkspaceModel(module, submodule, snapshot, filters, profile);
   const [selectedId, setSelectedId] = useState(model.rows[0]?.id ?? "");
-  useEffect(() => { if (!model.rows.some((row) => row.id === selectedId)) setSelectedId(model.rows[0]?.id ?? ""); }, [model.rows, selectedId]);
-  const selected = model.rows.find((row) => row.id === selectedId) ?? model.rows[0];
+  const effectiveSelectedId = model.rows.some((row) => row.id === selectedId) ? selectedId : (model.rows[0]?.id ?? "");
+  const selected = model.rows.find((row) => row.id === effectiveSelectedId) ?? model.rows[0];
   const basePath = `/${module.slug}`;
   const linkedAction = selected?.actionHref && model.action.allowed;
 
