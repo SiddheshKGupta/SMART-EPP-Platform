@@ -789,6 +789,9 @@ test("admin keeps IAM, BRE, and workflow configuration separate", async ({ page 
 test("integration simulator changes mock state without a live connector", async ({ page }) => {
   await page.goto("/admin/integrations");
   await expect(page.getByText("Demo only")).toBeVisible();
+  await expect(page.getByRole("row", { name: /Tally/ }).getByRole("button", { name: "Simulate partial failure" })).toBeDisabled();
+  await page.getByRole("button", { name: "Active role" }).click();
+  await page.getByRole("option", { name: "Admin" }).click();
   await page.getByRole("row", { name: /Tally/ }).getByRole("button", { name: "Simulate partial failure" }).click();
   await expect(page.getByRole("row", { name: /Tally.*Partial/ })).toBeVisible();
   await page.getByRole("row", { name: /Tally/ }).getByRole("button", { name: "Retry mock sync" }).click();
