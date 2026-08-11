@@ -292,9 +292,9 @@ export function simulateIntegrationForProfile(
 
 const PlatformContext = createContext<PlatformContextValue | undefined>(undefined);
 
-export function PlatformProvider({ children }: { children: ReactNode }) {
+export function PlatformProvider({ children, initialSnapshot }: { children: ReactNode; initialSnapshot?: PlatformSnapshot }) {
   const [snapshot, setSnapshot] = useState<PlatformSnapshot>(
-    createDefaultPlatformSnapshot,
+    () => initialSnapshot ? structuredClone(initialSnapshot) : createDefaultPlatformSnapshot(),
   );
   const snapshotRef = useRef(snapshot);
   snapshotRef.current = snapshot;

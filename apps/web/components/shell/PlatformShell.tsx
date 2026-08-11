@@ -11,6 +11,7 @@ import { CommandBar } from "./CommandBar";
 import { CapabilitySidebar } from "./CapabilitySidebar";
 import { ModuleNavigation } from "./ModuleNavigation";
 import { GuidedDemoDrawer } from "@/features/platform/guided-demo/GuidedDemoDrawer";
+import type { PlatformSnapshot } from "@smart-epp/domain";
 
 function ActionAnnouncements() {
   const { actionError, issues } = useSubvention();
@@ -79,9 +80,9 @@ function ShellFrame({ children }: { children: ReactNode }) {
   );
 }
 
-export function PlatformShell({ children }: { children: ReactNode }) {
+export function PlatformShell({ children, initialSnapshot }: { children: ReactNode; initialSnapshot?: PlatformSnapshot }) {
   return (
-    <PlatformProvider>
+    <PlatformProvider initialSnapshot={initialSnapshot}>
       <SubventionProvider>
         <TooltipProvider>
           <ShellFrame>{children}</ShellFrame>
