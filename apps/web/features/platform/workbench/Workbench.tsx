@@ -61,10 +61,9 @@ const actionLabel = (item: WorkItem) => item.requestedAction?.toLowerCase().repl
 const statusTone = (state: OperatingState) => state === "OVERDUE" ? "CRITICAL" : state === "REJECTED" ? "REJECTED" : state === "HEALTHY" || state === "RECONCILED" ? "APPROVED" : "ATTENTION";
 
 export function Workbench({ initialQueue, filters = {} }: { initialQueue?: string; filters?: WorkbenchFilters }) {
-  const { snapshot, activeProfile } = usePlatform();
+  const { snapshot, activeProfile, executeWorkItem } = usePlatform();
   const initial = buildWorkbenchView(snapshot, activeProfile, { ...filters, queue: filterValue(filters.queue) || initialQueue });
   const [active, setActive] = useState(initial.activeIndex);
-  const [completed, setCompleted] = useState<Set<string>>(() => new Set());
   const [announcement, setAnnouncement] = useState("");
   const queues = buildWorkbenchQueues(snapshot, activeProfile);
   const queue = queues[active]!;
@@ -89,12 +88,12 @@ export function Workbench({ initialQueue, filters = {} }: { initialQueue?: strin
       {items.length > 0 && <table><thead><tr><th>Work item</th><th>Owner / due</th><th className="align-right">Impact (INR)</th><th>State</th><th>Action</th></tr></thead><tbody>{items.map((item) => {
         const decision = getWorkItemAction(item, activeProfile);
         const reasonId = `permission-${item.id}`;
-        const isComplete = completed.has(item.id);
+        const isComplete = Boolean(item.completedAt);
         const deniedReason = decision && !decision.allowed ? (decision.requiresBreakGlass ? decision.reason : `Requires IAM permission: ${decision.reason}`) : "";
-        return <tr key={item.id}><td><Link href={item.href}>{item.title}</Link><br /><span className="text-muted">{item.id}</span></td><td>{item.owner}<br /><time dateTime={item.dueDate}>{item.dueDate}</time></td><td className="align-right"><Money paise={item.financialImpactPaise} /></td><td><StatusBadge status={statusTone(item.state)} label={item.state} /></td><td>{decision ? <><button disabled={!decision.allowed || isComplete} aria-describedby={!decision.allowed ? reasonId : undefined} onClick={() => { setCompleted((current) => new Set(current).add(item.id)); setAnnouncement(`${actionLabel(item)} completed for ${item.title}`); }}>{isComplete ? "Completed" : actionLabel(item)}</button>{deniedReason && <span id={reasonId} className="sr-only">{deniedReason}</span>}</> : <span className="text-muted">No action requested</span>}</td></tr>;
+        return <tr key={item.id}><td><Link href={item.href}>{item.title}</Link><br /><span className="text-muted">{item.id}</span></td><td>{item.owner}<br /><time dateTime={item.dueDate}>{item.dueDate}</time></td><td className="align-right"><Money paise={item.financialImpactPaise} /></td><td><StatusBadge status={statusTone(item.state)} label={item.state} /></td><td>{decision ? <><button disabled={!decision.allowed || isComplete} aria-describedby={!decision.allowed ? reasonId : undefined} onClick={() => { const result = executeWorkItem(item.id, "Reviewed the connected evidence and completed the controlled action."); setAnnouncement(result.message); }}>{isComplete ? "Completed" : actionLabel(item)}</button>{deniedReason && <span id={reasonId} className="sr-only">{deniedReason}</span>}</> : <span className="text-muted">No action requested</span>}</td></tr>;
       })}</tbody></table>}
       {items.length === 0 && <div className="operations-empty-state"><h2>No source-backed records in this queue</h2><p>This deterministic snapshot has no qualifying records for the selected queue and status.</p></div>}
-      <p className="sr-only" aria-live="polite">{announcement}</p>
+      {announcement && <p className="permission-denied" role="status" aria-live="polite">{announcement}</p>}
     </>}</div>)}
   </section>;
 }

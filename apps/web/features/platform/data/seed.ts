@@ -5,6 +5,7 @@ import type {
   IntegrationAdapterDemo,
   LeaseRecord,
   OperatingState,
+  PlatformExceptionRecord,
   PlatformModuleKey,
   PlatformSnapshot,
   WorkItem,
@@ -14,11 +15,11 @@ import type {
 
 const generatedAt = "2026-08-10T09:00:00.000Z";
 
-const employee = (id: string, employerId: string, name: string, payrollId: string, status: OperatingState): EmployeeRecord => ({ id, employerId, name, payrollId, status });
+const employee = (id: string, employerId: string, name: string, payrollId: string, status: OperatingState): EmployeeRecord => ({ id, employerId, name, payrollId, pan: `SYNTH-PAN-${id}`, bankAccount: `SYNTH-BANK-${id}`, status });
 const asset = (id: string, oem: string, model: string, category: string, serialNumber: string, invoiceValuePaise: number): AssetRecord => ({ id, oem, model, category, serialNumber, invoiceValuePaise });
 const application = (id: string, employeeId: string, assetId: string, requestedPaise: number, reservedPaise: number, status: OperatingState): ApplicationRecord => ({ id, employeeId, assetId, requestedPaise, reservedPaise, status });
 const lease = (id: string, applicationId: string, lotId: string, tenureMonths: number, rentalPaise: number, residualValuePaise: number, status: OperatingState): LeaseRecord => ({ id, applicationId, lotId, tenureMonths, rentalPaise, residualValuePaise, status });
-const workItem = (id: string, module: PlatformModuleKey, title: string, owner: string, dueDate: string, state: OperatingState, financialImpactPaise: number, href: string, queueKeys: WorkQueueKey[], provenance: { assignedUserId?: string; initiatedBy?: string; requestedAction?: PlatformAction } = {}): WorkItem => ({ id, module, title, owner, dueDate, state, financialImpactPaise, href, queueKeys, ...provenance });
+const workItem = (id: string, employerId: string, module: PlatformModuleKey, title: string, owner: string, dueDate: string, state: OperatingState, financialImpactPaise: number, href: string, queueKeys: WorkQueueKey[], provenance: { assignedUserId?: string; initiatedBy?: string; requestedAction?: PlatformAction } = {}): WorkItem => ({ id, employerId, module, title, owner, dueDate, state, financialImpactPaise, href, queueKeys, ...provenance });
 const integration = (id: string, name: string, status: IntegrationAdapterDemo["status"], accepted: number, rejected: number, pending: number): IntegrationAdapterDemo => ({ id, name, mode: "MOCK", status, lastSyncAt: generatedAt, accepted, rejected, pending });
 
 const employees: EmployeeRecord[] = [
@@ -39,16 +40,21 @@ const leases: LeaseRecord[] = [
   lease("lease-04", "application-05", "lot-pinnacle-02", 24, 270_500, 1_298_000, "OVERDUE"), lease("lease-05", "application-06", "lot-harbour-01", 36, 371_000, 2_360_000, "HEALTHY"), lease("lease-06", "application-07", "lot-harbour-01", 24, 291_500, 1_399_900, "RECONCILED"),
 ];
 const workItems: WorkItem[] = [
-  workItem("work-01", "APPLICATIONS_ELIGIBILITY", "Review Northstar application", "ops-lead", "2026-08-10", "HEALTHY", 12_490_000, "/applications/register?q=application-01", ["MY_TASKS", "TEAM_QUEUES", "RECENTLY_VIEWED"], { assignedUserId: "operations-demo", initiatedBy: "relationship-manager", requestedAction: "EDIT" }),
-  workItem("work-02", "ORDERS_APPROVALS", "Approve Northstar iPhone order", "ops-lead", "2026-08-11", "PENDING", 7_990_000, "/orders/approval-queues?q=application-02", ["MY_APPROVALS", "TEAM_QUEUES"], { initiatedBy: "ops-lead", requestedAction: "APPROVE" }),
-  workItem("work-03", "EXCEPTIONS_RECONCILIATIONS", "Resolve Pinnacle rental arrears", "collections-analyst", "2026-08-05", "OVERDUE", 6_490_000, "/exceptions/reconciliation-breaks?q=lease-04", ["MY_EXCEPTIONS", "TEAM_QUEUES", "ESCALATIONS"]),
-  workItem("work-04", "APPLICATIONS_ELIGIBILITY", "Notify rejected asset request", "ops-lead", "2026-08-09", "REJECTED", 7_499_900, "/applications/rejections-returns?q=application-03", ["MY_TASKS", "MY_EXCEPTIONS", "TEAM_QUEUES", "NOTIFICATIONS"], { assignedUserId: "operations-demo" }),
-  workItem("work-05", "BILLING_COLLECTIONS", "Reconcile Harbour receipt", "finance-billing", "2026-08-10", "RECONCILED", 6_999_900, "/billing/bank-reconciliation?q=lease-06", ["TEAM_QUEUES", "RECENTLY_VIEWED"]),
-  workItem("work-06", "EMPLOYEES", "Validate Pinnacle payroll feed", "Unassigned", "2026-08-12", "PENDING", 0, "/employees/employment-payroll?q=employee-pinnacle-01", ["TEAM_QUEUES", "UNASSIGNED_WORK"]),
-  workItem("work-07", "LEASES_PORTFOLIO", "Activate Harbour laptop lease", "portfolio-manager", "2026-08-10", "HEALTHY", 11_800_000, "/portfolio/activation?q=lease-05", ["TEAM_QUEUES", "DELEGATIONS"], { assignedUserId: "portfolio-manager", initiatedBy: "ops-lead", requestedAction: "EDIT" }),
-  workItem("work-08", "DOCUMENTS_EVIDENCE", "Obtain acceptance certificate", "ops-lead", "2026-08-06", "OVERDUE", 14_250_000, "/documents/missing-documents?q=application-04", ["MY_EXCEPTIONS", "TEAM_QUEUES", "ESCALATIONS"]),
-  workItem("work-09", "EMPLOYER_PROGRAMMES", "Review Pinnacle utilisation", "relationship-manager", "2026-08-13", "PENDING", 13_100_000, "/programmes/performance?q=employer-pinnacle", ["TEAM_QUEUES"]),
-  workItem("work-10", "EXCEPTIONS_RECONCILIATIONS", "Close Harbour sync variance", "finance-billing", "2026-08-09", "RECONCILED", 0, "/exceptions/reconciliation-breaks?q=harbour-sync", ["TEAM_QUEUES", "RECENTLY_VIEWED"]),
+  workItem("work-01", "employer-northstar", "APPLICATIONS_ELIGIBILITY", "Review Northstar application", "ops-lead", "2026-08-10", "HEALTHY", 12_490_000, "/applications/register?q=application-01", ["MY_TASKS", "TEAM_QUEUES", "RECENTLY_VIEWED"], { assignedUserId: "operations-demo", initiatedBy: "relationship-manager", requestedAction: "EDIT" }),
+  workItem("work-02", "employer-northstar", "ORDERS_APPROVALS", "Approve Northstar iPhone order", "ops-lead", "2026-08-11", "PENDING", 7_990_000, "/orders/approval-queues?q=application-02", ["MY_APPROVALS", "TEAM_QUEUES"], { initiatedBy: "ops-lead", requestedAction: "APPROVE" }),
+  workItem("work-03", "employer-pinnacle", "EXCEPTIONS_RECONCILIATIONS", "Resolve Pinnacle rental arrears", "collections-analyst", "2026-08-05", "OVERDUE", 6_490_000, "/exceptions/reconciliation-breaks?q=lease-04", ["MY_EXCEPTIONS", "TEAM_QUEUES", "ESCALATIONS"]),
+  workItem("work-04", "employer-northstar", "APPLICATIONS_ELIGIBILITY", "Notify rejected asset request", "ops-lead", "2026-08-09", "REJECTED", 7_499_900, "/applications/rejections-returns?q=application-03", ["MY_TASKS", "MY_EXCEPTIONS", "TEAM_QUEUES", "NOTIFICATIONS"], { assignedUserId: "operations-demo" }),
+  workItem("work-05", "employer-harbour", "BILLING_COLLECTIONS", "Reconcile Harbour receipt", "finance-billing", "2026-08-10", "RECONCILED", 6_999_900, "/billing/bank-reconciliation?q=lease-06", ["TEAM_QUEUES", "RECENTLY_VIEWED"]),
+  workItem("work-06", "employer-pinnacle", "EMPLOYEES", "Validate Pinnacle payroll feed", "Unassigned", "2026-08-12", "PENDING", 0, "/employees/employment-payroll?q=employee-pinnacle-01", ["TEAM_QUEUES", "UNASSIGNED_WORK"]),
+  workItem("work-07", "employer-harbour", "LEASES_PORTFOLIO", "Activate Harbour laptop lease", "portfolio-manager", "2026-08-10", "HEALTHY", 11_800_000, "/portfolio/activation?q=lease-05", ["TEAM_QUEUES", "DELEGATIONS"], { assignedUserId: "portfolio-manager", initiatedBy: "ops-lead", requestedAction: "EDIT" }),
+  workItem("work-08", "employer-pinnacle", "DOCUMENTS_EVIDENCE", "Obtain acceptance certificate", "ops-lead", "2026-08-06", "OVERDUE", 14_250_000, "/documents/missing-documents?q=application-04", ["MY_EXCEPTIONS", "TEAM_QUEUES", "ESCALATIONS"]),
+  workItem("work-09", "employer-pinnacle", "EMPLOYER_PROGRAMMES", "Review Pinnacle utilisation", "relationship-manager", "2026-08-13", "PENDING", 13_100_000, "/programmes/performance?q=employer-pinnacle", ["TEAM_QUEUES"]),
+  workItem("work-10", "employer-harbour", "EXCEPTIONS_RECONCILIATIONS", "Close Harbour sync variance", "finance-billing", "2026-08-09", "RECONCILED", 0, "/exceptions/reconciliation-breaks?q=harbour-sync", ["TEAM_QUEUES", "RECENTLY_VIEWED"]),
+];
+const exceptions: PlatformExceptionRecord[] = [
+  { id: "exception-returned-01", employerId: "employer-northstar", scenario: "RETURNED", operatingState: "REJECTED", recoveryState: "OPEN", sourceRecordType: "Application", sourceRecordId: "application-03", workItemId: "work-04" },
+  { id: "exception-duplicated-01", employerId: "employer-pinnacle", scenario: "DUPLICATED", operatingState: "PENDING", recoveryState: "IN_PROGRESS", sourceRecordType: "Employee", sourceRecordId: "employee-pinnacle-01", workItemId: "work-06" },
+  { id: "exception-mismatched-01", employerId: "employer-harbour", scenario: "MISMATCHED", operatingState: "RECONCILED", recoveryState: "RECOVERED", sourceRecordType: "IntegrationAdapter", sourceRecordId: "integration-employer-hrms", workItemId: "work-10" },
 ];
 const integrations: IntegrationAdapterDemo[] = [
   integration("integration-master-hub", "Master Hub", "HEALTHY", 1_240, 0, 0), integration("integration-leasing-platform", "Existing Leasing Platform", "PARTIAL", 982, 3, 5), integration("integration-tally", "Tally", "HEALTHY", 426, 0, 0), integration("integration-employer-hrms", "Employer HRMS", "PARTIAL", 355, 2, 4), integration("integration-gst-einvoicing", "GST/E-invoicing", "HEALTHY", 188, 0, 0), integration("integration-bank", "Bank", "HEALTHY", 92, 0, 0), integration("integration-oem-vendor", "OEM/Vendor", "FAILED", 0, 6, 8),
@@ -82,10 +88,11 @@ const demoSeed: PlatformSnapshot = {
     { id: "journey-step-08", label: "Foreclosure", href: "/foreclosure/intake?q=lease-01", status: "UPCOMING" },
   ] }],
   integrations,
+  exceptions,
   auditEvents: [
-    { id: "audit-01", entityType: "Employer", entityId: "employer-northstar", action: "PROGRAMME_ACTIVATED", actorId: "platform-admin", reason: "Approved programme go-live", occurredAt: "2026-08-01T09:00:00.000Z" },
-    { id: "audit-02", entityType: "Application", entityId: "application-01", action: "APPLICATION_APPROVED", actorId: "ops-lead", reason: "Eligibility and exposure checks passed", occurredAt: "2026-08-08T10:30:00.000Z" },
-    { id: "audit-03", entityType: "Lease", entityId: "lease-01", action: "LEASE_ACTIVATED", actorId: "portfolio-manager", reason: "Asset delivery accepted", occurredAt: "2026-08-09T14:15:00.000Z" },
+    { id: "audit-01", entityType: "Employer", entityId: "employer-northstar", action: "PROGRAMME_ACTIVATED", actorId: "platform-admin", reason: "Approved programme go-live", outcome: "SUCCESS", occurredAt: "2026-08-01T09:00:00.000Z" },
+    { id: "audit-02", entityType: "Application", entityId: "application-01", action: "APPLICATION_APPROVED", actorId: "ops-lead", reason: "Eligibility and exposure checks passed", outcome: "SUCCESS", occurredAt: "2026-08-08T10:30:00.000Z" },
+    { id: "audit-03", entityType: "Lease", entityId: "lease-01", action: "LEASE_ACTIVATED", actorId: "portfolio-manager", reason: "Asset delivery accepted", outcome: "SUCCESS", occurredAt: "2026-08-09T14:15:00.000Z" },
   ],
 };
 

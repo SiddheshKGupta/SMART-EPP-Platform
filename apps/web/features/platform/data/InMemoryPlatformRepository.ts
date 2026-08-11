@@ -129,12 +129,18 @@ export class InMemoryPlatformRepository implements PlatformRepository {
       auditEvents: [
         ...this.snapshot.auditEvents,
         {
-          id: `audit-repository-${this.snapshot.auditEvents.length + 1}`,
+          id: `audit-event-${String(this.snapshot.auditEvents.length + 1).padStart(4, "0")}`,
           entityType: "IntegrationAdapter",
           entityId: adapterId,
           action: `MOCK_INTEGRATION_${outcome}`,
           actorId,
           reason: "Synthetic local demo outcome; no external data used.",
+          outcome:
+            outcome === "SUCCESS"
+              ? "SUCCESS"
+              : outcome === "PARTIAL"
+                ? "PARTIAL"
+                : "FAILURE",
           occurredAt: this.snapshot.generatedAt,
         },
       ],

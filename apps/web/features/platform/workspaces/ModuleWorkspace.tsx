@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { OperatingState, PlatformModuleDefinition, PlatformSnapshot, PlatformSubmoduleDefinition } from "@smart-epp/domain";
-import { Money } from "@/components/shared/Money";
+import { formatExactInr, Money } from "@/components/shared/Money";
 import { StatusBadge, type SemanticStatus } from "@/components/shared/StatusBadge";
 import type { RouteFilters } from "@/components/shared/RouteContractPage";
 import { Workbench } from "@/features/platform/workbench/Workbench";
 import { AdminWorkspace } from "@/features/platform/admin/AdminWorkspace";
+import { usePlatform } from "@/features/platform/store/PlatformProvider";
 
 export type WorkspaceRecord = { id: string; title: string; context: string; owner: string; state: OperatingState | null; sourceStatus?: string; amountPaise: number; source: string };
 export type WorkspaceView = { records: WorkspaceRecord[]; totalPaise: number; pending: number; filters: { q: string; status: OperatingState | "" } };
@@ -21,12 +22,13 @@ function sourceRecords(module: PlatformModuleDefinition, submodule: PlatformSubm
   const labelled = (source: string, records: Array<Omit<WorkspaceRecord, "source">>) => records.map((record) => ({ ...record, context: `${record.context} · ${submodule?.label ?? module.label}`, source }));
   const employers = () => labelled("Employer programme master", first(snapshot.employers, offset).map((item) => ({ id: item.id, title: item.name, context: `${item.programmeId} · ${item.programmeStage}`, owner: "relationship-manager", state: item.status, amountPaise: item.utilisedPaise })));
   const employees = () => labelled("Employer HRMS feed", first(snapshot.employees, offset).map((item) => ({ id: item.id, title: item.name, context: item.payrollId, owner: "hrms-operator", state: item.status, amountPaise: 0 })));
-  const applications = () => labelled("Application register", first(snapshot.applications, offset).map((item) => ({ id: item.id, title: item.id.replace("application-", "Application "), context: `Reserved ${item.reservedPaise / 100}`, owner: "ops-lead", state: item.status, amountPaise: item.requestedPaise })));
+  const applications = () => labelled("Application register", first(snapshot.applications, offset).map((item) => ({ id: item.id, title: item.id.replace("application-", "Application "), context: `Reserved ${formatExactInr(item.reservedPaise)}`, owner: "ops-lead", state: item.status, amountPaise: item.requestedPaise })));
   const assets = () => labelled("Asset and vendor registry", first(snapshot.assets, offset).map((item) => ({ id: item.id, title: `${item.oem} ${item.model}`, context: `${item.category} · ${item.serialNumber}`, owner: "vendor-operations", state: null, amountPaise: item.invoiceValuePaise })));
   const leases = (source = "Lease administration") => labelled(source, first(snapshot.leases, offset).map((item) => ({ id: item.id, title: item.id.replace("lease-", "Lease "), context: `${item.lotId} · ${item.tenureMonths} months`, owner: "portfolio-manager", state: item.status, amountPaise: item.rentalPaise * item.tenureMonths })));
   const work = () => labelled("Operational work queue", first(snapshot.workItems, offset).map((item) => ({ id: item.id, title: item.title, context: item.dueDate, owner: item.owner, state: item.state, amountPaise: item.financialImpactPaise })));
+  const exceptions = () => labelled("Exception and recovery register", first(snapshot.exceptions, offset).map((item) => ({ id: item.id, title: `${item.scenario} exception`, context: `${item.sourceRecordType} ${item.sourceRecordId} - Recovery ${item.recoveryState}`, owner: snapshot.workItems.find((workItem) => workItem.id === item.workItemId)?.owner ?? "exception-control", state: item.operatingState, amountPaise: snapshot.workItems.find((workItem) => workItem.id === item.workItemId)?.financialImpactPaise ?? 0 })));
   const integrations = () => labelled("Integration adapter monitor", first(snapshot.integrations, offset).map((item) => ({ id: item.id, title: item.name, context: `${item.mode} · accepted ${item.accepted}`, owner: "platform-admin", state: null, sourceStatus: item.status, amountPaise: 0 })));
-  const audits = () => labelled("Configuration and audit evidence", first(snapshot.auditEvents, offset).map((item) => ({ id: item.id, title: item.action.replaceAll("_", " "), context: `${item.entityType} · ${item.entityId}`, owner: item.actorId, state: null, amountPaise: 0 })));
+  const audits = () => labelled("Configuration and audit evidence", first(snapshot.auditEvents, offset).map((item) => ({ id: item.id, title: item.action.replaceAll("_", " "), context: `${item.entityType} · ${item.entityId} · ${item.outcome} · ${item.reason}`, owner: item.actorId, state: null, amountPaise: 0 })));
   const profiles = () => labelled("IAM profile configuration", first(snapshot.profiles, offset).map((item) => ({ id: item.userId, title: item.userId, context: item.roleKeys.join(", "), owner: "platform-admin", state: null, amountPaise: 0 })));
   const aggregates = () => labelled("Portfolio and programme evidence", first(snapshot.employers, offset).map((item) => ({ id: `report-${item.id}`, title: `${item.name} portfolio`, context: `${snapshot.applications.filter((app) => app.employeeId.includes(item.id.split("-")[1] ?? "")).length} linked applications`, owner: "management-reporting", state: item.status, amountPaise: item.utilisedPaise })));
 
@@ -43,7 +45,7 @@ function sourceRecords(module: PlatformModuleDefinition, submodule: PlatformSubm
     case "SUBVENTION": return applications();
     case "FORECLOSURE": return leases("Foreclosure case register");
     case "DOCUMENTS_EVIDENCE": return key.includes("access") ? audits() : assets();
-    case "EXCEPTIONS_RECONCILIATIONS": return key.includes("reconciliation") ? integrations() : work();
+    case "EXCEPTIONS_RECONCILIATIONS": return exceptions();
     case "REPORTS_MIS": return aggregates();
     case "ADMIN": return key === "iam" ? profiles() : key === "integrations" ? integrations() : audits();
   }
@@ -85,7 +87,9 @@ function GenericModuleWorkspace({ module, submodule, snapshot, filters }: { modu
   </section>;
 }
 
-export function ModuleWorkspace({ module, submodule, snapshot, filters }: { module: PlatformModuleDefinition; submodule?: PlatformSubmoduleDefinition; snapshot: PlatformSnapshot; filters: RouteFilters }) {
+export function ModuleWorkspace({ module, submodule, snapshot: serverSnapshot, filters }: { module: PlatformModuleDefinition; submodule?: PlatformSubmoduleDefinition; snapshot: PlatformSnapshot; filters: RouteFilters }) {
+  const { snapshot } = usePlatform();
+  void serverSnapshot;
   if (module.key === "WORKBENCH") return <Workbench initialQueue={submodule?.slug} filters={filters} />;
   if (module.key === "ADMIN") return <AdminWorkspace submodule={submodule} />;
   if (module.key === "LEASES_PORTFOLIO" && submodule?.slug === "sanction-utilisation") return <SanctionUtilisationWorkspace snapshot={snapshot} />;

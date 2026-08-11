@@ -1,4 +1,5 @@
 import type { PlatformModuleKey } from "./module-registry";
+import type { PlatformSnapshot } from "./types";
 
 export type PlatformAction =
   | "READ"
@@ -122,5 +123,74 @@ export const evaluateAccess = (input: AccessEvaluationInput): AccessDecision => 
     reason: "This action requires an explicit IAM grant.",
     requiresBreakGlass,
     maskedFields: input.profile.maskedFields,
+  };
+};
+
+const employerScope = (
+  snapshot: PlatformSnapshot,
+  profile: AccessProfile,
+): Set<string> => {
+  if (
+    profile.dataScopes.some((scope) =>
+      ["ALL", "ALL_EMPLOYERS", "PORTFOLIO"].includes(scope),
+    )
+  ) {
+    return new Set(snapshot.employers.map((employer) => employer.id));
+  }
+
+  return new Set(
+    profile.dataScopes
+      .filter((scope) => scope.startsWith("EMPLOYER:"))
+      .map((scope) => scope.slice("EMPLOYER:".length)),
+  );
+};
+
+/**
+ * Authoritative read projection for the prototype boundary. Module discovery
+ * remains universal; only employer-linked records and sensitive fields are
+ * reduced before the snapshot is handed to UI consumers.
+ */
+export const projectPlatformSnapshotForProfile = (
+  source: PlatformSnapshot,
+  profile: AccessProfile,
+): PlatformSnapshot => {
+  const snapshot = structuredClone(source);
+  const employerIds = employerScope(snapshot, profile);
+  const employers = snapshot.employers.filter((record) => employerIds.has(record.id));
+  const employees = snapshot.employees
+    .filter((record) => employerIds.has(record.employerId))
+    .map((record) => ({
+      ...record,
+      payrollId: profile.maskedFields.includes("employee.payrollId") ? "REDACTED" : record.payrollId,
+      pan: profile.maskedFields.includes("employee.pan") ? "REDACTED" : record.pan,
+      bankAccount: profile.maskedFields.includes("employee.bankAccount") ? "REDACTED" : record.bankAccount,
+    }));
+  const employeeIds = new Set(employees.map((record) => record.id));
+  const applications = snapshot.applications.filter((record) => employeeIds.has(record.employeeId));
+  const applicationIds = new Set(applications.map((record) => record.id));
+  const assetIds = new Set(applications.map((record) => record.assetId));
+  const leases = snapshot.leases.filter((record) => applicationIds.has(record.applicationId));
+  const leaseIds = new Set(leases.map((record) => record.id));
+  const workItems = snapshot.workItems.filter((record) => employerIds.has(record.employerId));
+  const workItemIds = new Set(workItems.map((record) => record.id));
+  const auditEvents = snapshot.auditEvents.filter((event) => {
+    if (event.entityType === "Employer") return employerIds.has(event.entityId);
+    if (event.entityType === "Application") return applicationIds.has(event.entityId);
+    if (event.entityType === "Lease") return leaseIds.has(event.entityId);
+    if (event.entityType === "WorkItem") return workItemIds.has(event.entityId);
+    return true;
+  });
+
+  return {
+    ...snapshot,
+    employers,
+    employees,
+    applications,
+    assets: snapshot.assets.filter((record) => assetIds.has(record.id)),
+    leases,
+    workItems,
+    guidedJourneys: snapshot.guidedJourneys.filter((record) => employerIds.has(record.employerId)),
+    exceptions: snapshot.exceptions.filter((record) => employerIds.has(record.employerId)),
+    auditEvents,
   };
 };

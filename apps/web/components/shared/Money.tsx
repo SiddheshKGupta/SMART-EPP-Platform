@@ -5,6 +5,8 @@ const inr = new Intl.NumberFormat("en-IN", {
   maximumFractionDigits: 2,
 });
 
+export const formatExactInr = (paise: number): string => inr.format(paise / 100);
+
 export function Money({
   paise,
   className,
@@ -15,7 +17,7 @@ export function Money({
   const rupees = paise / 100;
   return (
     <data className={className} value={rupees}>
-      {inr.format(rupees)}
+      {formatExactInr(paise)}
     </data>
   );
 }
