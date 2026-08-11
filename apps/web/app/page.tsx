@@ -1,5 +1,5 @@
-import { CommandCentre } from "@/features/platform/command-centre/CommandCentre";
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return <CommandCentre />;
+  redirect("/command-centre");
 }

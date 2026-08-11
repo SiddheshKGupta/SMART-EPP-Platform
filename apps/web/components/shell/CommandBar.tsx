@@ -20,7 +20,7 @@ export function CommandBar() {
   const demoTrigger = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const routes = useMemo(() => PLATFORM_MODULES.flatMap((module) => {
-    const root = module.slug === "command-centre" ? "/" : `/${module.slug}`;
+    const root = `/${module.slug}`;
     return [
       { label: module.label, href: root },
       ...module.submodules.map((submodule) => ({ label: `${module.label}: ${submodule.label}`, href: platformSubmoduleHref(module, submodule) })),

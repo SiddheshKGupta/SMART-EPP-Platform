@@ -44,14 +44,14 @@ const ICONS: Record<string, LucideIcon> = {
 };
 
 function isCurrent(pathname: string, module: PlatformModuleDefinition) {
-  const href = module.slug === "command-centre" ? "/" : `/${module.slug}`;
+  const href = `/${module.slug}`;
   return href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
 }
 
 function CapabilityLink({ module, collapsed }: { module: PlatformModuleDefinition; collapsed: boolean }) {
   const pathname = usePathname();
   const Icon = ICONS[module.icon] ?? LayoutDashboard;
-  const href = module.slug === "command-centre" ? "/" : `/${module.slug}`;
+  const href = `/${module.slug}`;
   const active = isCurrent(pathname, module);
   const link = (
     <Link

@@ -5,6 +5,7 @@ import { useState, type KeyboardEvent } from "react";
 import type { PlatformSnapshot, WorkItem } from "@smart-epp/domain";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { usePlatform } from "@/features/platform/store/PlatformProvider";
+import { resolveCommandCentreView, type CommandCentreLens } from "./command-centre-route";
 
 export type CentreMetric = {
   label: string;
@@ -47,6 +48,7 @@ export function buildCommandCentreMetrics(snapshot: PlatformSnapshot) {
   const overdue = team.filter((item) => item.state === "OVERDUE");
   const approvals = queue("MY_APPROVALS");
   const alerts = queue("MY_EXCEPTIONS");
+  const integrationExceptions = snapshot.integrations.filter((item) => item.status !== "HEALTHY");
   const sanction = snapshot.employers.reduce((sum, item) => sum + item.sanctionPaise, 0);
   const utilised = snapshot.employers.reduce((sum, item) => sum + item.utilisedPaise, 0);
   const exposure = snapshot.leases.reduce((sum, item) => sum + item.rentalPaise * item.tenureMonths, 0);
@@ -59,6 +61,7 @@ export function buildCommandCentreMetrics(snapshot: PlatformSnapshot) {
       overdue: countMetric({ label: "Overdue items", meaning: "Team queue records beyond their due control state.", formula: "Count of TEAM_QUEUES work items where state = OVERDUE.", source: "PlatformSnapshot.workItems.queueKeys + state", filters: "Queue classification: Team Queues; state: OVERDUE.", breakdown: overdue.map((item) => item.id), drilldown: "/workbench?queue=team-queues&status=OVERDUE", owner: "Operations control", reconciliation: `${overdue.length} headline records = ${overdue.length} destination rows.`, exception: "Overdue status is an explicit control state.", items: overdue }),
       approvals: countMetric({ label: "Pending approvals", meaning: "Records explicitly requesting approval.", formula: "Count of work items with MY_APPROVALS provenance and requestedAction = APPROVE.", source: "PlatformSnapshot.workItems.queueKeys + requestedAction", filters: "Queue classification: My Approvals; requested action: APPROVE.", breakdown: approvals.map((item) => item.id), drilldown: "/workbench?queue=my-approvals", owner: "Approval control", reconciliation: `${approvals.length} headline records = ${approvals.length} destination rows.`, exception: "IAM and maker-checker are evaluated per destination row.", items: approvals }),
       alerts: countMetric({ label: "Control alerts", meaning: "Explicit exception-queue records requiring control attention.", formula: "Count of work items with MY_EXCEPTIONS provenance.", source: "PlatformSnapshot.workItems.queueKeys", filters: "Queue classification: My Exceptions; all explicit exception states.", breakdown: alerts.map((item) => `${item.state}: ${item.id}`), drilldown: "/workbench?queue=my-exceptions", owner: "Control assurance", reconciliation: `${alerts.length} headline records = ${alerts.length} destination rows.`, exception: "This metric is itself the explicit exception population.", items: alerts }),
+      integrations: { ...common, label: "Integration exceptions", meaning: "Mock adapters not in an explicit healthy state.", formula: "Count of integration adapters where status is not HEALTHY.", unit: "Records" as const, source: "PlatformSnapshot.integrations.status", filters: "All Lighthouse mock adapters; status != HEALTHY.", breakdown: integrationExceptions.map((item) => `${item.name}: ${item.status}`), drilldown: "/admin/integrations", owner: "Platform administration", reconciliation: `${integrationExceptions.length} headline records = ${integrationExceptions.length} non-healthy adapter rows.`, exception: "Demo-only integration telemetry; no external systems are called.", value: integrationExceptions.length },
     },
     executive: {
       health: { ...common, label: "Portfolio health", meaning: "Lease records in an explicit healthy operating state.", formula: "Count of leases where status = HEALTHY.", unit: "Records" as const, source: "PlatformSnapshot.leases.status", filters: "Registered Lease Register; status: HEALTHY.", breakdown: snapshot.leases.filter((item) => item.status === "HEALTHY").map((item) => item.id), drilldown: "/portfolio/leases?status=HEALTHY", owner: "Portfolio management", reconciliation: "Headline count equals filtered Lease Register rows.", exception: "No inferred health score; explicit status only.", value: snapshot.leases.filter((item) => item.status === "HEALTHY").length },
@@ -76,12 +79,16 @@ function Metric({ metric }: { metric: CentreMetric }) {
   ].map(([term, value]) => <div key={term}><dt>{term}</dt><dd>{value}</dd></div>)}<div><dt>Drill-down</dt><dd><Link href={metric.drilldown}>Open reconciling evidence</Link></dd></div></dl></details></article>;
 }
 
-export function CommandCentre() {
+export function CommandCentre({ viewSlug }: { viewSlug?: string }) {
   const { snapshot } = usePlatform();
-  const [lens, setLens] = useState<"operations" | "executive">("operations");
+  const view = resolveCommandCentreView(viewSlug);
+  const [lens, setLens] = useState<CommandCentreLens>(view.lens);
   const metrics = buildCommandCentreMetrics(snapshot);
   const lenses = ["operations", "executive"] as const;
-  const panels = { operations: Object.values(metrics.operations), executive: Object.values(metrics.executive) };
+  const panels = {
+    operations: Object.entries(metrics.operations).filter(([key]) => view.lens !== "operations" || lens !== "operations" || view.metricKeys.includes(key)).map(([, metric]) => metric),
+    executive: Object.entries(metrics.executive).filter(([key]) => view.lens !== "executive" || lens !== "executive" || view.metricKeys.includes(key)).map(([, metric]) => metric),
+  };
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => { const next = nextTabIndex(index, event.key, lenses.length); if (next !== index || ["Home", "End"].includes(event.key)) { event.preventDefault(); const tabs = event.currentTarget.parentElement?.querySelectorAll<HTMLElement>("[role=tab]"); setLens(lenses[next]!); requestAnimationFrame(() => tabs?.[next]?.focus()); } };
-  return <section className="command-centre" aria-labelledby="command-centre-title"><header className="page-heading"><div><span className="eyebrow">Fixed operating snapshot</span><h1 id="command-centre-title">Command Centre</h1><p>Snapshot period ending {new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(snapshot.generatedAt))}. No target, trend, or comparison is implied.</p></div><StatusBadge status="INFO" label="Source-backed snapshot" /></header><div role="tablist" aria-label="Command Centre lenses" className="command-tabs">{lenses.map((item, index) => <button key={item} id={`command-tab-${item}`} role="tab" aria-selected={lens === item} aria-controls={`command-panel-${item}`} tabIndex={lens === item ? 0 : -1} onClick={() => setLens(item)} onKeyDown={(event) => onKeyDown(event, index)}>{item === "operations" ? "Operations" : "Executive"}</button>)}</div>{lenses.map((item) => <div key={item} id={`command-panel-${item}`} role="tabpanel" aria-labelledby={`command-tab-${item}`} className="command-metric-grid" hidden={lens !== item}>{panels[item].map((metric) => <Metric key={metric.label} metric={metric} />)}</div>)}<p className="command-freshness">Freshness: generated {snapshot.generatedAt}; every headline links to its registered reconciling evidence.</p></section>;
+  return <section className="command-centre" aria-labelledby="command-centre-title"><header className="page-heading"><div><span className="eyebrow">Command Centre · Fixed operating snapshot</span><h1 id="command-centre-title">{view.title}</h1><p>{view.description} Snapshot period ending {new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(snapshot.generatedAt))}. No target, trend, or comparison is implied.</p></div><StatusBadge status="INFO" label="Source-backed snapshot" /></header><div role="tablist" aria-label="Command Centre lenses" className="command-tabs">{lenses.map((item, index) => <button key={item} id={`command-tab-${item}`} role="tab" aria-selected={lens === item} aria-controls={`command-panel-${item}`} tabIndex={lens === item ? 0 : -1} onClick={() => setLens(item)} onKeyDown={(event) => onKeyDown(event, index)}>{item === "operations" ? "Operations" : "Executive"}</button>)}</div>{lenses.map((item) => <div key={item} id={`command-panel-${item}`} role="tabpanel" aria-labelledby={`command-tab-${item}`} className="command-metric-grid" hidden={lens !== item}>{panels[item].map((metric) => <Metric key={metric.label} metric={metric} />)}</div>)}<p className="command-freshness">Freshness: generated {snapshot.generatedAt}; every headline links to its registered reconciling evidence.</p></section>;
 }
