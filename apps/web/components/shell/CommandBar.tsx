@@ -38,12 +38,15 @@ export function CommandBar() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  useEffect(() => {
+    registerJourneyTrigger(demoTrigger.current);
+    return () => registerJourneyTrigger(null);
+  }, [registerJourneyTrigger]);
+
   const navigate = (href: string) => { setOpen(false); router.push(href); };
   const startDemoJourney = () => {
     const journey = snapshot.guidedJourneys[0];
-    registerJourneyTrigger(demoTrigger.current);
     if (journey) startJourney(journey.id);
-    router.push("/");
   };
 
   return (
