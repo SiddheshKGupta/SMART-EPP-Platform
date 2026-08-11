@@ -10,6 +10,7 @@ import { Workbench } from "@/features/platform/workbench/Workbench";
 import { AdminWorkspace } from "@/features/platform/admin/AdminWorkspace";
 import { usePlatform } from "@/features/platform/store/PlatformProvider";
 import { OriginationWorkspace } from "@/features/platform/origination/OriginationWorkspace";
+import { CapabilityOperationsWorkspace } from "@/features/platform/workspaces/CapabilityOperationsWorkspace";
 
 export type WorkspaceRecord = { id: string; title: string; context: string; owner: string; state: OperatingState | null; sourceStatus?: string; amountPaise: number; source: string };
 export type WorkspaceView = { records: WorkspaceRecord[]; totalPaise: number; pending: number; filters: { q: string; status: OperatingState | "" } };
@@ -95,5 +96,6 @@ export function ModuleWorkspace({ module, submodule, snapshot: serverSnapshot, f
   if (module.key === "ADMIN") return <AdminWorkspace submodule={submodule} />;
   if (module.key === "LEASES_PORTFOLIO" && submodule?.slug === "sanction-utilisation") return <SanctionUtilisationWorkspace snapshot={snapshot} />;
   if (["EMPLOYER_PROGRAMMES", "EMPLOYEES", "APPLICATIONS_ELIGIBILITY"].includes(module.key)) return <OriginationWorkspace module={module} submodule={submodule} snapshot={snapshot} filters={filters} profile={activeProfile} />;
+  if (["ASSETS_PARTNERS", "ORDERS_APPROVALS", "LEASES_PORTFOLIO", "BILLING_COLLECTIONS", "SUBVENTION", "FORECLOSURE", "DOCUMENTS_EVIDENCE", "EXCEPTIONS_RECONCILIATIONS", "REPORTS_MIS"].includes(module.key)) return <CapabilityOperationsWorkspace module={module} submodule={submodule} snapshot={snapshot} />;
   return <GenericModuleWorkspace module={module} submodule={submodule} snapshot={snapshot} filters={filters} />;
 }
