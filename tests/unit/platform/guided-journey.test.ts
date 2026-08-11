@@ -64,11 +64,16 @@ describe("Northstar guided journey", () => {
     }
   });
 
-  test("accepts null trigger registration and never focuses a detached trigger", () => {
+  test("accepts null trigger registration and retains a connected focus target across exits", () => {
     const register: PlatformContextValue["registerJourneyTrigger"] = () => undefined;
     expect(register(null)).toBeUndefined();
     const detached = { isConnected: false, focus: () => { throw new Error("must not focus"); } } as unknown as HTMLElement;
     expect(focusJourneyTrigger(detached)).toBeNull();
     expect(focusJourneyTrigger(null)).toBeNull();
+    let focusCount = 0;
+    const connected = { isConnected: true, focus: () => { focusCount += 1; } } as unknown as HTMLElement;
+    expect(focusJourneyTrigger(connected)).toBe(connected);
+    expect(focusJourneyTrigger(connected)).toBe(connected);
+    expect(focusCount).toBe(2);
   });
 });

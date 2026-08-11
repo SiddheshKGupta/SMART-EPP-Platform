@@ -175,10 +175,10 @@ export function transitionJourneyStep(
   };
 }
 
-export function focusJourneyTrigger(trigger: HTMLElement | null): null {
+export function focusJourneyTrigger(trigger: HTMLElement | null): HTMLElement | null {
   if (!trigger?.isConnected) return null;
   trigger.focus();
-  return null;
+  return trigger;
 }
 
 export function simulateIntegrationSnapshot(
@@ -238,8 +238,9 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
     activeJourneyRef.current = null;
     setActiveJourneyId(null);
     const trigger = journeyTriggerRef.current;
-    journeyTriggerRef.current = null;
-    requestAnimationFrame(() => focusJourneyTrigger(trigger));
+    requestAnimationFrame(() => {
+      journeyTriggerRef.current = focusJourneyTrigger(trigger);
+    });
   }, []);
 
   const registerJourneyTrigger = useCallback((element: HTMLElement | null) => {
