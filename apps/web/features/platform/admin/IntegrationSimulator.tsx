@@ -1,0 +1,14 @@
+"use client";
+
+import { evaluateAccess } from "@smart-epp/domain";
+import { StatusBadge, type SemanticStatus } from "@/components/shared/StatusBadge";
+import { usePlatform } from "@/features/platform/store/PlatformProvider";
+
+const tone: Record<"HEALTHY" | "PARTIAL" | "FAILED", SemanticStatus> = { HEALTHY: "APPROVED", PARTIAL: "ATTENTION", FAILED: "CRITICAL" };
+const label = (status: "HEALTHY" | "PARTIAL" | "FAILED") => status.charAt(0) + status.slice(1).toLowerCase();
+
+export function IntegrationSimulator() {
+  const { snapshot, activeProfile, simulateIntegration } = usePlatform();
+  const permitted = evaluateAccess({ profile: activeProfile, module: "ADMIN", action: "CONFIGURE" }).allowed;
+  return <section className="admin-workspace integration-simulator" aria-labelledby="integration-title"><header className="page-heading"><div><span className="eyebrow">Integration control simulation</span><h1 id="integration-title">Integrations</h1><p><strong>Demo only</strong> — No live connection or credential is used.</p></div><StatusBadge status="INFO" label="MOCK only" /></header><div className="demo-notice" role="note"><strong>Demo only</strong><span>No live connection or credential is used</span></div><div className="operations-table-scroll"><table><thead><tr><th>Adapter</th><th>Source status</th><th>Last sync</th><th>Accepted / rejected / pending</th><th>Sample synthetic payload</th><th>Simulation</th></tr></thead><tbody>{snapshot.integrations.map((adapter) => <tr key={adapter.id}><td><strong>{adapter.name}</strong><br /><span className="text-muted">Mode: MOCK</span></td><td><StatusBadge status={tone[adapter.status]} label={label(adapter.status)} /></td><td>{adapter.lastSyncAt}</td><td>{adapter.accepted} / {adapter.rejected} / {adapter.pending}</td><td><details><summary>Inspect redacted payload</summary><code>{`{ "mode": "MOCK", "adapter": "${adapter.id}", "recordRef": "SYNTHETIC-001", "value": "REDACTED" }`}</code></details></td><td><div className="integration-actions"><button disabled={!permitted} title={permitted ? undefined : "Requires IAM permission"} onClick={() => simulateIntegration(adapter.id, "PARTIAL")}>Simulate partial failure</button><button disabled={!permitted} title={permitted ? undefined : "Requires IAM permission"} onClick={() => simulateIntegration(adapter.id, "SUCCESS")}>Retry mock sync</button>{!permitted && <span className="permission-denied">Requires IAM permission</span>}</div></td></tr>)}</tbody></table></div><section className="admin-audit" aria-labelledby="admin-audit-title"><h2 id="admin-audit-title">Local synthetic audit</h2><p>React-only activity using the fixed snapshot timestamp; no secrets are captured.</p><ul>{snapshot.auditEvents.filter((event) => event.entityType === "IntegrationAdapter").map((event) => <li key={event.id}>{event.occurredAt} · {event.actorId} · {event.entityId} · {event.action}</li>)}</ul></section></section>;
+}

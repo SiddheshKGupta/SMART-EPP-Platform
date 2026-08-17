@@ -9,7 +9,7 @@
     "dev": "npm run dev --workspace apps/web",
     "build": "npm run build --workspace apps/web",
     "lint": "npm run lint --workspace apps/web",
-    "typecheck": "npm run typecheck --workspace apps/web",
+    "typecheck": "npm run typecheck --workspace apps/web && npm run typecheck --workspace packages/domain",
     "test": "vitest run",
     "test:e2e": "playwright test"
   },

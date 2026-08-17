@@ -1,1 +1,7 @@
-import Link from "next/link"; import type {ReactNode} from "react"; const nav=[["Command Centre","/"],["Onboarding","/onboarding"],["Foreclosure","/foreclosure"],["Subvention","/subvention"]]; export function AppShell({children}:{children:ReactNode}){return <div className="shell"><aside className="sidebar"><div className="brand">Smart EPP</div><div className="nav-section">Operations</div>{nav.map(([l,h])=><Link className="nav-item" href={h} key={h}>{l}</Link>)}<div className="nav-section">Controls</div><span className="nav-item">Exceptions</span><span className="nav-item">Reconciliations</span><span className="nav-item">Audit Trail</span></aside><main><header className="topbar"><div>Connect Leasing · Enterprise Operations</div><div>Management View</div></header><div className="content">{children}</div></main></div>}
+import type { ReactNode } from "react";
+import { PlatformShell } from "@/components/shell/PlatformShell";
+import type { PlatformSnapshot } from "@smart-epp/domain";
+
+export function AppShell({ children, initialSnapshot }: { children: ReactNode; initialSnapshot?: PlatformSnapshot }) {
+  return <PlatformShell initialSnapshot={initialSnapshot}>{children}</PlatformShell>;
+}

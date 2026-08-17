@@ -1,1 +1,3 @@
-export default function Page(){return <><h1 className="page-title">Onboarding & Programme Readiness</h1><p className="page-subtitle">Employer suitability, credit, legal, tax, finance, platform and go-live readiness.</p></>}
+import { redirect } from "next/navigation";
+
+export default function Page() { redirect("/programmes/readiness"); }
